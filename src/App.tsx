@@ -10,6 +10,7 @@ import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { MainLayout } from './components/layout/MainLayout';
+import ProyectosPage from './pages/ProyectosPage';
 
 function App() {
   const setSession = useAuthStore((state) => state.setSession);
@@ -49,16 +50,16 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        
+
         <Route element={<ProtectedRoute />}>
-  {/* El MainLayout contiene el Sidebar y el Outlet para las páginas */}
-  <Route element={<MainLayout />}>
-    <Route path="/dashboard" element={<DashboardPage />} />
-    {/* <Route path="/solicitudes" element={<SolicitudesPage />} /> */}
-    <Route path="/proveedores" element={<div className="p-4">Sección Proveedores</div>} />
-    <Route path="/proyectos" element={<div className="p-4">Sección Proyectos</div>} />
-  </Route>
-</Route>
+          {/* El MainLayout contiene el Sidebar y el Outlet para las páginas */}
+          <Route element={<MainLayout />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            {/* <Route path="/solicitudes" element={<SolicitudesPage />} /> */}
+            <Route path="/proveedores" element={<div className="p-4">Sección Proveedores</div>} />
+            <Route path="/proyectos" element={<ProyectosPage/>} />
+          </Route>
+        </Route>
 
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
