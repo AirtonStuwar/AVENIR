@@ -1,12 +1,14 @@
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, FileText, Users, Briefcase, LogOut, X } from 'lucide-react';
 import { supabase } from '../../api/supabase';
+import { useAuthStore } from '../../store/authStore';
 
+// 🎯 CONFIGURACIÓN CENTRAL DE MENÚ + ROLES
 const menuItems = [
-  { name: 'Dashboard',    path: '/dashboard',   icon: LayoutDashboard },
-  { name: 'Solicitudes',  path: '/solicitudes',  icon: FileText },
-  { name: 'Proveedores',  path: '/proveedores',  icon: Users },
-  { name: 'Proyectos',    path: '/proyectos',    icon: Briefcase },
+  { name: 'Dashboard',   path: '/dashboard',   icon: LayoutDashboard },
+  { name: 'Solicitudes', path: '/solicitudes', icon: FileText, roles: [1, 2, 3, 4 , 5 ] },
+  { name: 'Proveedores', path: '/proveedores', icon: Users, roles: [1, 2, 5] },
+  { name: 'Proyectos',   path: '/proyectos',   icon: Briefcase, roles: [1, 5] }, // 🔒 SOLO GERENCIA
 ];
 
 interface SidebarProps {
@@ -15,9 +17,18 @@ interface SidebarProps {
 }
 
 export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
+  const userRole = useAuthStore((state) => state.userRole);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
+
+  // 🔥 FILTRADO POR ROLES
+  const filteredMenu = menuItems.filter((item) => {
+    if (!item.roles) return true;
+    if (userRole === null) return false;
+    return item.roles.includes(userRole);
+  });
 
   return (
     <>
@@ -35,22 +46,25 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0
       `}>
-        {/* Logo */}
+        
+        {/* LOGO */}
         <div className="flex items-center justify-between px-5 pt-6 pb-5">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 bg-white/15 rounded-xl flex items-center justify-center">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
                 stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
                 <polyline points="9 22 9 12 15 12 15 22"/>
               </svg>
             </div>
-            <span className="text-white text-[18px] font-semibold tracking-tight">AVENIR</span>
+            <span className="text-white text-[18px] font-semibold tracking-tight">
+              AVENIR
+            </span>
           </div>
-          {/* Cerrar en móvil */}
+
           <button
             onClick={onClose}
-            className="lg:hidden text-white/60 hover:text-white transition-colors"
+            className="lg:hidden text-white/60 hover:text-white"
           >
             <X size={20} />
           </button>
@@ -58,9 +72,9 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
         <div className="h-px bg-white/10 mx-5 mb-4" />
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 flex flex-col gap-0.5">
-          {menuItems.map((item) => (
+        {/* NAV */}
+        <nav className="flex-1 px-3 flex flex-col gap-1">
+          {filteredMenu.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
@@ -70,7 +84,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
                 transition-all group
                 ${isActive
                   ? 'bg-white/15 text-white'
-                  : 'text-white/65 hover:bg-white/8 hover:text-white'}
+                  : 'text-white/65 hover:bg-white/10 hover:text-white'}
               `}
             >
               {({ isActive }) => (
@@ -86,7 +100,7 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
           ))}
         </nav>
 
-        {/* Footer */}
+        {/* FOOTER */}
         <div className="px-3 pb-6">
           <div className="h-px bg-white/10 mb-3" />
           <button

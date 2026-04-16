@@ -49,7 +49,7 @@ export const Topbar = ({ onMenuClick, notificationCount = 3 }: TopbarProps) => {
         {/* Avatar */}
         <div className="w-8 h-8 rounded-full bg-[#003D7D] flex items-center justify-center
           text-white text-xs font-medium cursor-pointer select-none">
-          JD
+          AV
         </div>
       </div>
     </header>
