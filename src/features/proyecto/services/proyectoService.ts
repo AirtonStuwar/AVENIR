@@ -1,24 +1,24 @@
 import { supabase } from '../../../api/supabase'
 import type { Proyecto, ProyectoInsert, ProyectoUpdate, ProyectoFiltros, ProyectoPaginado } from '../types/proyecto'
 
-const TABLE = 'proyectos'
+const TABLE = 'proyecto'
 
 export async function getProyectos(filtros: ProyectoFiltros = {}): Promise<ProyectoPaginado> {
-  const { search, activo, page = 1, pageSize = 10 } = filtros
+  const { search, estado, page = 1, pageSize = 10 } = filtros
   const from = (page - 1) * pageSize
   const to   = from + pageSize - 1
 
   let query = supabase
     .from(TABLE)
     .select('*', { count: 'exact' })
-    .order('creado_en', { ascending: false })
+    .order('fecha_creacion', { ascending: false })
     .range(from, to)
 
   if (search) {
-    query = query.or(`nombre.ilike.%${search}%,codigo.ilike.%${search}%,descripcion.ilike.%${search}%`)
+    query = query.or(`nombre.ilike.%${search}%,codigo.ilike.%${search}%,descripcion.ilike.%${search}%,ruc.ilike.%${search}%`)
   }
-  if (activo !== undefined && activo !== null) {
-    query = query.eq('activo', activo)
+  if (estado !== undefined && estado !== null) {
+    query = query.eq('estado', estado)
   }
 
   const { data, error, count } = await query
@@ -53,6 +53,7 @@ export async function deleteProyecto(id: number): Promise<void> {
   if (error) throw error
 }
 
-export async function toggleProyectoActivo(id: number, activo: boolean): Promise<Proyecto> {
-  return updateProyecto(id, { activo })
+export async function toggleProyectoEstado(id: number, currentEstado: string | null): Promise<Proyecto> {
+  const nuevo = currentEstado === 'Activo' ? 'Inactivo' : 'Activo'
+  return updateProyecto(id, { estado: nuevo })
 }

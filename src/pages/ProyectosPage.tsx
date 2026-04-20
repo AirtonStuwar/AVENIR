@@ -8,8 +8,8 @@ import type { Proyecto }    from '../features/proyecto/types/proyecto'
 export default function ProyectosPage() {
   const {
     data, total, page, pageSize, totalPages, loading,
-    setPage, setSearch, setActivoFilter, refresh,
-    create, update, remove, toggleActivo,
+    setPage, setSearch, setEstadoFilter, refresh,
+    create, update, remove, toggleEstado,
   } = useProyectos()
 
   const [modalOpen,    setModalOpen]    = useState(false)
@@ -32,8 +32,8 @@ export default function ProyectosPage() {
       <ProyectosTable
         data={data} total={total} page={page} pageSize={pageSize}
         totalPages={totalPages} loading={loading}
-        onEdit={handleEdit} onDelete={handleDelete} onToggle={toggleActivo}
-        onCreate={handleCreate} onSearch={setSearch} onFilter={setActivoFilter}
+        onEdit={handleEdit} onDelete={handleDelete} onToggle={toggleEstado}
+        onCreate={handleCreate} onSearch={setSearch} onFilter={setEstadoFilter}
         onPageChange={setPage} onRefresh={refresh}
       />
       <ProyectoModal

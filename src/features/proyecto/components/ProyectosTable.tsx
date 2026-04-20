@@ -28,7 +28,7 @@ interface Props {
   onToggle:     (p: Proyecto) => void
   onCreate:     () => void
   onSearch:     (q: string) => void
-  onFilter:     (activo: boolean | null) => void
+  onFilter:     (estado: string | null) => void
   onPageChange: (page: number) => void
   onRefresh:    () => void
 }
@@ -47,7 +47,7 @@ export default function ProyectosTable({
   const handleFilter = (val: 'all' | 'active' | 'inactive') => {
     setActivoSel(val)
     setFilterOpen(false)
-    onFilter(val === 'all' ? null : val === 'active')
+    onFilter(val === 'all' ? null : val === 'active' ? 'Activo' : 'Inactivo')
   }
 
   const fromItem = total === 0 ? 0 : (page - 1) * pageSize + 1
@@ -136,7 +136,7 @@ export default function ProyectosTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[#003D7D]/[0.03] border-b border-gray-100">
-              {['Código', 'Nombre', 'Presupuesto', 'Inicio', 'Fin Est.', 'Estado', ''].map((h) => (
+                {['Código', 'Nombre', 'Presupuesto', 'Inicio', 'Fin', 'Estado', ''].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">
                   {h}
                 </th>
@@ -192,21 +192,21 @@ export default function ProyectosTable({
                 </td>
 
                 <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(p.fecha_inicio)}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(p.fecha_fin_est)}</td>
+                <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate((p as any).fecha_fin)}</td>
 
                 <td className="px-4 py-3">
                   <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold
-                    ${p.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${p.activo ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                    {p.activo ? 'Activo' : 'Inactivo'}
+                    ${p.estado === 'Activo' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${p.estado === 'Activo' ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                    {p.estado ?? '—'}
                   </span>
                 </td>
 
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1 justify-end">
-                    <button onClick={() => onToggle(p)} title={p.activo ? 'Desactivar' : 'Activar'}
+                    <button onClick={() => onToggle(p)} title={p.estado === 'Activo' ? 'Desactivar' : 'Activar'}
                       className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
-                      {p.activo ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
+                      {p.estado === 'Activo' ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}
                     </button>
                     <button onClick={() => onEdit(p)} title="Editar"
                       className="p-1.5 rounded-lg hover:bg-[#003D7D]/8 text-gray-400 hover:text-[#003D7D] transition-colors">

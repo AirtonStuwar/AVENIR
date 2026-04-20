@@ -1,21 +1,24 @@
 export interface Proyecto {
   id: number
-  codigo: string
+  codigo: string | null
   nombre: string
   descripcion: string | null
   presupuesto: number | null
   fecha_inicio: string | null
-  fecha_fin_est: string | null
-  activo: boolean | null
-  creado_en: string | null
+  fecha_fin: string | null
+  estado: string | null
+  ruc: string | null
+  direccion: string | null
+  fecha_creacion: string | null
+  usuario_creador: string | null
 }
 
-export type ProyectoInsert = Omit<Proyecto, 'id' | 'creado_en'>
+export type ProyectoInsert = Omit<Proyecto, 'id' | 'fecha_creacion'>
 export type ProyectoUpdate = Partial<ProyectoInsert>
 
 export interface ProyectoFiltros {
   search?: string
-  activo?: boolean | null
+  estado?: string | null
   page?: number
   pageSize?: number
 }
