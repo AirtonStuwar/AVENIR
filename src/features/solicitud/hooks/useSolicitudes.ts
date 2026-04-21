@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { getSolicitudes, createSolicitud } from '../services/solicitudService'
+import { getSolicitudes, createSolicitud, updateSolicitud, deleteSolicitud } from '../services/solicitudService'
 import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado } from '../types/solicitud'
 
 const DEFAULT_PAGE_SIZE = 10
@@ -46,5 +46,29 @@ export function useSolicitudes(filtrosIniciales: SolicitudFiltros = {}) {
     }
   }
 
-  return { ...result, loading, filtros, setPage, setSearch, setProyectoFilter, refresh, create }
+  const update = async (id: number, payload: SolicitudUpdate): Promise<Solicitud | null> => {
+    try {
+      const actualizado = await updateSolicitud(id, payload)
+      toast.success('Solicitud actualizada.')
+      refresh()
+      return actualizado
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al actualizar.')
+      return null
+    }
+  }
+
+  const remove = async (id: number): Promise<boolean> => {
+    try {
+      await deleteSolicitud(id)
+      toast.success('Solicitud eliminada.')
+      refresh()
+      return true
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al eliminar.')
+      return false
+    }
+  }
+
+  return { ...result, loading, filtros, setPage, setSearch, setProyectoFilter, refresh, create, update, remove }
 }

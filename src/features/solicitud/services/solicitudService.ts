@@ -11,7 +11,7 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
   // Select related names from proyecto, solicitud_tipo and estado_soli
   let query: any = supabase
     .from(TABLE)
-    .select('*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre)', { count: 'exact' })
+    .select('*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo)', { count: 'exact' })
     .order('fecha_creacion', { ascending: false })
     .range(from, to)
 
@@ -37,7 +37,7 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
 export async function getSolicitudById(id: number): Promise<Solicitud> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select('*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre)')
+    .select('*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo)')
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
@@ -55,7 +55,7 @@ export async function getSolicitudById(id: number): Promise<Solicitud> {
 export async function createSolicitud(payload: SolicitudInsert): Promise<Solicitud> {
   const { detalles, ...rest } = payload as any
 
-  const { data, error } = await supabase.from(TABLE).insert(rest).select('*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre)').maybeSingle()
+  const { data, error } = await supabase.from(TABLE).insert(rest).select('*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo)').maybeSingle()
   if (error) throw error
 
   const created = data as Solicitud

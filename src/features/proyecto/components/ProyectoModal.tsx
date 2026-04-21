@@ -12,6 +12,7 @@ interface Props {
 const EMPTY: ProyectoInsert = {
   codigo: '', nombre: '', descripcion: null,
   presupuesto: null, fecha_inicio: null, fecha_fin: null, estado: 'Activo', ruc: null, direccion: null,
+  usuario_creador: null,
 }
 
 export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Props) {
@@ -26,8 +27,9 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
       setForm({
         codigo: proyecto.codigo ?? '', nombre: proyecto.nombre,
         descripcion: proyecto.descripcion ?? null, presupuesto: proyecto.presupuesto ?? null,
-        fecha_inicio: proyecto.fecha_inicio ?? null, fecha_fin: (proyecto as any).fecha_fin ?? null,
+        fecha_inicio: proyecto.fecha_inicio ?? null, fecha_fin: proyecto.fecha_fin ?? null,
         estado: proyecto.estado ?? 'Activo', ruc: proyecto.ruc ?? null, direccion: proyecto.direccion ?? null,
+        usuario_creador: proyecto.usuario_creador ?? null,
       })
     } else {
       setForm(EMPTY)
@@ -128,7 +130,7 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Fecha fin</label>
-                <input className={inputCls()} type="date" value={(form as any).fecha_fin ?? ''}
+                <input className={inputCls()} type="date" value={form.fecha_fin ?? ''}
                   onChange={(e) => set('fecha_fin', e.target.value || null)} />
             </div>
             </div>

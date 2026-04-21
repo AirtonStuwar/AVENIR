@@ -32,7 +32,7 @@ export const DashboardPage = () => {
       }
 
       const { data, error } = await supabase
-        .from('proyectos')
+        .from('proyecto')
         .select('*')
         .limit(10);
 

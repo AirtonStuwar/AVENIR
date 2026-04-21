@@ -1,20 +1,22 @@
-import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import SolicitudesTable from '../features/solicitud/components/SolicitudesTable'
-import SolicitudDetalleEditor from '../features/solicitud/components/SolicitudDetalleEditor'
 import { useSolicitudes } from '../features/solicitud/hooks/useSolicitudes'
-import SolicitudModal from '../features/solicitud/components/SolicitudModal'
+import type { Solicitud } from '../features/solicitud/types/solicitud'
+
+const ESTADO_CANCELADO = 5
 
 export default function SolicitudesPage() {
-	const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, refresh, create } = useSolicitudes()
-	const [modalOpen, setModalOpen] = useState(false)
-	const [detalleOpen, setDetalleOpen] = useState(false)
-	const [currentSolicitudId, setCurrentSolicitudId] = useState<number | null>(null)
+	const navigate = useNavigate()
+	const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, refresh, update } = useSolicitudes()
 
-	const handleCreate = async (payload: any) => {
-		const nuevo = await create(payload)
-		if (nuevo && nuevo.id) {
-			setCurrentSolicitudId(nuevo.id)
-			setDetalleOpen(true)
+	const handleCancel = async (s: Solicitud) => {
+		if (!confirm(`¿Cancelar la solicitud ${s.codigo ?? `#${s.id}`}? Esta acción no se puede deshacer.`)) return
+		try {
+			await update(s.id, { estado_id: ESTADO_CANCELADO })
+			toast.success('Solicitud cancelada')
+		} catch {
+			toast.error('No se pudo cancelar la solicitud')
 		}
 	}
 
@@ -30,18 +32,10 @@ export default function SolicitudesPage() {
 				onSearch={setSearch}
 				onPageChange={(p) => setPage(p)}
 				onRefresh={refresh}
-				onCreate={() => setModalOpen(true)}
+				onCreate={() => navigate('/solicitudes/nueva')}
+				onView={(s) => navigate(`/solicitudes/${s.id}`)}
+				onCancel={handleCancel}
 			/>
-
-			<SolicitudModal open={modalOpen} onClose={() => setModalOpen(false)} onCreate={handleCreate} />
-
-			{currentSolicitudId !== null && (
-				<SolicitudDetalleEditor
-					solicitudId={currentSolicitudId}
-					open={detalleOpen}
-					onClose={() => { setDetalleOpen(false); setCurrentSolicitudId(null); refresh() }}
-				/>
-			)}
 		</div>
 	)
 }

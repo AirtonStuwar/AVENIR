@@ -18,7 +18,6 @@ export interface Solicitud {
   porcentaje_pendiente_contrato: number | null
   condiciones: string | null
   fecha_pedido: string | null
-  solicitante: string | null
   fecha_requerida: string | null
   prioridad: string | null
   estado_id: number | null
@@ -29,7 +28,7 @@ export interface Solicitud {
   comentario_gerencia: string | null
   proyecto?: { id: number; nombre: string } | null
   solicitud_tipo?: { id: number; nombre: string } | null
-  estado_soli?: { id: number; nombre: string } | null
+  estado_soli?: { id: number; nombre: string; tipo: string | null } | null
   detalles?: SolicitudDetalle[]
 }
 
@@ -47,8 +46,18 @@ export interface SolicitudDetalle {
 
 export type SolicitudDetalleInsert = Omit<SolicitudDetalle, 'id' | 'valor_total' | 'fecha_creacion'>
 
-export type SolicitudInsert = Omit<Solicitud, 'id' | 'fecha_creacion'> & { detalles?: SolicitudDetalleInsert[] }
-export type SolicitudUpdate = Partial<SolicitudInsert>
+export type SolicitudInsert = Omit<
+  Solicitud,
+  | 'id'
+  | 'fecha_creacion'
+  | 'codigo'               // auto-generado por trigger
+  | 'estado_id'            // default 1 en BD
+  | 'comentario_gerencia'  // lo llena gerencia al aprobar
+  | 'fecha_aprobacion'     // se completa al aprobar
+  | 'usuario_aprobador'    // se completa al aprobar
+> & { detalles?: SolicitudDetalleInsert[] }
+
+export type SolicitudUpdate = Partial<Omit<Solicitud, 'id' | 'fecha_creacion'>>
 
 export interface SolicitudFiltros {
   search?: string

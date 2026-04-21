@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, RefreshCw, FolderOpen } from 'lucide-react'
+import { Search, RefreshCw, FolderOpen, FileText, XCircle } from 'lucide-react'
 import type { Solicitud } from '../types/solicitud'
 
 function fmtDate(d: string | null): string {
@@ -15,13 +15,14 @@ interface Props {
   totalPages: number
   loading: boolean
   onView?: (s: Solicitud) => void
+  onCancel?: (s: Solicitud) => void
   onCreate?: () => void
   onSearch: (q: string) => void
   onPageChange: (page: number) => void
   onRefresh: () => void
 }
 
-export default function SolicitudesTable({ data, total, page, pageSize, totalPages, loading, onSearch, onPageChange, onRefresh, onCreate }: Props) {
+export default function SolicitudesTable({ data, total, page, pageSize, totalPages, loading, onSearch, onPageChange, onRefresh, onCreate, onView, onCancel }: Props) {
   const [searchVal, setSearchVal] = useState('')
 
   const fromItem = total === 0 ? 0 : (page - 1) * pageSize + 1
@@ -66,31 +67,54 @@ export default function SolicitudesTable({ data, total, page, pageSize, totalPag
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[#003D7D]/[0.03] border-b border-gray-100">
-              {['Código', 'Razón social', 'RUC', 'Proyecto', 'Fecha pedido', 'Prioridad', 'Estado'].map((h) => (
+              {['Código', 'Razón social', 'RUC', 'Proyecto', 'Fecha pedido', 'Prioridad', 'Estado', ''].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading && data.length === 0 && (
-              <tr><td colSpan={7} className="py-16 text-center"><div className="flex flex-col items-center gap-3 text-gray-400"><RefreshCw size={28} className="animate-spin text-[#003D7D]/30" /><span className="text-sm">Cargando solicitudes…</span></div></td></tr>
+              <tr><td colSpan={8} className="py-16 text-center"><div className="flex flex-col items-center gap-3 text-gray-400"><RefreshCw size={28} className="animate-spin text-[#003D7D]/30" /><span className="text-sm">Cargando solicitudes…</span></div></td></tr>
             )}
 
             {!loading && data.length === 0 && (
-              <tr><td colSpan={7} className="py-16 text-center"><div className="flex flex-col items-center gap-2"><FolderOpen size={32} className="text-gray-200" /><p className="text-sm font-medium text-gray-500">No hay solicitudes</p></div></td></tr>
+              <tr><td colSpan={8} className="py-16 text-center"><div className="flex flex-col items-center gap-2"><FolderOpen size={32} className="text-gray-200" /><p className="text-sm font-medium text-gray-500">No hay solicitudes</p></div></td></tr>
             )}
 
-            {data.map((s, i) => (
-              <tr key={s.id} className={`border-b border-gray-50 transition-colors hover:bg-[#003D7D]/[0.02] ${i % 2 !== 0 ? 'bg-gray-50/40' : ''}`}>
-                <td className="px-4 py-3"><span className="font-mono text-xs bg-[#003D7D]/8 text-[#003D7D] px-2 py-0.5 rounded-md">{s.codigo ?? '—'}</span></td>
-                <td className="px-4 py-3 max-w-[220px]"><p className="font-medium text-gray-900 truncate">{s.razon_social ?? '—'}</p></td>
-                <td className="px-4 py-3 whitespace-nowrap text-gray-700 text-sm">{s.ruc ?? '—'}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{s.proyecto?.nombre ?? s.proyecto_id ?? '—'}</td>
-                <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(s.fecha_pedido)}</td>
-                <td className="px-4 py-3"><span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-gray-100 text-gray-700">{s.prioridad ?? 'Media'}</span></td>
-                <td className="px-4 py-3 text-right text-xs text-gray-500">{s.estado_soli?.nombre ?? s.estado_id ?? '—'}</td>
-              </tr>
-            ))}
+            {data.map((s, i) => {
+              const isPendiente  = s.estado_soli?.tipo === 'Pendiente'
+              return (
+                <tr key={s.id} onClick={() => onView?.(s)} className={`border-b border-gray-50 transition-colors hover:bg-[#003D7D]/[0.04] ${onView ? 'cursor-pointer' : ''} ${i % 2 !== 0 ? 'bg-gray-50/40' : ''}`}>
+                  <td className="px-4 py-3"><span className="font-mono text-xs bg-[#003D7D]/8 text-[#003D7D] px-2 py-0.5 rounded-md">{s.codigo ?? '—'}</span></td>
+                  <td className="px-4 py-3 max-w-[220px]"><p className="font-medium text-gray-900 truncate">{s.razon_social ?? '—'}</p></td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-700 text-sm">{s.ruc ?? '—'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{s.proyecto?.nombre ?? s.proyecto_id ?? '—'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(s.fecha_pedido)}</td>
+                  <td className="px-4 py-3"><span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-gray-100 text-gray-700">{s.prioridad ?? 'Media'}</span></td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{s.estado_soli?.nombre ?? s.estado_id ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => onView?.(s)}
+                        title="Ver detalles"
+                        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-[#003D7D] bg-[#003D7D]/8 hover:bg-[#003D7D]/15 transition-colors"
+                      >
+                        <FileText size={12} /> Ver
+                      </button>
+
+                      <button
+                        onClick={() => onCancel?.(s)}
+                        disabled={!isPendiente}
+                        title={!isPendiente ? 'Solo se puede cancelar en estado Pendiente' : 'Cancelar solicitud'}
+                        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        <XCircle size={12} /> Cancelar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>

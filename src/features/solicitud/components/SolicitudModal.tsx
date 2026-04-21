@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { getProyectos } from '../../proyecto/services/proyectoService'
 import { supabase } from '../../../api/supabase'
+import { useAuthStore } from '../../../store/authStore'
 import type { Proyecto } from '../../proyecto/types/proyecto'
 import type { SolicitudInsert } from '../types/solicitud'
 
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export default function SolicitudModal({ open, onClose, onCreate }: Props) {
+  const user = useAuthStore((s) => s.user)
   const [loading, setLoading] = useState(false)
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
 
@@ -27,18 +29,14 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
   const [numero_cuenta, setNumeroCuenta] = useState('')
   const [cuenta_detracciones, setCuentaDetracciones] = useState('')
   const [forma_pago, setFormaPago] = useState('')
-  const [porcentaje_contrato, setPorcentajeContrato] = useState<number | null>(null)
-  const [porcentaje_acumulado_contrato, setPorcentajeAcumuladoContrato] = useState<number | null>(null)
-  const [porcentaje_pendiente_contrato, setPorcentajePendienteContrato] = useState<number | null>(null)
-  const [condiciones, setCondiciones] = useState('')
-  const [solicitante, setSolicitante] = useState('')
+  const [porcentaje_contrato, setPorcentajeContrato] = useState<number | null>(100)
+  const [porcentaje_acumulado_contrato, setPorcentajeAcumuladoContrato] = useState<number | null>(0)
+  const [porcentaje_pendiente_contrato, setPorcentajePendienteContrato] = useState<number | null>(100)
+  const [condiciones, setCondiciones] = useState('Se penalizara el retraso o incumplimiento de algun acuerdo en la fecha de entrega acordada')
   const [fecha_pedido, setFechaPedido] = useState('')
   const [fecha_requerida, setFechaRequerida] = useState('')
   const [prioridad, setPrioridad] = useState('Media')
-  const [estado_id, setEstadoId] = useState<number | null>(null)
-  const [comentario_gerencia, setComentarioGerencia] = useState('')
   const [tipos, setTipos] = useState<Array<{id:number;nombre:string}>>([])
-  const [estados, setEstados] = useState<Array<{id:number;nombre:string}>>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   const clearErrors = () => setErrors({})
@@ -50,9 +48,7 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
         const res = await getProyectos({ page: 1, pageSize: 500 })
         setProyectos(res.data)
         const { data: tiposData } = await supabase.from('solicitud_tipo').select('id,nombre').order('nombre')
-        const { data: estadosData } = await supabase.from('estado_soli').select('id,nombre').order('orden')
         setTipos(tiposData ?? [])
-        setEstados(estadosData ?? [])
       } catch (err) {
         console.error(err)
       }
@@ -76,12 +72,9 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
     setPorcentajeAcumuladoContrato(null)
     setPorcentajePendienteContrato(null)
     setCondiciones('')
-    setSolicitante('')
     setFechaPedido('')
     setFechaRequerida('')
     setPrioridad('Media')
-    setEstadoId(null)
-    setComentarioGerencia('')
   }
 
   const submit = async () => {
@@ -99,13 +92,10 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
     if (porcentaje_contrato === null || porcentaje_contrato === undefined) e.porcentaje_contrato = 'Porcentaje contrato es obligatorio'
     if (porcentaje_acumulado_contrato === null || porcentaje_acumulado_contrato === undefined) e.porcentaje_acumulado_contrato = 'Porcentaje acumulado es obligatorio'
     if (porcentaje_pendiente_contrato === null || porcentaje_pendiente_contrato === undefined) e.porcentaje_pendiente_contrato = 'Porcentaje pendiente es obligatorio'
-    if (!condiciones?.trim()) e.condiciones = 'Condiciones es obligatorio'
-    if (!solicitante?.trim()) e.solicitante = 'Solicitante es obligatorio'
+    if (!condiciones?.trim()) e.condiciones = 'Condiciones es obligatorio' 
     if (!fecha_pedido?.trim()) e.fecha_pedido = 'Fecha pedido es obligatorio'
     if (!fecha_requerida?.trim()) e.fecha_requerida = 'Fecha requerida es obligatoria'
     if (!prioridad?.trim()) e.prioridad = 'Prioridad es obligatoria'
-    if (!estado_id && estado_id !== 0) e.estado_id = 'Estado es obligatorio'
-    if (!comentario_gerencia?.trim()) e.comentario_gerencia = 'Comentario gerencia es obligatorio'
 
     if (Object.keys(e).length > 0) {
       setErrors(e)
@@ -116,7 +106,6 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
     try {
       const payload: SolicitudInsert = {
         tipo_id: tipo_id ?? null,
-        codigo: null,
         proyecto_id: proyecto_id ?? null,
         razon_social: razon_social || null,
         direccion: direccion || null,
@@ -133,11 +122,9 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
         porcentaje_pendiente_contrato: porcentaje_pendiente_contrato ?? null,
         condiciones: condiciones || null,
         fecha_pedido: fecha_pedido || null,
-        solicitante: solicitante || null,
         fecha_requerida: fecha_requerida || null,
         prioridad: prioridad || 'Media',
-        estado_id: estado_id ?? null,
-        comentario_gerencia: comentario_gerencia || null,
+        usuario_creador: user?.id ?? null,
       }
       await onCreate(payload)
       resetForm()
@@ -431,17 +418,6 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">
-                  Solicitante <span className="text-red-500">*</span>
-                </label>
-                <input
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
-                  placeholder="Nombre del solicitante"
-                  value={solicitante}
-                  onChange={(e) => setSolicitante(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">
                   Fecha pedido <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -484,19 +460,6 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">
-                  Estado <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
-                  value={estado_id ?? ''}
-                  onChange={(e) => setEstadoId(e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">Seleccionar estado</option>
-                  {estados.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">
                   Condiciones <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -507,18 +470,6 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
                 />
               </div>
             </div>
-            {/* <div className="mt-4">
-              <label className="mb-1 block text-xs font-medium text-gray-700">
-                Comentario gerencia <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
-                rows={3}
-                placeholder="Comentarios u observaciones de gerencia"
-                value={comentario_gerencia}
-                onChange={(e) => setComentarioGerencia(e.target.value)}
-              />
-            </div> */}
           </div>
         </div>
 
