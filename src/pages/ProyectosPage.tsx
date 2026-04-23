@@ -3,14 +3,16 @@ import { useProyectos }     from '../features/proyecto/hooks/useProyectos'
 import ProyectosTable       from '../features/proyecto/components/ProyectosTable'
 import ProyectoModal        from '../features/proyecto/components/ProyectoModal'
 import ProyectoDeleteDialog from '../features/proyecto/components/ProyectoDeleteDialog'
+import { useAuthStore }     from '../store/authStore'
 import type { Proyecto }    from '../features/proyecto/types/proyecto'
 
 export default function ProyectosPage() {
   const {
     data, total, page, pageSize, totalPages, loading,
-    setPage, setSearch, setActivoFilter, refresh,
-    create, update, remove, toggleActivo,
+    setPage, setSearch, setEstadoFilter, refresh,
+    create, update, remove, toggleEstado,
   } = useProyectos()
+  const user = useAuthStore((state) => state.user)
 
   const [modalOpen,    setModalOpen]    = useState(false)
   const [editTarget,   setEditTarget]   = useState<Proyecto | null>(null)
@@ -23,7 +25,7 @@ export default function ProyectosPage() {
 
   const handleModalSubmit = async (data: Parameters<typeof create>[0]) => {
     if (editTarget) await update(editTarget.id, data)
-    else await create(data)
+    else await create({ ...data, usuario_creador: user?.id ?? null })
   }
 
   return (
@@ -32,8 +34,8 @@ export default function ProyectosPage() {
       <ProyectosTable
         data={data} total={total} page={page} pageSize={pageSize}
         totalPages={totalPages} loading={loading}
-        onEdit={handleEdit} onDelete={handleDelete} onToggle={toggleActivo}
-        onCreate={handleCreate} onSearch={setSearch} onFilter={setActivoFilter}
+        onEdit={handleEdit} onDelete={handleDelete} onToggle={toggleEstado}
+        onCreate={handleCreate} onSearch={setSearch} onFilter={setEstadoFilter}
         onPageChange={setPage} onRefresh={refresh}
       />
       <ProyectoModal

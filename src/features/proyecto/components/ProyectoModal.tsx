@@ -11,7 +11,8 @@ interface Props {
 
 const EMPTY: ProyectoInsert = {
   codigo: '', nombre: '', descripcion: null,
-  presupuesto: null, fecha_inicio: null, fecha_fin_est: null, activo: true,
+  presupuesto: null, fecha_inicio: null, fecha_fin: null, estado: 'Activo', ruc: null, direccion: null,
+  usuario_creador: null,
 }
 
 export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Props) {
@@ -24,10 +25,11 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
   useEffect(() => {
     if (proyecto) {
       setForm({
-        codigo: proyecto.codigo, nombre: proyecto.nombre,
-        descripcion: proyecto.descripcion, presupuesto: proyecto.presupuesto,
-        fecha_inicio: proyecto.fecha_inicio, fecha_fin_est: proyecto.fecha_fin_est,
-        activo: proyecto.activo ?? true,
+        codigo: proyecto.codigo ?? '', nombre: proyecto.nombre,
+        descripcion: proyecto.descripcion ?? null, presupuesto: proyecto.presupuesto ?? null,
+        fecha_inicio: proyecto.fecha_inicio ?? null, fecha_fin: proyecto.fecha_fin ?? null,
+        estado: proyecto.estado ?? 'Activo', ruc: proyecto.ruc ?? null, direccion: proyecto.direccion ?? null,
+        usuario_creador: proyecto.usuario_creador ?? null,
       })
     } else {
       setForm(EMPTY)
@@ -40,7 +42,7 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
 
   const validate = (): boolean => {
     const e: typeof errors = {}
-    if (!form.codigo.trim())      e.codigo  = 'El código es obligatorio.'
+    if (!form.codigo?.toString().trim())      e.codigo  = 'El código es obligatorio.'
     if (form.codigo.length > 10)  e.codigo  = 'Máximo 10 caracteres.'
     if (!form.nombre.trim())      e.nombre  = 'El nombre es obligatorio.'
     setErrors(e)
@@ -127,21 +129,30 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
                 onChange={(e) => set('fecha_inicio', e.target.value || null)} />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Fecha fin est.</label>
-              <input className={inputCls()} type="date" value={form.fecha_fin_est ?? ''}
-                onChange={(e) => set('fecha_fin_est', e.target.value || null)} />
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Fecha fin</label>
+                <input className={inputCls()} type="date" value={form.fecha_fin ?? ''}
+                  onChange={(e) => set('fecha_fin', e.target.value || null)} />
             </div>
-          </div>
+            </div>
 
-          <div className="flex items-center gap-3 pt-1">
-            <button type="button" onClick={() => set('activo', !form.activo)}
-              className={`relative h-6 w-11 rounded-full transition-colors duration-200 flex-shrink-0
-                ${form.activo ? 'bg-[#003D7D]' : 'bg-gray-200'}`}>
-              <span className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200
-                ${form.activo ? 'translate-x-5' : 'translate-x-0'}`} />
-            </button>
-            <span className="text-sm text-gray-700">{form.activo ? 'Proyecto activo' : 'Proyecto inactivo'}</span>
-          </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">RUC</label>
+                <input className={inputCls()} value={form.ruc ?? ''} onChange={(e) => set('ruc', e.target.value || null)} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Dirección</label>
+                <input className={inputCls()} value={form.direccion ?? ''} onChange={(e) => set('direccion', e.target.value || null)} />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <label className="text-sm text-gray-700">Estado</label>
+              <select className="h-8 rounded border px-2" value={form.estado ?? 'Activo'} onChange={(e) => set('estado', e.target.value || null)}>
+                <option>Activo</option>
+                <option>Inactivo</option>
+              </select>
+            </div>
         </form>
 
         {/* Footer */}

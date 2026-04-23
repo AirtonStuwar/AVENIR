@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { getProyectos, createProyecto, updateProyecto, deleteProyecto, toggleProyectoActivo } from '../services/proyectoService'
+import { getProyectos, createProyecto, updateProyecto, deleteProyecto, toggleProyectoEstado } from '../services/proyectoService'
 import type { Proyecto, ProyectoInsert, ProyectoUpdate, ProyectoFiltros, ProyectoPaginado } from '../types/proyecto'
 
 const DEFAULT_PAGE_SIZE = 10
@@ -31,8 +31,8 @@ export function useProyectos(filtrosIniciales: ProyectoFiltros = {}) {
   const refresh = () => fetchData(filtros)
   const setPage = (page: number) => setFiltros((f) => ({ ...f, page }))
   const setSearch = (search: string) => setFiltros((f) => ({ ...f, search, page: 1 }))
-  const setActivoFilter = (activo: boolean | null) =>
-    setFiltros((f) => ({ ...f, activo: activo ?? undefined, page: 1 }))
+  const setEstadoFilter = (estado: string | null) =>
+    setFiltros((f) => ({ ...f, estado: estado ?? undefined, page: 1 }))
 
   const create = async (payload: ProyectoInsert): Promise<Proyecto | null> => {
     try {
@@ -70,15 +70,15 @@ export function useProyectos(filtrosIniciales: ProyectoFiltros = {}) {
     }
   }
 
-  const toggleActivo = async (proyecto: Proyecto): Promise<void> => {
+  const toggleEstado = async (proyecto: Proyecto): Promise<void> => {
     try {
-      await toggleProyectoActivo(proyecto.id, !proyecto.activo)
-      toast.success(`Proyecto ${!proyecto.activo ? 'activado' : 'desactivado'}.`)
+      await toggleProyectoEstado(proyecto.id, proyecto.estado)
+      toast.success(`Proyecto ${proyecto.estado === 'Activo' ? 'desactivado' : 'activado'}.`)
       refresh()
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al cambiar estado.')
     }
   }
 
-  return { ...result, loading, filtros, setPage, setSearch, setActivoFilter, refresh, create, update, remove, toggleActivo }
+  return { ...result, loading, filtros, setPage, setSearch, setEstadoFilter, refresh, create, update, remove, toggleEstado }
 }

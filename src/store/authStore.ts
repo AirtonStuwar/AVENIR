@@ -8,7 +8,7 @@ interface AuthState {
   session: Session | null;
   isLoading: boolean;
   userRole: number | null;
-  setSession: (session: Session | null) => void;
+  setSession: (session: Session | null) => Promise<void>;
   setLoading: (loading: boolean) => void;
   logout: () => void;
   fetchUserRole: (userId: string) => Promise<void>;
