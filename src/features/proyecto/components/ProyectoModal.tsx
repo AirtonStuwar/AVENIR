@@ -43,7 +43,7 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
   const validate = (): boolean => {
     const e: typeof errors = {}
     if (!form.codigo?.toString().trim())      e.codigo  = 'El código es obligatorio.'
-    if (form.codigo.length > 10)  e.codigo  = 'Máximo 10 caracteres.'
+    if ((form.codigo?.length ?? 0) > 10)     e.codigo  = 'Máximo 10 caracteres.'
     if (!form.nombre.trim())      e.nombre  = 'El nombre es obligatorio.'
     setErrors(e)
     return Object.keys(e).length === 0
@@ -95,7 +95,7 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Código *</label>
               <input className={inputCls(errors.codigo) + ' font-mono uppercase'}
-                value={form.codigo} maxLength={10} placeholder="PRY-001"
+                value={form.codigo ?? ''} maxLength={10} placeholder="PRY-001"
                 onChange={(e) => set('codigo', e.target.value.toUpperCase())} />
               {errors.codigo && <p className="mt-1 text-xs text-[#F65740]">{errors.codigo}</p>}
             </div>

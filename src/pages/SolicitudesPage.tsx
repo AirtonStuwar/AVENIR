@@ -1,22 +1,40 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import SolicitudesTable from '../features/solicitud/components/SolicitudesTable'
+import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import { useSolicitudes } from '../features/solicitud/hooks/useSolicitudes'
+import { cancelarSolicitud } from '../features/solicitud/services/solicitudService'
+import { useAuthStore } from '../store/authStore'
+import { ROLES } from '../features/solicitud/types/solicitud'
 import type { Solicitud } from '../features/solicitud/types/solicitud'
-
-const ESTADO_CANCELADO = 5
 
 export default function SolicitudesPage() {
 	const navigate = useNavigate()
-	const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, refresh, update } = useSolicitudes()
+	const { userRole } = useAuthStore()
+	const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, refresh } = useSolicitudes()
 
-	const handleCancel = async (s: Solicitud) => {
-		if (!confirm(`¿Cancelar la solicitud ${s.codigo ?? `#${s.id}`}? Esta acción no se puede deshacer.`)) return
+	const [confirmOpen, setConfirmOpen] = useState(false)
+	const [confirmMsg,  setConfirmMsg]  = useState('')
+	const [pendingSol,  setPendingSol]  = useState<Solicitud | null>(null)
+
+	const canCancelFromList = userRole === ROLES.ADMIN || userRole === ROLES.USUARIO
+
+	const handleCancel = (s: Solicitud) => {
+		setConfirmMsg(`¿Cancelar la solicitud ${s.codigo ?? `#${s.id}`}? Esta acción no se puede deshacer.`)
+		setPendingSol(s)
+		setConfirmOpen(true)
+	}
+
+	const confirmCancel = async () => {
+		if (!pendingSol) return
+		setConfirmOpen(false)
 		try {
-			await update(s.id, { estado_id: ESTADO_CANCELADO })
+			await cancelarSolicitud(pendingSol.id)
 			toast.success('Solicitud cancelada')
-		} catch {
-			toast.error('No se pudo cancelar la solicitud')
+			refresh()
+		} catch (err: unknown) {
+			toast.error(err instanceof Error ? err.message : 'No se pudo cancelar la solicitud')
 		}
 	}
 
@@ -34,7 +52,17 @@ export default function SolicitudesPage() {
 				onRefresh={refresh}
 				onCreate={() => navigate('/solicitudes/nueva')}
 				onView={(s) => navigate(`/solicitudes/${s.id}`)}
-				onCancel={handleCancel}
+				onCancel={canCancelFromList ? handleCancel : undefined}
+			/>
+
+			<ConfirmModal
+				open={confirmOpen}
+				title="Cancelar solicitud"
+				message={confirmMsg}
+				confirmLabel="Cancelar solicitud"
+				variant="red"
+				onConfirm={confirmCancel}
+				onCancel={() => setConfirmOpen(false)}
 			/>
 		</div>
 	)

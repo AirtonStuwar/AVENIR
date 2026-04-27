@@ -4,11 +4,14 @@ import { supabase } from '../../api/supabase';
 import { useAuthStore } from '../../store/authStore';
 
 // 🎯 CONFIGURACIÓN CENTRAL DE MENÚ + ROLES
+// Roles: 1=Admin | 8=Evaluador | 9=Aprobador | 10=Visualizador | 11=Usuario
+const ALL_ROLES = [1, 8, 9, 10, 11]
+
 const menuItems = [
-  { name: 'Dashboard',   path: '/dashboard',   icon: LayoutDashboard },
-  { name: 'Solicitudes', path: '/solicitudes', icon: FileText, roles: [1, 2, 3, 4 , 5 ] },
-  { name: 'Proveedores', path: '/proveedores', icon: Users, roles: [1, 2, 5] },
-  { name: 'Proyectos',   path: '/proyectos',   icon: Briefcase, roles: [1, 5] }, // 🔒 SOLO GERENCIA
+  { name: 'Dashboard',   path: '/dashboard',   icon: LayoutDashboard, roles: [1, 8, 9, 10] },
+  { name: 'Solicitudes', path: '/solicitudes', icon: FileText,   roles: ALL_ROLES },
+  { name: 'Proveedores', path: '/proveedores', icon: Users,      roles: [1] },
+  { name: 'Proyectos',   path: '/proyectos',   icon: Briefcase,  roles: [1] },
 ];
 
 interface SidebarProps {

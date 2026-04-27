@@ -67,22 +67,22 @@ export default function SolicitudesTable({ data, total, page, pageSize, totalPag
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[#003D7D]/[0.03] border-b border-gray-100">
-              {['Código', 'Razón social', 'RUC', 'Proyecto', 'Fecha pedido', 'Prioridad', 'Estado', ''].map((h) => (
+              {['Código', 'Razón social', 'RUC', 'Proyecto', 'Fecha pedido', 'Creado por', 'Área', 'Estado', ''].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading && data.length === 0 && (
-              <tr><td colSpan={8} className="py-16 text-center"><div className="flex flex-col items-center gap-3 text-gray-400"><RefreshCw size={28} className="animate-spin text-[#003D7D]/30" /><span className="text-sm">Cargando solicitudes…</span></div></td></tr>
+              <tr><td colSpan={9} className="py-16 text-center"><div className="flex flex-col items-center gap-3 text-gray-400"><RefreshCw size={28} className="animate-spin text-[#003D7D]/30" /><span className="text-sm">Cargando solicitudes…</span></div></td></tr>
             )}
 
             {!loading && data.length === 0 && (
-              <tr><td colSpan={8} className="py-16 text-center"><div className="flex flex-col items-center gap-2"><FolderOpen size={32} className="text-gray-200" /><p className="text-sm font-medium text-gray-500">No hay solicitudes</p></div></td></tr>
+              <tr><td colSpan={9} className="py-16 text-center"><div className="flex flex-col items-center gap-2"><FolderOpen size={32} className="text-gray-200" /><p className="text-sm font-medium text-gray-500">No hay solicitudes</p></div></td></tr>
             )}
 
             {data.map((s, i) => {
-              const isPendiente  = s.estado_soli?.tipo === 'Pendiente'
+              const isPendiente  = s.estado_soli?.nombre === 'Pendiente'
               return (
                 <tr key={s.id} onClick={() => onView?.(s)} className={`border-b border-gray-50 transition-colors hover:bg-[#003D7D]/[0.04] ${onView ? 'cursor-pointer' : ''} ${i % 2 !== 0 ? 'bg-gray-50/40' : ''}`}>
                   <td className="px-4 py-3"><span className="font-mono text-xs bg-[#003D7D]/8 text-[#003D7D] px-2 py-0.5 rounded-md">{s.codigo ?? '—'}</span></td>
@@ -90,7 +90,18 @@ export default function SolicitudesTable({ data, total, page, pageSize, totalPag
                   <td className="px-4 py-3 whitespace-nowrap text-gray-700 text-sm">{s.ruc ?? '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{s.proyecto?.nombre ?? s.proyecto_id ?? '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(s.fecha_pedido)}</td>
-                  <td className="px-4 py-3"><span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold bg-gray-100 text-gray-700">{s.prioridad ?? 'Media'}</span></td>
+                  <td className="px-4 py-3 max-w-[180px]">
+                    {s.creador_email
+                      ? <span className="text-xs text-gray-700 truncate block" title={s.creador_email}>{s.creador_email}</span>
+                      : <span className="text-xs text-gray-300">—</span>
+                    }
+                  </td>
+                  <td className="px-4 py-3">
+                    {s.area_nombre
+                      ? <span className="inline-flex items-center rounded-full bg-[#003D7D]/8 px-2.5 py-0.5 text-[11px] font-semibold text-[#003D7D]">{s.area_nombre}</span>
+                      : <span className="text-xs text-gray-300">—</span>
+                    }
+                  </td>
                   <td className="px-4 py-3 text-xs text-gray-500">{s.estado_soli?.nombre ?? s.estado_id ?? '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>

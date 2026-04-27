@@ -1,13 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban } from 'lucide-react'
-import { supabase } from '../api/supabase'
-import { getSolicitudById, createDetalle, updateDetalle, deleteDetalle, updateSolicitud } from '../features/solicitud/services/solicitudService'
+import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp } from 'lucide-react'
+import {
+  getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
+  enviarARevision, cancelarSolicitud, marcarEvaluado, devolverSolicitud, aprobarSolicitud, rechazarSolicitud,
+} from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
+import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
 import RechazoModal from '../features/solicitud/components/RechazoModal'
+import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import { useAuthStore } from '../store/authStore'
 import type { Solicitud, SolicitudDetalle } from '../features/solicitud/types/solicitud'
+import { ROLES } from '../features/solicitud/types/solicitud'
 
 const LABEL = 'block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5'
 const VALUE = 'text-sm text-gray-900'
@@ -31,11 +36,22 @@ function fmtMoney(n: number) {
 }
 
 const ESTADO_COLOR: Record<string, string> = {
-  Pendiente:  'bg-yellow-100 text-yellow-800',
-  Proceso:    'bg-blue-100 text-blue-800',
-  Final:      'bg-green-100 text-green-800',
-  Rechazado:  'bg-red-100 text-red-800',
-  Cancelado:  'bg-gray-100 text-gray-600',
+  Pendiente:     'bg-yellow-100 text-yellow-800',
+  'En Revision': 'bg-blue-100 text-blue-800',
+  Evaluado:      'bg-purple-100 text-purple-800',
+  Aprobado:      'bg-green-100 text-green-800',
+  Rechazado:     'bg-red-100 text-red-800',
+  Cancelado:     'bg-gray-100 text-gray-600',
+}
+
+// Tipos de acción para el modal de confirmación
+type ActionKey = 'enviar' | 'cancelar' | 'evaluar' | 'aprobar' | { deleteDetId: number }
+
+interface ConfirmCfg {
+  title: string
+  message: string
+  confirmLabel: string
+  variant: 'red' | 'blue'
 }
 
 export default function SolicitudDetallePage() {
@@ -43,53 +59,161 @@ export default function SolicitudDetallePage() {
   const navigate = useNavigate()
   const { user, userRole } = useAuthStore()
 
-  const isGerencia = userRole === 1
+  const [solicitud,      setSolicitud]      = useState<Solicitud | null>(null)
+  const [loadingSol,     setLoadingSol]     = useState(true)
+  const [detalles,       setDetalles]       = useState<SolicitudDetalle[]>([])
+  const [actioning,      setActioning]      = useState(false)
 
-  const [solicitud,  setSolicitud]  = useState<Solicitud | null>(null)
-  const [loadingSol, setLoadingSol] = useState(true)
-  const [detalles,   setDetalles]   = useState<SolicitudDetalle[]>([])
+  // Modales
+  const [rechazoOpen,    setRechazoOpen]    = useState(false)
+  const [devolucionOpen, setDevolucionOpen] = useState(false)
+  const [modalOpen,      setModalOpen]      = useState(false)
+  const [editingDet,     setEditingDet]     = useState<SolicitudDetalle | null>(null)
 
-  const [estadoIds,    setEstadoIds]    = useState<{ proceso: number | null; rechazado: number | null }>({ proceso: null, rechazado: null })
-  const [rechazoOpen,  setRechazoOpen]  = useState(false)
+  // Confirm modal — guarda la CLAVE de la acción, no la función
+  const [pendingAction,  setPendingAction]  = useState<ActionKey | null>(null)
+  const [confirmCfg,     setConfirmCfg]     = useState<ConfirmCfg>({ title: '', message: '', confirmLabel: 'Confirmar', variant: 'blue' })
 
-  // Modal state
-  const [modalOpen,    setModalOpen]    = useState(false)
-  const [editingDet,   setEditingDet]   = useState<SolicitudDetalle | null>(null)
+  // ── Data loading ──────────────────────────────────────────────
+  const reload = async (currentId: string) => {
+    const sol = await getSolicitudById(Number(currentId))
+    setSolicitud(sol)
+    setDetalles(sol.detalles ?? [])
+  }
 
   useEffect(() => {
     if (!id) return
-    ;(async () => {
-      setLoadingSol(true)
-      try {
-        const sol = await getSolicitudById(Number(id))
-        setSolicitud(sol)
-        setDetalles(sol.detalles ?? [])
-      } catch {
-        toast.error('No se pudo cargar la solicitud')
-      } finally {
-        setLoadingSol(false)
-      }
-    })()
+    setLoadingSol(true)
+    getSolicitudById(Number(id))
+      .then(sol => { setSolicitud(sol); setDetalles(sol.detalles ?? []) })
+      .catch(() => toast.error('No se pudo cargar la solicitud'))
+      .finally(() => setLoadingSol(false))
   }, [id])
 
-  useEffect(() => {
-    supabase
-      .from('estado_soli')
-      .select('id, tipo')
-      .in('tipo', ['Proceso', 'Rechazado'])
-      .then(({ data: rows }) => {
-        if (!rows) return
-        setEstadoIds({
-          proceso:   rows.find((r: any) => r.tipo === 'Proceso')?.id   ?? null,
-          rechazado: rows.find((r: any) => r.tipo === 'Rechazado')?.id ?? null,
-        })
-      })
-  }, [])
+  // ── Derived state ──────────────────────────────────────────────
+  const nombre         = solicitud?.estado_soli?.nombre ?? ''
+  const isPendiente    = nombre === 'Pendiente'
+  const isEnRevision   = nombre === 'En Revision'
+  const isEvaluado     = nombre === 'Evaluado'
+  const isOwnSolicitud = solicitud?.usuario_creador === user?.id
 
-  const isPendiente = solicitud?.estado_soli?.tipo === 'Pendiente'
-  const tipoLabel   = solicitud?.estado_soli?.tipo ?? ''
-  const estadoColor = ESTADO_COLOR[tipoLabel] ?? 'bg-gray-100 text-gray-600'
+  const canEdit    = (userRole === ROLES.USUARIO && isPendiente && isOwnSolicitud) || userRole === ROLES.ADMIN
+  const canEnviar  = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente
+  const canCancelar = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente
+  const canEvaluar  = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
+  const canDevolver = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
+  const canAprobar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
+  const canRechazar = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
 
+  const estadoColor = ESTADO_COLOR[nombre] ?? 'bg-gray-100 text-gray-600'
+
+  // ── Abrir confirm ─────────────────────────────────────────────
+  const openConfirm = (action: ActionKey, cfg: ConfirmCfg) => {
+    setConfirmCfg(cfg)
+    setPendingAction(action)
+  }
+
+  // ── Ejecutar acción confirmada ────────────────────────────────
+  const handleConfirmOk = async () => {
+    const action = pendingAction
+    const solId  = solicitud?.id
+    if (!action || !solId || !id) { setPendingAction(null); return }
+
+    setPendingAction(null)
+    setActioning(true)
+    try {
+      if (action === 'enviar') {
+        await enviarARevision(solId)
+        toast.success('Enviada a revisión')
+      } else if (action === 'cancelar') {
+        await cancelarSolicitud(solId)
+        toast.success('Solicitud cancelada')
+      } else if (action === 'evaluar') {
+        await marcarEvaluado(solId)
+        toast.success('Marcada como Evaluada')
+      } else if (action === 'aprobar') {
+        if (!user) return
+        await aprobarSolicitud(solId, user.id)
+        toast.success('Solicitud aprobada')
+      } else if (typeof action === 'object' && 'deleteDetId' in action) {
+        await deleteDetalle(action.deleteDetId)
+        setDetalles(ds => ds.filter(x => x.id !== action.deleteDetId))
+        toast.success('Detalle eliminado')
+      }
+      await reload(id)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al ejecutar la acción')
+    } finally {
+      setActioning(false)
+    }
+  }
+
+  // ── Handlers de botones ───────────────────────────────────────
+  const handleEnviar = () => {
+    if (!solicitud) return
+    openConfirm('enviar', {
+      title: 'Enviar a revisión',
+      message: `¿Enviar la solicitud ${solicitud.codigo ?? `#${solicitud.id}`} a revisión? Ya no podrá editarla.`,
+      confirmLabel: 'Enviar',
+      variant: 'blue',
+    })
+  }
+
+  const handleCancelar = () => {
+    if (!solicitud) return
+    openConfirm('cancelar', {
+      title: 'Cancelar solicitud',
+      message: `¿Cancelar la solicitud ${solicitud.codigo ?? `#${solicitud.id}`}? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Sí, cancelar',
+      variant: 'red',
+    })
+  }
+
+  const handleEvaluar = () => {
+    if (!solicitud) return
+    openConfirm('evaluar', {
+      title: 'Marcar como Evaluada',
+      message: `¿Marcar como Evaluada la solicitud ${solicitud.codigo ?? `#${solicitud.id}`}?`,
+      confirmLabel: 'Marcar evaluado',
+      variant: 'blue',
+    })
+  }
+
+  const handleAprobar = () => {
+    if (!solicitud) return
+    openConfirm('aprobar', {
+      title: 'Aprobar solicitud',
+      message: `¿Aprobar la solicitud ${solicitud.codigo ?? `#${solicitud.id}`}?`,
+      confirmLabel: 'Aprobar',
+      variant: 'blue',
+    })
+  }
+
+  const handleDevolver = async (comentario: string) => {
+    if (!solicitud || !id) return
+    try {
+      await devolverSolicitud(solicitud.id, comentario)
+      toast.success('Solicitud devuelta al usuario')
+      await reload(id)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al devolver')
+      throw err
+    }
+  }
+
+  const handleRechazar = async (comentario: string) => {
+    if (!solicitud || !id) return
+    try {
+      await rechazarSolicitud(solicitud.id, comentario)
+      toast.success('Solicitud rechazada')
+      await reload(id)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al rechazar')
+      throw err
+    }
+  }
+
+  // ── Detalle handlers ─────────────────────────────────────────
   const openAdd  = () => { setEditingDet(null); setModalOpen(true) }
   const openEdit = (d: SolicitudDetalle) => { setEditingDet(d); setModalOpen(true) }
 
@@ -97,57 +221,27 @@ export default function SolicitudDetallePage() {
     if (!solicitud) return
     if (editingDet) {
       const updated = await updateDetalle(editingDet.id, data)
-      setDetalles((ds) => ds.map((x) => (x.id === editingDet.id ? updated : x)))
+      setDetalles(ds => ds.map(x => x.id === editingDet.id ? updated : x))
       toast.success('Detalle actualizado')
     } else {
       const nuevo = await createDetalle({ solicitud_id: solicitud.id, ...data })
-      setDetalles((ds) => [...ds, nuevo])
+      setDetalles(ds => [...ds, nuevo])
       toast.success('Detalle agregado')
     }
   }
 
-  const handleDetDelete = async (detId: number) => {
-    if (!confirm('¿Eliminar este detalle?')) return
-    try {
-      await deleteDetalle(detId)
-      setDetalles((ds) => ds.filter((x) => x.id !== detId))
-      toast.success('Detalle eliminado')
-    } catch (err: any) {
-      toast.error(err?.message ?? 'Error al eliminar')
-    }
+  const handleDetDelete = (detId: number) => {
+    openConfirm({ deleteDetId: detId }, {
+      title: 'Eliminar detalle',
+      message: '¿Eliminar este detalle? Esta acción no se puede deshacer.',
+      confirmLabel: 'Eliminar',
+      variant: 'red',
+    })
   }
 
   const total = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
 
-  const handleAprobar = async () => {
-    if (!solicitud) return
-    if (!estadoIds.proceso) { toast.error('Estado "Proceso" no encontrado'); return }
-    if (!confirm(`¿Aprobar la solicitud ${solicitud.codigo ?? `#${solicitud.id}`}?`)) return
-    try {
-      await updateSolicitud(solicitud.id, {
-        estado_id:         estadoIds.proceso,
-        fecha_aprobacion:  new Date().toISOString().slice(0, 10),
-        usuario_aprobador: user?.id ?? null,
-      })
-      setSolicitud((prev) => prev ? { ...prev, estado_id: estadoIds.proceso!, estado_soli: { id: estadoIds.proceso!, nombre: 'En Proceso', tipo: 'Proceso' } } : prev)
-      toast.success('Solicitud aprobada')
-    } catch {
-      toast.error('No se pudo aprobar la solicitud')
-    }
-  }
-
-  const confirmRechazo = async (comentario: string) => {
-    if (!solicitud) return
-    if (!estadoIds.rechazado) { toast.error('Estado "Rechazado" no encontrado'); return }
-    await updateSolicitud(solicitud.id, {
-      estado_id:           estadoIds.rechazado,
-      comentario_gerencia: comentario,
-    })
-    setSolicitud((prev) => prev ? { ...prev, estado_id: estadoIds.rechazado!, estado_soli: { id: estadoIds.rechazado!, nombre: 'Rechazado', tipo: 'Rechazado' } } : prev)
-    toast.success('Solicitud rechazada')
-  }
-
-  // ── LOADING ────────────────────────────────────────────────────
+  // ── Loading / not found ───────────────────────────────────────
   if (loadingSol) {
     return (
       <div className="flex h-64 items-center justify-center">
@@ -166,7 +260,7 @@ export default function SolicitudDetallePage() {
     )
   }
 
-  // ── RENDER ─────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Top bar */}
@@ -182,26 +276,41 @@ export default function SolicitudDetallePage() {
         </span>
 
         <div className="ml-auto flex items-center gap-2">
-          {isGerencia && isPendiente && (
-            <>
-              <button
-                onClick={handleAprobar}
-                className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors"
-              >
-                <CheckCircle size={14} /> Aprobar
-              </button>
-              <button
-                onClick={() => setRechazoOpen(true)}
-                className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors"
-              >
-                <Ban size={14} /> Rechazar
-              </button>
-            </>
+          {canEnviar && (
+            <button onClick={handleEnviar} disabled={actioning}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
+              <Send size={13} /> Enviar a revisión
+            </button>
           )}
-          {!isPendiente && (
-            <span className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-              <AlertCircle size={13} /> Solo se puede editar en estado Pendiente
-            </span>
+          {canCancelar && (
+            <button onClick={handleCancelar} disabled={actioning}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 disabled:opacity-50 transition-colors">
+              <Ban size={13} /> Cancelar
+            </button>
+          )}
+          {canEvaluar && (
+            <button onClick={handleEvaluar} disabled={actioning}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 transition-colors">
+              <CheckCircle size={13} /> Marcar evaluado
+            </button>
+          )}
+          {canDevolver && (
+            <button onClick={() => setDevolucionOpen(true)} disabled={actioning}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
+              <RotateCcw size={13} /> Devolver
+            </button>
+          )}
+          {canAprobar && (
+            <button onClick={handleAprobar} disabled={actioning}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors">
+              <ThumbsUp size={13} /> Aprobar
+            </button>
+          )}
+          {canRechazar && (
+            <button onClick={() => setRechazoOpen(true)} disabled={actioning}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
+              <Ban size={13} /> Rechazar
+            </button>
           )}
         </div>
       </div>
@@ -213,18 +322,16 @@ export default function SolicitudDetallePage() {
           <div className="px-6 py-4 border-b border-gray-100">
             <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Información general</h2>
           </div>
-          <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4">
-            <InfoField label="Código"       value={solicitud.codigo} />
-            <InfoField label="Tipo"         value={solicitud.solicitud_tipo?.nombre} />
-            <InfoField label="Proyecto"     value={solicitud.proyecto?.nombre} />
-            <InfoField label="Prioridad"    value={solicitud.prioridad} />
-            <InfoField label="Fecha pedido" value={fmtDate(solicitud.fecha_pedido)} />
+          <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+            <InfoField label="Código"          value={solicitud.codigo} />
+            <InfoField label="Tipo"            value={solicitud.solicitud_tipo?.nombre} />
+            <InfoField label="Proyecto"        value={solicitud.proyecto?.nombre} />
+            <InfoField label="Fecha pedido"    value={fmtDate(solicitud.fecha_pedido)} />
             <InfoField label="Fecha requerida" value={fmtDate(solicitud.fecha_requerida)} />
-            <InfoField label="Forma de pago" value={solicitud.forma_pago} />
+            <InfoField label="Forma de pago"   value={solicitud.forma_pago} />
           </div>
 
           <div className="px-6 pb-5 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-gray-50 pt-4">
-            {/* Cliente */}
             <div className="space-y-3">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Cliente</p>
               <div className="grid grid-cols-2 gap-3">
@@ -236,7 +343,6 @@ export default function SolicitudDetallePage() {
                 <InfoField label="Correo"       value={solicitud.contacto_correo} />
               </div>
             </div>
-            {/* Financiero */}
             <div className="space-y-3">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Financiero</p>
               <div className="grid grid-cols-2 gap-3">
@@ -258,8 +364,8 @@ export default function SolicitudDetallePage() {
           )}
           {solicitud.comentario_gerencia && (
             <div className="px-6 pb-5 border-t border-gray-50 pt-4">
-              <p className={LABEL}>Comentario gerencia</p>
-              <p className="text-sm text-gray-700">{solicitud.comentario_gerencia}</p>
+              <p className={LABEL}>Comentario</p>
+              <p className="text-sm text-amber-700 bg-amber-50 rounded-xl px-4 py-3 border border-amber-100">{solicitud.comentario_gerencia}</p>
             </div>
           )}
         </div>
@@ -272,7 +378,7 @@ export default function SolicitudDetallePage() {
             </h2>
             <div className="flex items-center gap-3">
               {total > 0 && <span className="text-sm font-bold text-[#003D7D]">{fmtMoney(total)}</span>}
-              {isPendiente && (
+              {canEdit && (
                 <button onClick={openAdd}
                   className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#003D7D] text-white text-xs font-medium hover:bg-[#002D5C] transition-all">
                   <Plus size={13} /> Agregar
@@ -283,7 +389,7 @@ export default function SolicitudDetallePage() {
 
           {detalles.length === 0 ? (
             <div className="py-14 text-center text-sm text-gray-400">
-              {isPendiente
+              {canEdit
                 ? <button onClick={openAdd} className="text-[#003D7D] hover:underline">+ Agregar el primer detalle</button>
                 : 'Esta solicitud no tiene detalles registrados.'}
             </div>
@@ -297,7 +403,7 @@ export default function SolicitudDetallePage() {
                     <th className="px-5 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wide">Cant.</th>
                     <th className="px-5 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wide">Valor unit.</th>
                     <th className="px-5 py-3 text-right text-xs font-semibold text-gray-400 uppercase tracking-wide">Total</th>
-                    {isPendiente && <th className="px-5 py-3" />}
+                    {canEdit && <th className="px-5 py-3" />}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50 bg-white">
@@ -310,7 +416,7 @@ export default function SolicitudDetallePage() {
                       <td className="px-5 py-3 text-right font-semibold text-[#003D7D]">
                         {fmtMoney(d.valor_total ?? d.cantidad * d.valor_unitario)}
                       </td>
-                      {isPendiente && (
+                      {canEdit && (
                         <td className="px-5 py-3">
                           <div className="flex items-center justify-end gap-2">
                             <button onClick={() => openEdit(d)} className="text-blue-500 hover:text-blue-700 transition-colors"><Pencil size={14} /></button>
@@ -325,7 +431,7 @@ export default function SolicitudDetallePage() {
                   <tr>
                     <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">Total general:</td>
                     <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">{fmtMoney(total)}</td>
-                    {isPendiente && <td />}
+                    {canEdit && <td />}
                   </tr>
                 </tfoot>
               </table>
@@ -333,9 +439,11 @@ export default function SolicitudDetallePage() {
           )}
         </div>
 
+        {/* ── DOCUMENTOS ── */}
+        <SolicitudArchivos solicitudId={solicitud.id} editable={canEdit} />
+
       </div>
 
-      {/* Modal agregar / editar detalle */}
       <SolicitudDetalleModal
         open={modalOpen}
         detalle={editingDet}
@@ -343,11 +451,31 @@ export default function SolicitudDetallePage() {
         onSubmit={handleModalSubmit}
       />
 
+      <ConfirmModal
+        open={pendingAction !== null}
+        title={confirmCfg.title}
+        message={confirmCfg.message}
+        confirmLabel={confirmCfg.confirmLabel}
+        variant={confirmCfg.variant}
+        onConfirm={handleConfirmOk}
+        onCancel={() => setPendingAction(null)}
+      />
+
+      <RechazoModal
+        open={devolucionOpen}
+        codigo={solicitud.codigo ?? null}
+        onClose={() => setDevolucionOpen(false)}
+        onConfirm={handleDevolver}
+        title="Devolver solicitud"
+        confirmLabel="Devolver"
+        variant="amber"
+      />
+
       <RechazoModal
         open={rechazoOpen}
         codigo={solicitud.codigo ?? null}
         onClose={() => setRechazoOpen(false)}
-        onConfirm={confirmRechazo}
+        onConfirm={handleRechazar}
       />
     </div>
   )

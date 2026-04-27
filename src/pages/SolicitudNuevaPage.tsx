@@ -12,6 +12,8 @@ import {
   getDetallesBySolicitud,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
+import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
+import type { SolicitudArchivo } from '../features/solicitud/types/solicitud'
 import { useAuthStore } from '../store/authStore'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import type { SolicitudDetalle } from '../features/solicitud/types/solicitud'
@@ -35,8 +37,9 @@ export default function SolicitudNuevaPage() {
   const navigate  = useNavigate()
   const user      = useAuthStore((s) => s.user)
 
-  // ─── Step: 'form' → fill data | 'detalles' → add line items ───
-  const [step,          setStep]          = useState<'form' | 'detalles'>('form')
+  // ─── Step: 'form' → fill data | 'detalles' → line items | 'archivos' → docs ───
+  const [step,          setStep]          = useState<'form' | 'detalles' | 'archivos'>('form')
+  const [archivos,      setArchivos]      = useState<SolicitudArchivo[]>([])
   const [solicitudId,   setSolicitudId]   = useState<number | null>(null)
   const [savingForm,    setSavingForm]    = useState(false)
   const [errors,        setErrors]        = useState<Record<string, string>>({})
@@ -66,7 +69,6 @@ export default function SolicitudNuevaPage() {
   )
   const [fecha_pedido,   setFechaPedido]   = useState('')
   const [fecha_requerida,setFechaRequerida]= useState('')
-  const [prioridad,      setPrioridad]     = useState('Media')
 
   // Detalles state
   const [detalles,   setDetalles]   = useState<SolicitudDetalle[]>([])
@@ -123,7 +125,8 @@ export default function SolicitudNuevaPage() {
         porcentaje_acumulado_contrato,
         porcentaje_pendiente_contrato,
         condiciones: condiciones || null,
-        fecha_pedido, fecha_requerida, prioridad,
+        fecha_pedido, fecha_requerida,
+        prioridad: null,
         usuario_creador: user?.id ?? null,
       })
       setSolicitudId(nueva.id)
@@ -195,12 +198,19 @@ export default function SolicitudNuevaPage() {
         <div className="ml-auto flex items-center gap-2">
           <span className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full ${
             step === 'form' ? 'bg-[#003D7D] text-white' : 'bg-green-100 text-green-700'}`}>
-            {step === 'detalles' ? <CheckCircle size={12} /> : '1'} Datos generales
+            {step !== 'form' ? <CheckCircle size={12} /> : '1'} Datos generales
           </span>
           <div className="w-6 h-px bg-gray-300" />
           <span className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full ${
-            step === 'detalles' ? 'bg-[#003D7D] text-white' : 'bg-gray-100 text-gray-400'}`}>
-            2 Detalles
+            step === 'detalles' ? 'bg-[#003D7D] text-white'
+            : step === 'archivos' ? 'bg-green-100 text-green-700'
+            : 'bg-gray-100 text-gray-400'}`}>
+            {step === 'archivos' ? <CheckCircle size={12} /> : '2'} Detalles
+          </span>
+          <div className="w-6 h-px bg-gray-300" />
+          <span className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full ${
+            step === 'archivos' ? 'bg-[#003D7D] text-white' : 'bg-gray-100 text-gray-400'}`}>
+            3 Documentos
           </span>
         </div>
       </div>
@@ -339,8 +349,8 @@ export default function SolicitudNuevaPage() {
 
               {/* Fechas */}
               <div>
-                <SectionTitle>Fechas y prioridad</SectionTitle>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <SectionTitle>Fechas</SectionTitle>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className={LABEL}>Fecha pedido *</label>
                     <input className={inp(errors.fecha_pedido)} type="date" value={fecha_pedido}
@@ -352,14 +362,6 @@ export default function SolicitudNuevaPage() {
                     <input className={inp(errors.fecha_requerida)} type="date" value={fecha_requerida}
                       onChange={(e) => { setFechaRequerida(e.target.value); setErrors((x) => ({ ...x, fecha_requerida: '' })) }} />
                     {errors.fecha_requerida && <p className="mt-1 text-xs text-red-500">{errors.fecha_requerida}</p>}
-                  </div>
-                  <div>
-                    <label className={LABEL}>Prioridad</label>
-                    <select className={INPUT} value={prioridad} onChange={(e) => setPrioridad(e.target.value)}>
-                      <option value="Alta">Alta</option>
-                      <option value="Media">Media</option>
-                      <option value="Baja">Baja</option>
-                    </select>
                   </div>
                 </div>
               </div>
@@ -481,11 +483,46 @@ export default function SolicitudNuevaPage() {
               )}
 
               <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
-                <button onClick={() => navigate('/solicitudes')}
+                <button onClick={() => setStep('archivos')}
                   className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] transition-all">
-                  <CheckCircle size={15} /> Finalizar
+                  Continuar →
                 </button>
               </div>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP 3: ARCHIVOS ── */}
+        {step === 'archivos' && solicitudId && (
+          <>
+            <div className="flex items-center gap-3 px-5 py-4 bg-blue-50 border border-blue-200 rounded-2xl">
+              <CheckCircle size={20} className="text-blue-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-blue-800">Paso final: adjunta los 4 documentos requeridos</p>
+                <p className="text-xs text-blue-600">Todos son obligatorios (PDF). Podrás completarlos desde el detalle de la solicitud si los tienes disponibles luego.</p>
+              </div>
+            </div>
+
+            <SolicitudArchivos
+              solicitudId={solicitudId}
+              editable={true}
+              onChange={setArchivos}
+            />
+
+            <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
+              <span className="text-sm text-gray-500">
+                {archivos.length < 4
+                  ? <span className="text-amber-600 font-medium">Faltan {4 - archivos.length} documento(s)</span>
+                  : <span className="text-green-600 font-medium flex items-center gap-1.5"><CheckCircle size={14} /> Todos los documentos subidos</span>
+                }
+              </span>
+              <button
+                onClick={() => navigate('/solicitudes')}
+                disabled={archivos.length < 4}
+                className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                <CheckCircle size={15} /> Finalizar
+              </button>
             </div>
           </>
         )}

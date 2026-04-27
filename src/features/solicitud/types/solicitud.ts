@@ -1,3 +1,11 @@
+export const ROLES = {
+  ADMIN:        1,
+  EVALUADOR:    8,
+  APROBADOR:    9,
+  VISUALIZADOR: 10,
+  USUARIO:      11,
+} as const
+
 export interface Solicitud {
   id: number
   codigo: string | null
@@ -30,6 +38,8 @@ export interface Solicitud {
   solicitud_tipo?: { id: number; nombre: string } | null
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
   detalles?: SolicitudDetalle[]
+  creador_email?: string | null
+  area_nombre?: string | null
 }
 
 export interface SolicitudDetalle {
@@ -59,12 +69,25 @@ export type SolicitudInsert = Omit<
 
 export type SolicitudUpdate = Partial<Omit<Solicitud, 'id' | 'fecha_creacion'>>
 
+export interface SolicitudArchivo {
+  id: number
+  solicitud_id: number
+  nombre_archivo: string | null
+  archivo_path: string | null
+  tipo_archivo: string | null
+  fecha_creacion: string | null
+}
+
+export type SolicitudArchivoInsert = Omit<SolicitudArchivo, 'id' | 'fecha_creacion'>
+
 export interface SolicitudFiltros {
   search?: string
   proyecto_id?: number | null
   estado_id?: number | null
   page?: number
   pageSize?: number
+  role?: number | null
+  userId?: string | null
 }
 
 export interface SolicitudPaginado {

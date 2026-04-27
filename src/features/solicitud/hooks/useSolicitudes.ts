@@ -2,17 +2,29 @@ import { useState, useCallback, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { getSolicitudes, createSolicitud, updateSolicitud, deleteSolicitud } from '../services/solicitudService'
 import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado } from '../types/solicitud'
+import { useAuthStore } from '../../../store/authStore'
 
 const DEFAULT_PAGE_SIZE = 10
 
 export function useSolicitudes(filtrosIniciales: SolicitudFiltros = {}) {
+  const { userRole, user } = useAuthStore()
+
   const [result, setResult] = useState<SolicitudPaginado>({
     data: [], total: 0, page: 1, pageSize: DEFAULT_PAGE_SIZE, totalPages: 0,
   })
   const [filtros, setFiltros] = useState<SolicitudFiltros>({
-    page: 1, pageSize: DEFAULT_PAGE_SIZE, ...filtrosIniciales,
+    page: 1,
+    pageSize: DEFAULT_PAGE_SIZE,
+    role:   userRole,
+    userId: user?.id ?? null,
+    ...filtrosIniciales,
   })
   const [loading, setLoading] = useState(false)
+
+  // Sync role/userId when auth store changes
+  useEffect(() => {
+    setFiltros(f => ({ ...f, role: userRole, userId: user?.id ?? null }))
+  }, [userRole, user?.id])
 
   const fetchData = useCallback(async (f: SolicitudFiltros) => {
     setLoading(true)
