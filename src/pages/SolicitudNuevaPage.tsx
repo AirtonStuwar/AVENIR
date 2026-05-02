@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, CheckCircle, Plus, Trash2, Pencil } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Plus, Trash2, Pencil, Loader2 } from 'lucide-react'
 import { supabase } from '../api/supabase'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
 import {
@@ -17,6 +17,7 @@ import type { SolicitudArchivo } from '../features/solicitud/types/solicitud'
 import { useAuthStore } from '../store/authStore'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import type { SolicitudDetalle } from '../features/solicitud/types/solicitud'
+import { buscarRuc } from '../features/solicitud/services/rucService'
 
 const INPUT =
   'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all'
@@ -43,6 +44,8 @@ export default function SolicitudNuevaPage() {
   const [solicitudId,   setSolicitudId]   = useState<number | null>(null)
   const [savingForm,    setSavingForm]    = useState(false)
   const [errors,        setErrors]        = useState<Record<string, string>>({})
+  const [rucLoading,    setRucLoading]    = useState(false)
+  const [rucAutoFilled, setRucAutoFilled] = useState(false)
 
   // Catalogs
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
@@ -90,6 +93,28 @@ export default function SolicitudNuevaPage() {
       }
     })()
   }, [])
+
+  // ── RUC AUTOCOMPLETE ──────────────────────────────────────────
+  useEffect(() => {
+    if (ruc.length !== 11) return
+    let cancelled = false
+    setRucLoading(true)
+    setRucAutoFilled(false)
+    buscarRuc(ruc)
+      .then((data) => {
+        if (cancelled) return
+        setRazonSocial(data.razon_social)
+        setDireccion(data.direccion)
+        setRucAutoFilled(true)
+        setErrors((x) => ({ ...x, razon_social: '', ruc: '', direccion: '' }))
+      })
+      .catch(() => {
+        if (cancelled) return
+        toast.error('RUC no encontrado en SUNAT')
+      })
+      .finally(() => { if (!cancelled) setRucLoading(false) })
+    return () => { cancelled = true }
+  }, [ruc])
 
   // ── FORM SUBMIT ────────────────────────────────────────────────
   const handleGuardar = async () => {
@@ -234,9 +259,30 @@ export default function SolicitudNuevaPage() {
                   </div>
                   <div>
                     <label className={LABEL}>RUC *</label>
-                    <input className={inp(errors.ruc)} placeholder="20XXXXXXXXX"
-                      value={ruc} onChange={(e) => { setRuc(e.target.value); setErrors((x) => ({ ...x, ruc: '' })) }} />
+                    <div className="relative">
+                      <input
+                        className={inp(errors.ruc)}
+                        placeholder="20XXXXXXXXX"
+                        maxLength={11}
+                        value={ruc}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '')
+                          setRuc(val)
+                          setErrors((x) => ({ ...x, ruc: '' }))
+                          if (rucAutoFilled && val.length !== 11) setRucAutoFilled(false)
+                        }}
+                      />
+                      {rucLoading && (
+                        <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#003D7D] animate-spin" />
+                      )}
+                      {rucAutoFilled && !rucLoading && (
+                        <CheckCircle size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" />
+                      )}
+                    </div>
                     {errors.ruc && <p className="mt-1 text-xs text-red-500">{errors.ruc}</p>}
+                    {rucAutoFilled && !rucLoading && (
+                      <p className="mt-1 text-xs text-green-600">Datos completados desde SUNAT</p>
+                    )}
                   </div>
                   <div>
                     <label className={LABEL}>Dirección *</label>
@@ -285,7 +331,7 @@ export default function SolicitudNuevaPage() {
                     <input className={INPUT} placeholder="Número de cuenta" value={numero_cuenta} onChange={(e) => setNumeroCuenta(e.target.value)} />
                   </div>
                   <div>
-                    <label className={LABEL}>Cuenta detracciones</label>
+                    <label className={LABEL}>Cuenta detracciones (CCI)</label>
                     <input className={INPUT} placeholder="Cuenta para detracciones" value={cuenta_detracciones} onChange={(e) => setCuentaDetracciones(e.target.value)} />
                   </div>
                 </div>
