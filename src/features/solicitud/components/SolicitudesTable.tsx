@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Search, RefreshCw, FolderOpen, FileText, XCircle } from 'lucide-react'
 import type { Solicitud } from '../types/solicitud'
 
@@ -20,16 +20,50 @@ interface Props {
   onSearch: (q: string) => void
   onPageChange: (page: number) => void
   onRefresh: () => void
+  selectedIds?: Set<number>
+  onSelectionChange?: (ids: Set<number>) => void
 }
 
-export default function SolicitudesTable({ data, total, page, pageSize, totalPages, loading, onSearch, onPageChange, onRefresh, onCreate, onView, onCancel }: Props) {
+export default function SolicitudesTable({
+  data, total, page, pageSize, totalPages, loading,
+  onSearch, onPageChange, onRefresh, onCreate, onView, onCancel,
+  selectedIds, onSelectionChange,
+}: Props) {
   const [searchVal, setSearchVal] = useState('')
+  const selectAllRef = useRef<HTMLInputElement>(null)
 
-  const fromItem = total === 0 ? 0 : (page - 1) * pageSize + 1
-  const toItem   = Math.min(page * pageSize, total)
+  const selectable       = !!onSelectionChange
+  const selected         = selectedIds ?? new Set<number>()
+  const allPageSelected  = data.length > 0 && data.every(s => selected.has(s.id))
+  const somePageSelected = data.some(s => selected.has(s.id)) && !allPageSelected
+
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = somePageSelected
+  }, [somePageSelected])
+
+  const toggleAll = () => {
+    if (!onSelectionChange) return
+    const next = new Set(selected)
+    if (allPageSelected) data.forEach(s => next.delete(s.id))
+    else                  data.forEach(s => next.add(s.id))
+    onSelectionChange(next)
+  }
+
+  const toggleOne = (id: number) => {
+    if (!onSelectionChange) return
+    const next = new Set(selected)
+    if (next.has(id)) next.delete(id)
+    else              next.add(id)
+    onSelectionChange(next)
+  }
+
+  const fromItem   = total === 0 ? 0 : (page - 1) * pageSize + 1
+  const toItem     = Math.min(page * pageSize, total)
+  const colSpanAll = 9 + (selectable ? 1 : 0)
 
   return (
     <div className="flex flex-col rounded-2xl overflow-hidden border border-gray-200 bg-white shadow-[0_2px_12px_0_rgba(0,61,125,.07)]">
+      {/* ── Header ── */}
       <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#003D7D]">
@@ -63,10 +97,22 @@ export default function SolicitudesTable({ data, total, page, pageSize, totalPag
         </div>
       </div>
 
+      {/* ── Table ── */}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[#003D7D]/[0.03] border-b border-gray-100">
+              {selectable && (
+                <th className="px-4 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    ref={selectAllRef}
+                    checked={allPageSelected}
+                    onChange={toggleAll}
+                    className="h-4 w-4 rounded border-gray-300 accent-[#003D7D] cursor-pointer"
+                  />
+                </th>
+              )}
               {['Código', 'Razón social', 'RUC', 'Proyecto', 'Fecha pedido', 'Creado por', 'Área', 'Estado', ''].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
               ))}
@@ -74,19 +120,49 @@ export default function SolicitudesTable({ data, total, page, pageSize, totalPag
           </thead>
           <tbody>
             {loading && data.length === 0 && (
-              <tr><td colSpan={9} className="py-16 text-center"><div className="flex flex-col items-center gap-3 text-gray-400"><RefreshCw size={28} className="animate-spin text-[#003D7D]/30" /><span className="text-sm">Cargando solicitudes…</span></div></td></tr>
+              <tr><td colSpan={colSpanAll} className="py-16 text-center">
+                <div className="flex flex-col items-center gap-3 text-gray-400">
+                  <RefreshCw size={28} className="animate-spin text-[#003D7D]/30" />
+                  <span className="text-sm">Cargando solicitudes…</span>
+                </div>
+              </td></tr>
             )}
 
             {!loading && data.length === 0 && (
-              <tr><td colSpan={9} className="py-16 text-center"><div className="flex flex-col items-center gap-2"><FolderOpen size={32} className="text-gray-200" /><p className="text-sm font-medium text-gray-500">No hay solicitudes</p></div></td></tr>
+              <tr><td colSpan={colSpanAll} className="py-16 text-center">
+                <div className="flex flex-col items-center gap-2">
+                  <FolderOpen size={32} className="text-gray-200" />
+                  <p className="text-sm font-medium text-gray-500">No hay solicitudes</p>
+                </div>
+              </td></tr>
             )}
 
             {data.map((s, i) => {
-              const isPendiente  = s.estado_soli?.nombre === 'Pendiente'
+              const isPendiente = s.estado_soli?.nombre === 'Pendiente'
+              const isChecked   = selected.has(s.id)
               return (
-                <tr key={s.id} onClick={() => onView?.(s)} className={`border-b border-gray-50 transition-colors hover:bg-[#003D7D]/[0.04] ${onView ? 'cursor-pointer' : ''} ${i % 2 !== 0 ? 'bg-gray-50/40' : ''}`}>
-                  <td className="px-4 py-3"><span className="font-mono text-xs bg-[#003D7D]/8 text-[#003D7D] px-2 py-0.5 rounded-md">{s.codigo ?? '—'}</span></td>
-                  <td className="px-4 py-3 max-w-[220px]"><p className="font-medium text-gray-900 truncate">{s.razon_social ?? '—'}</p></td>
+                <tr
+                  key={s.id}
+                  onClick={() => onView?.(s)}
+                  className={`border-b border-gray-50 transition-colors cursor-pointer
+                    ${isChecked ? 'bg-[#003D7D]/[0.06] hover:bg-[#003D7D]/[0.09]' : `hover:bg-[#003D7D]/[0.04] ${i % 2 !== 0 ? 'bg-gray-50/40' : ''}`}`}
+                >
+                  {selectable && (
+                    <td className="px-4 py-3 w-10" onClick={(e) => { e.stopPropagation(); toggleOne(s.id) }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleOne(s.id)}
+                        className="h-4 w-4 rounded border-gray-300 accent-[#003D7D] cursor-pointer"
+                      />
+                    </td>
+                  )}
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-xs bg-[#003D7D]/8 text-[#003D7D] px-2 py-0.5 rounded-md">{s.codigo ?? '—'}</span>
+                  </td>
+                  <td className="px-4 py-3 max-w-[220px]">
+                    <p className="font-medium text-gray-900 truncate">{s.razon_social ?? '—'}</p>
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-700 text-sm">{s.ruc ?? '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{s.proyecto?.nombre ?? s.proyecto_id ?? '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(s.fecha_pedido)}</td>
@@ -113,14 +189,16 @@ export default function SolicitudesTable({ data, total, page, pageSize, totalPag
                         <FileText size={12} /> Ver
                       </button>
 
-                      <button
-                        onClick={() => onCancel?.(s)}
-                        disabled={!isPendiente}
-                        title={!isPendiente ? 'Solo se puede cancelar en estado Pendiente' : 'Cancelar solicitud'}
-                        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        <XCircle size={12} /> Cancelar
-                      </button>
+                      {onCancel && (
+                        <button
+                          onClick={() => onCancel(s)}
+                          disabled={!isPendiente}
+                          title={!isPendiente ? 'Solo se puede cancelar en estado Pendiente' : 'Cancelar solicitud'}
+                          className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <XCircle size={12} /> Cancelar
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -130,9 +208,12 @@ export default function SolicitudesTable({ data, total, page, pageSize, totalPag
         </table>
       </div>
 
+      {/* ── Pagination ── */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/60">
-          <p className="text-xs text-gray-500">Mostrando <span className="font-medium text-gray-700">{fromItem}–{toItem}</span> de <span className="font-medium text-gray-700">{total}</span></p>
+          <p className="text-xs text-gray-500">
+            Mostrando <span className="font-medium text-gray-700">{fromItem}–{toItem}</span> de <span className="font-medium text-gray-700">{total}</span>
+          </p>
           <div className="flex items-center gap-1">
             <button onClick={() => onPageChange(page - 1)} disabled={page <= 1 || loading}
               className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500">‹</button>
