@@ -5,7 +5,10 @@
       "Bash(npm install *)",
       "Bash(Get-ChildItem -Path \"C:\\\\Workspace\\\\Avenir\\\\AVENIR\" -Recurse -Depth 3)",
       "Bash(Select-Object FullName, PSIsContainer)",
-      "Bash(Format-List)"
+      "Bash(Format-List)",
+      "Bash(npm audit *)",
+      "Bash(npm outdated *)",
+      "Bash(npm update *)"
     ]
   }
 }

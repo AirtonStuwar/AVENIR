@@ -203,7 +203,9 @@ export default function SolicitudNuevaPage() {
     }
   }
 
-  const totalGeneral = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+  const subtotal     = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+  const igv          = subtotal * 0.18
+  const totalGeneral = subtotal + igv
 
   const inp = (err?: string) => (err ? INPUT_ERR : INPUT)
 
@@ -517,6 +519,20 @@ export default function SolicitudNuevaPage() {
                     </tbody>
                     <tfoot className="bg-gray-50 border-t border-gray-100">
                       <tr>
+                        <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">Subtotal</td>
+                        <td className="px-5 py-2 text-right text-sm text-gray-600">
+                          S/ {subtotal.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td />
+                      </tr>
+                      <tr>
+                        <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV (18%)</td>
+                        <td className="px-5 py-2 text-right text-sm text-gray-600">
+                          S/ {igv.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td />
+                      </tr>
+                      <tr className="border-t border-gray-200">
                         <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">Total general:</td>
                         <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">
                           S/ {totalGeneral.toLocaleString('es-PE', { minimumFractionDigits: 2 })}

@@ -239,7 +239,9 @@ export default function SolicitudDetallePage() {
     })
   }
 
-  const total = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+  const subtotal    = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+  const igv         = subtotal * 0.18
+  const totalConIgv = subtotal + igv
 
   // ── Loading / not found ───────────────────────────────────────
   if (loadingSol) {
@@ -377,7 +379,7 @@ export default function SolicitudDetallePage() {
               Detalles <span className="ml-1 text-gray-400 font-normal normal-case">({detalles.length} ítems)</span>
             </h2>
             <div className="flex items-center gap-3">
-              {total > 0 && <span className="text-sm font-bold text-[#003D7D]">{fmtMoney(total)}</span>}
+              {subtotal > 0 && <span className="text-sm font-bold text-[#003D7D]">{fmtMoney(totalConIgv)}</span>}
               {canEdit && (
                 <button onClick={openAdd}
                   className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#003D7D] text-white text-xs font-medium hover:bg-[#002D5C] transition-all">
@@ -429,8 +431,18 @@ export default function SolicitudDetallePage() {
                 </tbody>
                 <tfoot className="bg-gray-50 border-t border-gray-100">
                   <tr>
+                    <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">Subtotal</td>
+                    <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(subtotal)}</td>
+                    {canEdit && <td />}
+                  </tr>
+                  <tr>
+                    <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV (18%)</td>
+                    <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(igv)}</td>
+                    {canEdit && <td />}
+                  </tr>
+                  <tr className="border-t border-gray-200">
                     <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">Total general:</td>
-                    <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">{fmtMoney(total)}</td>
+                    <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">{fmtMoney(totalConIgv)}</td>
                     {canEdit && <td />}
                   </tr>
                 </tfoot>
