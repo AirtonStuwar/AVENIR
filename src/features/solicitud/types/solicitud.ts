@@ -1,3 +1,10 @@
+export interface SolicitudFormaPago {
+  id: number
+  nombre: string
+  estado: boolean
+  fecha_creacion: string | null
+}
+
 export const ROLES = {
   ADMIN:        1,
   EVALUADOR:    8,
@@ -21,6 +28,7 @@ export interface Solicitud {
   numero_cuenta: string | null
   cuenta_detracciones: string | null
   forma_pago: string | null
+  forma_pago_id: number | null
   porcentaje_contrato: number | null
   porcentaje_acumulado_contrato: number | null
   porcentaje_pendiente_contrato: number | null
@@ -39,6 +47,7 @@ export interface Solicitud {
   proyecto?: { id: number; nombre: string } | null
   solicitud_tipo?: { id: number; nombre: string } | null
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
+  solicitud_forma_pago?: { id: number; nombre: string } | null
   detalles?: SolicitudDetalle[]
   creador_email?: string | null
   area_nombre?: string | null

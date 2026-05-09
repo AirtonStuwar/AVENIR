@@ -380,7 +380,7 @@ export default function SolicitudDetallePage() {
             <InfoField label="Proyecto"        value={solicitud.proyecto?.nombre} />
             <InfoField label="Fecha pedido"    value={fmtDate(solicitud.fecha_pedido)} />
             <InfoField label="Fecha requerida" value={fmtDate(solicitud.fecha_requerida)} />
-            <InfoField label="Forma de pago"   value={solicitud.forma_pago} />
+            <InfoField label="Forma de pago"   value={solicitud.solicitud_forma_pago?.nombre ?? solicitud.forma_pago} />
           </div>
 
           <div className="px-6 pb-5 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-gray-50 pt-4">

@@ -1,8 +1,9 @@
 import { supabase } from '../../../api/supabase'
-import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado, SolicitudDetalleInsert, SolicitudDetalle, SolicitudArchivo } from '../types/solicitud'
+import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado, SolicitudDetalleInsert, SolicitudDetalle, SolicitudArchivo, SolicitudFormaPago } from '../types/solicitud'
 import { ROLES } from '../types/solicitud'
 
-const TABLE = 'solicitud'
+const TABLE   = 'solicitud'
+const SOL_SEL = '*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo), solicitud_forma_pago:forma_pago_id(id,nombre)'
 
 // ── Estado ID cache ───────────────────────────────────────────────
 let estadoCache: Record<string, number> = {}
@@ -74,7 +75,7 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
 
   let query: any = supabase
     .from(TABLE)
-    .select('*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo)', { count: 'exact' })
+    .select(SOL_SEL, { count: 'exact' })
     .order('fecha_creacion', { ascending: false })
     .range(from, to)
 
@@ -179,10 +180,20 @@ export async function rechazarSolicitud(id: number, comentario: string): Promise
   return updateSolicitud(id, { estado_id: estadoId, comentario_gerencia: comentario })
 }
 
+export async function getFormasPago(): Promise<SolicitudFormaPago[]> {
+  const { data, error } = await supabase
+    .from('solicitud_forma_pago')
+    .select('*')
+    .eq('estado', true)
+    .order('id')
+  if (error) throw error
+  return (data ?? []) as SolicitudFormaPago[]
+}
+
 export async function getSolicitudById(id: number): Promise<Solicitud> {
   const { data, error } = await supabase
     .from(TABLE)
-    .select('*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo)')
+    .select(SOL_SEL)
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
@@ -200,7 +211,7 @@ export async function getSolicitudById(id: number): Promise<Solicitud> {
 export async function createSolicitud(payload: SolicitudInsert): Promise<Solicitud> {
   const { detalles, ...rest } = payload as any
 
-  const { data, error } = await supabase.from(TABLE).insert(rest).select('*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo)').maybeSingle()
+  const { data, error } = await supabase.from(TABLE).insert(rest).select(SOL_SEL).maybeSingle()
   if (error) throw error
 
   const created = data as Solicitud

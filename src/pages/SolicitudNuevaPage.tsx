@@ -10,13 +10,14 @@ import {
   updateDetalle,
   deleteDetalle,
   getDetallesBySolicitud,
+  getFormasPago,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
 import type { SolicitudArchivo } from '../features/solicitud/types/solicitud'
 import { useAuthStore } from '../store/authStore'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
-import type { SolicitudDetalle } from '../features/solicitud/types/solicitud'
+import type { SolicitudDetalle, SolicitudFormaPago } from '../features/solicitud/types/solicitud'
 import { buscarRuc } from '../features/solicitud/services/rucService'
 
 const INPUT =
@@ -48,8 +49,9 @@ export default function SolicitudNuevaPage() {
   const [rucAutoFilled, setRucAutoFilled] = useState(false)
 
   // Catalogs
-  const [proyectos, setProyectos] = useState<Proyecto[]>([])
-  const [tipos,     setTipos]     = useState<{ id: number; nombre: string }[]>([])
+  const [proyectos,   setProyectos]   = useState<Proyecto[]>([])
+  const [tipos,       setTipos]       = useState<{ id: number; nombre: string }[]>([])
+  const [formasPago,  setFormasPago]  = useState<SolicitudFormaPago[]>([])
 
   // Form fields
   const [tipo_id,                      setTipoId]                      = useState<number | null>(null)
@@ -63,7 +65,7 @@ export default function SolicitudNuevaPage() {
   const [banco,                        setBanco]                       = useState('')
   const [numero_cuenta,                setNumeroCuenta]                = useState('')
   const [cuenta_detracciones,          setCuentaDetracciones]          = useState('')
-  const [forma_pago,                   setFormaPago]                   = useState('')
+  const [forma_pago_id,                setFormaPagoId]                 = useState<number | null>(null)
   const [porcentaje_contrato,          setPorcentajeContrato]          = useState<number | null>(100)
   const [porcentaje_acumulado_contrato,setPorcentajeAcumulado]         = useState<number | null>(0)
   const [porcentaje_pendiente_contrato,setPorcentajePendiente]         = useState<number | null>(100)
@@ -82,12 +84,14 @@ export default function SolicitudNuevaPage() {
   useEffect(() => {
     ;(async () => {
       try {
-        const [pRes, tRes] = await Promise.all([
+        const [pRes, tRes, fpRes] = await Promise.all([
           getProyectos({ page: 1, pageSize: 500 }),
           supabase.from('solicitud_tipo').select('id,nombre').order('nombre'),
+          getFormasPago(),
         ])
         setProyectos(pRes.data)
         setTipos(tRes.data ?? [])
+        setFormasPago(fpRes)
       } catch {
         toast.error('Error al cargar catálogos')
       }
@@ -127,7 +131,7 @@ export default function SolicitudNuevaPage() {
     if (!contacto_nombre.trim()) e.contacto_nombre= 'Obligatorio'
     if (!contacto_telefono.trim())e.contacto_telefono='Obligatorio'
     if (!contacto_correo.trim()) e.contacto_correo= 'Obligatorio'
-    if (!forma_pago.trim())      e.forma_pago     = 'Obligatorio'
+    if (!forma_pago_id)          e.forma_pago_id  = 'Obligatorio'
     if (!fecha_pedido)           e.fecha_pedido   = 'Obligatorio'
     if (!fecha_requerida)        e.fecha_requerida= 'Obligatorio'
     if (porcentaje_contrato === null)   e.porcentaje_contrato = 'Obligatorio'
@@ -145,7 +149,8 @@ export default function SolicitudNuevaPage() {
         banco: banco || null,
         numero_cuenta: numero_cuenta || null,
         cuenta_detracciones: cuenta_detracciones || null,
-        forma_pago,
+        forma_pago: formasPago.find(f => f.id === forma_pago_id)?.nombre ?? null,
+        forma_pago_id,
         porcentaje_contrato,
         porcentaje_acumulado_contrato,
         porcentaje_pendiente_contrato,
@@ -363,9 +368,12 @@ export default function SolicitudNuevaPage() {
                   </div>
                   <div>
                     <label className={LABEL}>Forma de pago *</label>
-                    <input className={inp(errors.forma_pago)} placeholder="Ej: Transferencia, Efectivo"
-                      value={forma_pago} onChange={(e) => { setFormaPago(e.target.value); setErrors((x) => ({ ...x, forma_pago: '' })) }} />
-                    {errors.forma_pago && <p className="mt-1 text-xs text-red-500">{errors.forma_pago}</p>}
+                    <select className={inp(errors.forma_pago_id)} value={forma_pago_id ?? ''}
+                      onChange={(e) => { setFormaPagoId(e.target.value ? Number(e.target.value) : null); setErrors((x) => ({ ...x, forma_pago_id: '' })) }}>
+                      <option value="">Seleccionar forma de pago</option>
+                      {formasPago.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
+                    </select>
+                    {errors.forma_pago_id && <p className="mt-1 text-xs text-red-500">{errors.forma_pago_id}</p>}
                   </div>
                 </div>
               </div>
