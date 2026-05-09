@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Send, CheckCircle, ThumbsUp, X, Loader2 } from 'lucide-react'
+import { Send, CheckCircle, ThumbsUp, X, Loader2, Download } from 'lucide-react'
+import ExcelJS from 'exceljs'
 import SolicitudesTable from '../features/solicitud/components/SolicitudesTable'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import { useSolicitudes } from '../features/solicitud/hooks/useSolicitudes'
@@ -18,7 +19,16 @@ import type { Solicitud } from '../features/solicitud/types/solicitud'
 export default function SolicitudesPage() {
   const navigate = useNavigate()
   const { userRole, user } = useAuthStore()
-  const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, refresh } = useSolicitudes()
+  const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, setMesAprobacion, refresh } = useSolicitudes()
+
+  const isVisualizador = userRole === ROLES.VISUALIZADOR
+
+  // ── Mes aprobación (solo VISUALIZADOR) ───────────────────────
+  const [mesAprobacion, setMesAprobacionLocal] = useState<number | null>(null)
+  const handleMesChange = (mes: number | null) => {
+    setMesAprobacionLocal(mes)
+    setMesAprobacion(mes)
+  }
 
   // ── Selección ─────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
@@ -62,6 +72,49 @@ export default function SolicitudesPage() {
   const handleBulkEnviar  = () => handleBulkAction('Pendiente',   enviarARevision, 'enviadas a revisión')
   const handleBulkEvaluar = () => handleBulkAction('En Revision', marcarEvaluado,  'marcadas como Evaluadas')
   const handleBulkAprobar = () => handleBulkAction('Evaluado',    id => aprobarSolicitud(id, user!.id), 'aprobadas')
+
+  // ── Exportar Excel (solo VISUALIZADOR) ───────────────────────
+  const handleExport = async () => {
+    const selected = data.filter(s => selectedIds.has(s.id))
+    if (selected.length === 0) return
+
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Pagos')
+
+    ws.addRow([
+      'DOI tipo', 'DOI Numero', 'Tipo abono', 'Cuenta', 'Nombre del beneficiario',
+      'Importe abonar', 'Tipo recibo', 'Numero documento', 'Abono Agrupado',
+      'Indicador de Aviso', 'Medio de aviso', 'Persona Contacto', 'Validacion',
+    ])
+
+    for (const s of selected) {
+      ws.addRow([
+        s.ruc?.length === 11 ? 'R' : 'L',
+        s.ruc ?? '',
+        s.numero_cuenta?.length === 20 ? 'I' : 'P',
+        s.numero_cuenta ?? '',
+        s.razon_social ?? '',
+        s.monto_total ?? 0,
+        'F',
+        s.numero_factura ?? '',
+        'N',
+        'E',
+        s.creador_email ?? '',
+        '',
+        '',
+      ])
+    }
+
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url    = URL.createObjectURL(blob)
+    const a      = document.createElement('a')
+    a.href       = url
+    a.download   = `pagos_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`Excel generado con ${selected.length} solicitud${selected.length > 1 ? 'es' : ''}`)
+  }
 
   // ── Cancelar individual ───────────────────────────────────────
   const canCancelFromList = userRole === ROLES.ADMIN || userRole === ROLES.USUARIO
@@ -139,6 +192,16 @@ export default function SolicitudesPage() {
             </button>
           )}
 
+          {isVisualizador && (
+            <button
+              onClick={handleExport}
+              disabled={bulkLoading}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 disabled:opacity-50 transition-colors"
+            >
+              <Download size={12} /> Descargar Excel ({selectedIds.size})
+            </button>
+          )}
+
           <button
             onClick={() => setSelectedIds(new Set())}
             disabled={bulkLoading}
@@ -160,11 +223,13 @@ export default function SolicitudesPage() {
         onSearch={setSearch}
         onPageChange={handlePageChange}
         onRefresh={refresh}
-        onCreate={() => navigate('/solicitudes/nueva')}
+        onCreate={!isVisualizador ? () => navigate('/solicitudes/nueva') : undefined}
         onView={(s) => navigate(`/solicitudes/${s.id}`)}
         onCancel={canCancelFromList ? handleCancel : undefined}
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
+        mesAprobacion={isVisualizador ? mesAprobacion : undefined}
+        onMesAprobacionChange={isVisualizador ? handleMesChange : undefined}
       />
 
       <ConfirmModal

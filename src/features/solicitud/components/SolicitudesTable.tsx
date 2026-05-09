@@ -7,6 +7,8 @@ function fmtDate(d: string | null): string {
   return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d + 'T00:00:00'))
 }
 
+const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+
 interface Props {
   data: Solicitud[]
   total: number
@@ -22,12 +24,14 @@ interface Props {
   onRefresh: () => void
   selectedIds?: Set<number>
   onSelectionChange?: (ids: Set<number>) => void
+  mesAprobacion?: number | null
+  onMesAprobacionChange?: (mes: number | null) => void
 }
 
 export default function SolicitudesTable({
   data, total, page, pageSize, totalPages, loading,
   onSearch, onPageChange, onRefresh, onCreate, onView, onCancel,
-  selectedIds, onSelectionChange,
+  selectedIds, onSelectionChange, mesAprobacion, onMesAprobacionChange,
 }: Props) {
   const [searchVal, setSearchVal] = useState('')
   const selectAllRef = useRef<HTMLInputElement>(null)
@@ -76,6 +80,19 @@ export default function SolicitudesTable({
         </div>
 
         <div className="flex items-center gap-2">
+          {onMesAprobacionChange && (
+            <select
+              value={mesAprobacion ?? ''}
+              onChange={e => onMesAprobacionChange(e.target.value ? Number(e.target.value) : null)}
+              className="h-9 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+            >
+              <option value="">Todos los meses</option>
+              {MESES.map((m, i) => (
+                <option key={i + 1} value={i + 1}>{m} {new Date().getFullYear()}</option>
+              ))}
+            </select>
+          )}
+
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
@@ -91,9 +108,11 @@ export default function SolicitudesTable({
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
 
-          <button onClick={onCreate} className="h-9 px-4 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-1.5">
-            Nuevo
-          </button>
+          {onCreate && (
+            <button onClick={onCreate} className="h-9 px-4 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-1.5">
+              Nuevo
+            </button>
+          )}
         </div>
       </div>
 

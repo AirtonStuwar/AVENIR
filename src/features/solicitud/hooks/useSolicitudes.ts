@@ -45,6 +45,8 @@ export function useSolicitudes(filtrosIniciales: SolicitudFiltros = {}) {
   const setSearch = (search: string) => setFiltros((f) => ({ ...f, search, page: 1 }))
   const setProyectoFilter = (proyecto_id: number | null) =>
     setFiltros((f) => ({ ...f, proyecto_id: proyecto_id ?? undefined, page: 1 }))
+  const setMesAprobacion = (mes: number | null) =>
+    setFiltros((f) => ({ ...f, mes_aprobacion: mes ?? undefined, page: 1 }))
 
   const create = async (payload: SolicitudInsert): Promise<Solicitud | null> => {
     try {
@@ -82,5 +84,5 @@ export function useSolicitudes(filtrosIniciales: SolicitudFiltros = {}) {
     }
   }
 
-  return { ...result, loading, filtros, setPage, setSearch, setProyectoFilter, refresh, create, update, remove }
+  return { ...result, loading, filtros, setPage, setSearch, setProyectoFilter, setMesAprobacion, refresh, create, update, remove }
 }

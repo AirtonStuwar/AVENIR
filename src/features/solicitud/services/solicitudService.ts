@@ -68,7 +68,7 @@ async function enrichSolicitudes(solicitudes: Solicitud[]): Promise<Solicitud[]>
 }
 
 export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<SolicitudPaginado> {
-  const { search, proyecto_id, estado_id, page = 1, pageSize = 10, role, userId } = filtros
+  const { search, proyecto_id, estado_id, mes_aprobacion, page = 1, pageSize = 10, role, userId } = filtros
   const from = (page - 1) * pageSize
   const to   = from + pageSize - 1
 
@@ -98,6 +98,15 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
   if (estado_id !== undefined && estado_id !== null) {
     query = query.eq('estado_id', estado_id)
   }
+  if (mes_aprobacion !== undefined && mes_aprobacion !== null) {
+    const year      = new Date().getFullYear()
+    const mm        = String(mes_aprobacion).padStart(2, '0')
+    const nextMm    = mes_aprobacion === 12 ? '01' : String(mes_aprobacion + 1).padStart(2, '0')
+    const nextYear  = mes_aprobacion === 12 ? year + 1 : year
+    query = query
+      .gte('fecha_aprobacion', `${year}-${mm}-01`)
+      .lt('fecha_aprobacion',  `${nextYear}-${nextMm}-01`)
+  }
 
   const { data, error, count } = await query
   if (error) throw error
@@ -111,9 +120,18 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
 
 // ── Acciones de flujo ─────────────────────────────────────────────
 export async function enviarARevision(id: number): Promise<Solicitud> {
+  const { data: detalles } = await supabase
+    .from('solicitud_detalle')
+    .select('valor_total, cantidad, valor_unitario')
+    .eq('solicitud_id', id)
+
+  const subtotal   = ((detalles ?? []) as { valor_total: number | null; cantidad: number; valor_unitario: number }[])
+    .reduce((sum, d) => sum + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+  const montoTotal = +((subtotal * 1.18).toFixed(2))
+
   const [estadoId] = await resolveEstadoIds(['En Revision'])
   if (!estadoId) throw new Error('Estado "En Revision" no encontrado en BD')
-  return updateSolicitud(id, { estado_id: estadoId })
+  return updateSolicitud(id, { estado_id: estadoId, monto_total: montoTotal })
 }
 
 export async function cancelarSolicitud(id: number): Promise<Solicitud> {

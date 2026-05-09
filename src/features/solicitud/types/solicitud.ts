@@ -35,6 +35,7 @@ export interface Solicitud {
   usuario_aprobador: string | null
   comentario_gerencia: string | null
   numero_factura: string | null
+  monto_total: number | null
   proyecto?: { id: number; nombre: string } | null
   solicitud_tipo?: { id: number; nombre: string } | null
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
@@ -67,6 +68,7 @@ export type SolicitudInsert = Omit<
   | 'fecha_aprobacion'     // se completa al aprobar
   | 'usuario_aprobador'    // se completa al aprobar
   | 'numero_factura'       // se registra al completar el proceso
+  | 'monto_total'         // calculado al enviar a revisión
 > & { detalles?: SolicitudDetalleInsert[] }
 
 export type SolicitudUpdate = Partial<Omit<Solicitud, 'id' | 'fecha_creacion'>>
@@ -86,6 +88,7 @@ export interface SolicitudFiltros {
   search?: string
   proyecto_id?: number | null
   estado_id?: number | null
+  mes_aprobacion?: number | null
   page?: number
   pageSize?: number
   role?: number | null
