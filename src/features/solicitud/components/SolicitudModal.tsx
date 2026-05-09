@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
 import { getProyectos } from '../../proyecto/services/proyectoService'
+import { getFormasPago } from '../services/solicitudService'
 import { supabase } from '../../../api/supabase'
 import { useAuthStore } from '../../../store/authStore'
 import type { Proyecto } from '../../proyecto/types/proyecto'
-import type { SolicitudInsert } from '../types/solicitud'
+import type { SolicitudInsert, SolicitudFormaPago } from '../types/solicitud'
 
 interface Props {
   open: boolean
@@ -16,6 +17,7 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
   const user = useAuthStore((s) => s.user)
   const [loading, setLoading] = useState(false)
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
+  const [formasPago, setFormasPago] = useState<SolicitudFormaPago[]>([])
 
   const [razon_social, setRazonSocial] = useState('')
   const [ruc, setRuc] = useState('')
@@ -28,7 +30,7 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
   const [banco, setBanco] = useState('')
   const [numero_cuenta, setNumeroCuenta] = useState('')
   const [cuenta_detracciones, setCuentaDetracciones] = useState('')
-  const [forma_pago, setFormaPago] = useState('')
+  const [forma_pago_id, setFormaPagoId] = useState<number | null>(null)
   const [porcentaje_contrato, setPorcentajeContrato] = useState<number | null>(100)
   const [porcentaje_acumulado_contrato, setPorcentajeAcumuladoContrato] = useState<number | null>(0)
   const [porcentaje_pendiente_contrato, setPorcentajePendienteContrato] = useState<number | null>(100)
@@ -45,10 +47,14 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
     if (!open) return
     ;(async () => {
       try {
-        const res = await getProyectos({ page: 1, pageSize: 500 })
+        const [res, tiposData, fp] = await Promise.all([
+          getProyectos({ page: 1, pageSize: 500 }),
+          supabase.from('solicitud_tipo').select('id,nombre').order('nombre'),
+          getFormasPago(),
+        ])
         setProyectos(res.data)
-        const { data: tiposData } = await supabase.from('solicitud_tipo').select('id,nombre').order('nombre')
-        setTipos(tiposData ?? [])
+        setTipos(tiposData.data ?? [])
+        setFormasPago(fp)
       } catch (err) {
         console.error(err)
       }
@@ -67,7 +73,7 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
     setBanco('')
     setNumeroCuenta('')
     setCuentaDetracciones('')
-    setFormaPago('')
+    setFormaPagoId(null)
     setPorcentajeContrato(null)
     setPorcentajeAcumuladoContrato(null)
     setPorcentajePendienteContrato(null)
@@ -88,7 +94,7 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
     if (!contacto_nombre?.trim()) e.contacto_nombre = 'Nombre de contacto es obligatorio'
     if (!contacto_telefono?.trim()) e.contacto_telefono = 'Teléfono de contacto es obligatorio'
     if (!contacto_correo?.trim()) e.contacto_correo = 'Correo de contacto es obligatorio'
-    if (!forma_pago?.trim()) e.forma_pago = 'Forma de pago es obligatoria'
+    if (!forma_pago_id) e.forma_pago_id = 'Forma de pago es obligatoria'
     if (porcentaje_contrato === null || porcentaje_contrato === undefined) e.porcentaje_contrato = 'Porcentaje contrato es obligatorio'
     if (porcentaje_acumulado_contrato === null || porcentaje_acumulado_contrato === undefined) e.porcentaje_acumulado_contrato = 'Porcentaje acumulado es obligatorio'
     if (porcentaje_pendiente_contrato === null || porcentaje_pendiente_contrato === undefined) e.porcentaje_pendiente_contrato = 'Porcentaje pendiente es obligatorio'
@@ -116,7 +122,8 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
         banco: banco || null,
         numero_cuenta: numero_cuenta || null,
         cuenta_detracciones: cuenta_detracciones || null,
-        forma_pago: forma_pago || null,
+        forma_pago: formasPago.find(f => f.id === forma_pago_id)?.nombre ?? null,
+        forma_pago_id,
         porcentaje_contrato: porcentaje_contrato ?? null,
         porcentaje_acumulado_contrato: porcentaje_acumulado_contrato ?? null,
         porcentaje_pendiente_contrato: porcentaje_pendiente_contrato ?? null,
@@ -342,13 +349,15 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
                 <label className="mb-1 block text-xs font-medium text-gray-700">
                   Forma de pago <span className="text-red-500">*</span>
                 </label>
-                <input
+                <select
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
-                  placeholder="Ej: Transferencia, Efectivo"
-                  value={forma_pago}
-                  onChange={(e) => { setFormaPago(e.target.value); clearErrors() }}
-                />
-                {errors.forma_pago && <p className="mt-1 text-sm text-red-600">{errors.forma_pago}</p>}
+                  value={forma_pago_id ?? ''}
+                  onChange={(e) => { setFormaPagoId(e.target.value ? Number(e.target.value) : null); clearErrors() }}
+                >
+                  <option value="">Seleccionar forma de pago</option>
+                  {formasPago.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
+                </select>
+                {errors.forma_pago_id && <p className="mt-1 text-sm text-red-600">{errors.forma_pago_id}</p>}
               </div>
             </div>
           </div>
