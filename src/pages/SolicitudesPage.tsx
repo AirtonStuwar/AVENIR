@@ -83,7 +83,7 @@ export default function SolicitudesPage() {
 
     ws.addRow([
       'DOI tipo', 'DOI Numero', 'Tipo abono', 'Cuenta', 'Nombre del beneficiario',
-      'Importe abonar', 'Tipo recibo', 'Numero documento', 'Abono Agrupado',
+      'Importe abonar', 'Tipo recibo', 'Numero documento', 'Abono Agrupado', 'Referencia',
       'Indicador de Aviso', 'Medio de aviso', 'Persona Contacto', 'Validacion',
     ])
 
@@ -98,6 +98,7 @@ export default function SolicitudesPage() {
         'F',
         s.numero_factura ?? '',
         'N',
+        '',
         'E',
         s.creador_email ?? '',
         '',
