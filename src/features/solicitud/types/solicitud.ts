@@ -34,6 +34,7 @@ export interface Solicitud {
   fecha_aprobacion: string | null
   usuario_aprobador: string | null
   comentario_gerencia: string | null
+  numero_factura: string | null
   proyecto?: { id: number; nombre: string } | null
   solicitud_tipo?: { id: number; nombre: string } | null
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
@@ -65,6 +66,7 @@ export type SolicitudInsert = Omit<
   | 'comentario_gerencia'  // lo llena gerencia al aprobar
   | 'fecha_aprobacion'     // se completa al aprobar
   | 'usuario_aprobador'    // se completa al aprobar
+  | 'numero_factura'       // se registra al completar el proceso
 > & { detalles?: SolicitudDetalleInsert[] }
 
 export type SolicitudUpdate = Partial<Omit<Solicitud, 'id' | 'fecha_creacion'>>

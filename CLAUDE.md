@@ -19,7 +19,7 @@ No test framework is configured.
 
 **Feature-driven structure:** Code is organized under `src/features/<domain>/` — each domain contains `components/`, `services/`, `hooks/`, and `types/` subfolders. Pages live in `src/pages/` and are thin route-level components. Layout shells (`MainLayout`, `Sidebar`, `Topbar`, `ProtectedRoute`) are in `src/components/layout/`.
 
-**Authentication & roles:** Supabase Auth (email/password). On login, `authStore.ts` (Zustand) calls `fetchUserRole()` which queries the `usuario_rol` table to get a numeric role ID. The role gates sidebar items and dashboard panels. `ProtectedRoute` redirects unauthenticated users to `/login`. The store also listens to `onAuthStateChange` for session refresh/logout.
+**Authentication & roles:** Supabase Auth (email/password). Auth is initialized in `App.tsx` via `supabase.auth.getSession()` + `onAuthStateChange` listener, which calls `authStore.setSession()`. The store exposes an `initialize()` method but it is not used — `App.tsx` owns the subscription and cleans it up on unmount. `authStore.ts` calls `fetchUserRole()` which queries the `usuario_rol` table to get a numeric role ID. The role gates sidebar items and dashboard panels. `ProtectedRoute` redirects unauthenticated users to `/login`.
 
 Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `ADMIN = 1` — full access
@@ -28,7 +28,7 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `VISUALIZADOR = 10` — read-only
 - `USUARIO = 11` — can create requests
 
-**Data access pattern:** Feature-level service files (`*Service.ts`) wrap Supabase queries. Custom hooks (`useSolicitudes`, `useProyectos`) own local state for pagination and filters, call the services, and expose data + handlers to page components.
+**Data access pattern:** Feature-level service files (`*Service.ts`) wrap Supabase queries. Custom hooks (`useSolicitudes`, `useProyectos`) own local state for pagination and filters, call the services, and expose data + handlers to page components. `useSolicitudes` automatically syncs `role` and `userId` from the auth store into query filters via a `useEffect`.
 
 **Routing** (`App.tsx`):
 - `/login` — public
@@ -37,7 +37,16 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 
 **Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `estado_soli`, `proyecto`, `area_usuario`, `vista_creadores` (view exposing user emails).
 
-**Supabase Storage:** Bucket `solicitud-archivos` holds 4 document types per request (Contrato, Cotización, Cuadro Comparativo, Sustento). Signed URLs with 1-hour expiry are used for access.
+`vista_creadores` must be created manually:
+```sql
+CREATE OR REPLACE VIEW public.vista_creadores AS
+  SELECT id, email FROM auth.users;
+GRANT SELECT ON public.vista_creadores TO anon, authenticated;
+```
+
+`area_usuario` links users to areas; only rows with `estado = 1` are treated as active when enriching solicitudes with area names.
+
+**Supabase Storage:** Bucket `solicitud-archivos` holds 4 document types per request (Contrato, Cotización, Cuadro Comparativo, Sustento). Signed URLs with 1-hour expiry are used for access. Storage path format: `{solicitudId}/{tipoArchivo}/{timestamp}.{ext}`.
 
 **Solicitud workflow states** (`estado_soli` table drives UI logic):
 - Pendiente → (USUARIO/ADMIN) → `enviarARevision` → En Revision
@@ -51,8 +60,14 @@ The service caches estado IDs in memory to avoid repeated lookups (`estado_soli`
 
 **SolicitudNuevaPage** is a 3-step wizard: (1) request form, (2) line-item detail editor, (3) file uploads. Step state is local to the page.
 
+**SolicitudDetallePage** calculates totals client-side: `subtotal` (sum of line items), `igv = subtotal * 0.18` (18% Peruvian IGV), and `totalConIgv`. The `solicitud_detalle.valor_total` column may be DB-computed; the code uses `d.valor_total ?? d.cantidad * d.valor_unitario` as fallback. Currency is displayed in Peruvian soles (`S/`) using the `es-PE` locale.
+
 **Dashboard** renders differently by role: Admin/Aprobador see Recharts charts (BarChart, PieChart) with 6-month trends and project budgets; other roles see a simplified view.
 
 **TypeScript config:** strict mode with `noUnusedLocals` and `noUnusedParameters` enabled — unused variables will cause build errors. Use `Omit<T, 'id' | 'fecha_creacion' | ...>` for insert/update types (see `SolicitudInsert` as the canonical example).
 
-**Env vars** (`.env.local`): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase client is initialized in `src/api/supabase.ts`.
+**RUC lookup:** `rucService.ts` calls `/api/ruc?numero=<ruc>`. In development, `vite.config.ts` proxies this to `https://api.decolecta.com/v1/sunat/ruc` with a Bearer token. This proxy only runs in `dev` mode; a separate server-side solution is needed in production.
+
+**Env vars** (`.env.local`):
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase client (`src/api/supabase.ts`)
+- `DECOLECTA_API_KEY` — RUC lookup API (dev proxy only; not exposed to the browser)
