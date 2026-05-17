@@ -8,7 +8,7 @@ import { useAuthStore } from '../../store/authStore';
 const ALL_ROLES = [1, 8, 9, 10, 11]
 
 const menuItems = [
-  { name: 'Dashboard',   path: '/dashboard',   icon: LayoutDashboard, roles: [1, 8, 9, 10] },
+  { name: 'Dashboard',   path: '/dashboard',   icon: LayoutDashboard, roles: [1, 8, 9, 10, 11] },
   { name: 'Solicitudes', path: '/solicitudes', icon: FileText,   roles: ALL_ROLES },
   { name: 'Proveedores', path: '/proveedores', icon: Users,      roles: [1] },
   { name: 'Proyectos',   path: '/proyectos',   icon: Briefcase,  roles: [1] },

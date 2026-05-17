@@ -6,30 +6,39 @@ import {
 } from 'recharts'
 import {
   AlertCircle, ArrowRight, Clock, DollarSign,
-  FolderOpen, TrendingUp, CheckCircle, XCircle, FileText,
+  FolderOpen, TrendingUp, CheckCircle, XCircle,
+  FileText, Send, RotateCcw, ThumbsUp, Plus,
+  Hourglass, Receipt,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import { getDashboardData, type DashboardData } from '../features/dashboard/services/dashboardService'
-import { useSolicitudes } from '../features/solicitud/hooks/useSolicitudes'
+import {
+  getDashboardData, getAprobadorData, getEvaluadorData, getVisualizadorData, getUsuarioData,
+  type DashboardData, type AprobadorData, type EvaluadorData,
+  type VisualizadorData, type UsuarioData, type SolicitudRow,
+} from '../features/dashboard/services/dashboardService'
 import { ROLES } from '../features/solicitud/types/solicitud'
 
 // ── constants ────────────────────────────────────────────────────
 const ESTADO_COLOR: Record<string, string> = {
-  Pendiente:     '#F59E0B',
-  'En Revision': '#3B82F6',
-  Evaluado:      '#8B5CF6',
-  Aprobado:      '#10B981',
-  Rechazado:     '#EF4444',
-  Cancelado:     '#9CA3AF',
+  Pendiente:               '#F59E0B',
+  'En Revision':           '#3B82F6',
+  Evaluado:                '#8B5CF6',
+  Aprobado:                '#10B981',
+  'Facturación Pendiente': '#F97316',
+  Completado:              '#059669',
+  Rechazado:               '#EF4444',
+  Cancelado:               '#9CA3AF',
 }
 
 const ESTADO_BADGE: Record<string, string> = {
-  Pendiente:     'bg-yellow-100 text-yellow-800',
-  'En Revision': 'bg-blue-100 text-blue-800',
-  Evaluado:      'bg-purple-100 text-purple-800',
-  Aprobado:      'bg-green-100 text-green-800',
-  Rechazado:     'bg-red-100 text-red-800',
-  Cancelado:     'bg-gray-100 text-gray-600',
+  Pendiente:               'bg-yellow-100 text-yellow-800',
+  'En Revision':           'bg-blue-100 text-blue-800',
+  Evaluado:                'bg-purple-100 text-purple-800',
+  Aprobado:                'bg-green-100 text-green-800',
+  'Facturación Pendiente': 'bg-orange-100 text-orange-800',
+  Completado:              'bg-emerald-100 text-emerald-800',
+  Rechazado:               'bg-red-100 text-red-800',
+  Cancelado:               'bg-gray-100 text-gray-600',
 }
 
 // ── helpers ──────────────────────────────────────────────────────
@@ -60,16 +69,36 @@ function monthKey(dateStr: string) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
+function currentMonthKey() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function prevMonthKey() {
+  const d = new Date()
+  d.setMonth(d.getMonth() - 1)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function daysBetween(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  return Math.floor(diff / (1000 * 60 * 60 * 24))
+}
+
+function montoSolicitudes(sols: SolicitudRow[], detalles: { solicitud_id: number; valor_total: number | null; cantidad: number; valor_unitario: number }[]) {
+  const ids = new Set(sols.map(s => s.id))
+  return detalles.filter(d => ids.has(d.solicitud_id)).reduce((sum, d) => sum + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+}
+
 // ── main component ───────────────────────────────────────────────
 export function DashboardPage() {
   const { userRole } = useAuthStore()
 
-  if (userRole === ROLES.ADMIN || userRole === ROLES.APROBADOR) return <AdminDashboard />
-
-  if (
-    userRole === ROLES.EVALUADOR ||
-    userRole === ROLES.VISUALIZADOR
-  ) return <RoleDashboard />
+  if (userRole === ROLES.ADMIN)        return <AdminDashboard />
+  if (userRole === ROLES.APROBADOR)   return <AprobadorDashboard />
+  if (userRole === ROLES.EVALUADOR)   return <EvaluadorDashboard />
+  if (userRole === ROLES.VISUALIZADOR) return <VisualizadorDashboard />
+  if (userRole === ROLES.USUARIO)      return <UsuarioDashboard />
 
   return (
     <div className="flex h-80 flex-col items-center justify-center gap-3 text-gray-400">
@@ -79,315 +108,84 @@ export function DashboardPage() {
   )
 }
 
-// ── Role dashboard (Evaluador / Aprobador / Visualizador) ────────
-function RoleDashboard() {
-  const { userRole } = useAuthStore()
-  const navigate     = useNavigate()
-  const { data, total, loading, page, totalPages, setPage } = useSolicitudes({ pageSize: 15 })
-
-  const cfg: Record<number, { title: string; subtitle: string; kpiLabel: string; kpiColor: string }> = {
-    [ROLES.EVALUADOR]: {
-      title:     'Panel Evaluador',
-      subtitle:  'Solicitudes en revisión pendientes de evaluación',
-      kpiLabel:  'En revisión',
-      kpiColor:  'text-blue-700',
-    },
-    [ROLES.APROBADOR]: {
-      title:     'Panel Aprobador',
-      subtitle:  'Solicitudes evaluadas, aprobadas y rechazadas',
-      kpiLabel:  'Solicitudes visibles',
-      kpiColor:  'text-purple-700',
-    },
-    [ROLES.VISUALIZADOR]: {
-      title:     'Panel Visualizador',
-      subtitle:  'Solicitudes aprobadas',
-      kpiLabel:  'Aprobadas',
-      kpiColor:  'text-green-700',
-    },
-  }
-
-  const c = cfg[userRole ?? 0]
-  if (!c) return null
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto px-6 py-6 space-y-5">
-
-        <div className="flex items-end justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">{c.title}</h1>
-            <p className="text-xs text-gray-400 mt-0.5">{c.subtitle}</p>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            <span className="h-2 w-2 rounded-full bg-green-400 inline-block" />
-            Datos en tiempo real
-          </div>
-        </div>
-
-        {/* KPI */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex items-center gap-5">
-          <div className="h-14 w-14 rounded-xl bg-[#003D7D]/8 flex items-center justify-center flex-shrink-0">
-            <FileText size={24} className="text-[#003D7D]" />
-          </div>
-          <div>
-            <p className={`text-4xl font-bold tracking-tight ${c.kpiColor}`}>{loading ? '…' : total}</p>
-            <p className="text-sm text-gray-500 mt-0.5">{c.kpiLabel}</p>
-          </div>
-        </div>
-
-        {/* Table */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Solicitudes</h2>
-          </div>
-
-          {loading ? (
-            <div className="flex justify-center py-14">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#003D7D] border-t-transparent" />
-            </div>
-          ) : data.length === 0 ? (
-            <div className="py-14 flex flex-col items-center gap-2 text-gray-400">
-              <AlertCircle size={28} className="text-gray-200" />
-              <p className="text-sm">Sin solicitudes disponibles</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100 text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {['Código', 'Proveedor', 'Proyecto', 'Fecha pedido', 'Estado', ''].map(h => (
-                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {data.map(s => (
-                    <tr key={s.id} className="hover:bg-[#003D7D]/[0.03] cursor-pointer transition-colors"
-                      onClick={() => navigate(`/solicitudes/${s.id}`)}>
-                      <td className="px-5 py-3.5">
-                        <span className="font-mono text-xs bg-[#003D7D]/8 text-[#003D7D] px-2 py-0.5 rounded-md">
-                          {s.codigo ?? `#${s.id}`}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 font-medium text-gray-900">{s.razon_social ?? '—'}</td>
-                      <td className="px-5 py-3.5 text-gray-500 text-xs">{s.proyecto?.nombre ?? '—'}</td>
-                      <td className="px-5 py-3.5 text-gray-500 text-xs">
-                        {s.fecha_pedido
-                          ? new Date(s.fecha_pedido + 'T00:00:00').toLocaleDateString('es-PE', { dateStyle: 'medium' })
-                          : '—'}
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${ESTADO_BADGE[s.estado_soli?.tipo ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {s.estado_soli?.nombre ?? '—'}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <span className="text-xs font-semibold text-[#003D7D]">Revisar →</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/60">
-              <p className="text-xs text-gray-500">Página {page} de {totalPages}</p>
-              <div className="flex items-center gap-1">
-                <button onClick={() => setPage(page - 1)} disabled={page <= 1 || loading}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 disabled:opacity-40">‹</button>
-                <button onClick={() => setPage(page + 1)} disabled={page >= totalPages || loading}
-                  className="h-8 w-8 flex items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-500 disabled:opacity-40">›</button>
-              </div>
-            </div>
-          )}
-        </div>
-
-      </div>
-    </div>
-  )
-}
-
-// ── Admin dashboard ───────────────────────────────────────────────
+// ── ADMIN ────────────────────────────────────────────────────────
 function AdminDashboard() {
   const navigate = useNavigate()
-
   const [data,    setData]    = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(false)
 
   useEffect(() => {
-    getDashboardData()
-      .then(setData)
-      .catch(() => setError(true))
-      .finally(() => setLoading(false))
+    getDashboardData().then(setData).catch(() => setError(true)).finally(() => setLoading(false))
   }, [])
 
-  if (loading) {
-    return (
-      <div className="flex h-80 items-center justify-center">
-        <div className="h-9 w-9 animate-spin rounded-full border-4 border-[#003D7D] border-t-transparent" />
-      </div>
-    )
-  }
+  if (loading) return <Spinner />
+  if (error || !data) return <ErrorState />
 
-  if (error || !data) {
-    return (
-      <div className="flex h-80 flex-col items-center justify-center gap-3 text-gray-400">
-        <AlertCircle size={32} className="text-red-300" />
-        <p className="text-sm">No se pudo cargar el panel.</p>
-      </div>
-    )
-  }
-
-  // ── aggregations ─────────────────────────────────────────────
   const { solicitudes, proyectos, detalles } = data
 
-  const porTipo = solicitudes.reduce<Record<string, number>>((acc, s) => {
+  const porEstado = solicitudes.reduce<Record<string, number>>((acc, s) => {
     const t = s.estado_soli?.nombre ?? 'Sin estado'
-    acc[t]  = (acc[t] ?? 0) + 1
+    acc[t] = (acc[t] ?? 0) + 1
     return acc
   }, {})
 
-  const totalSolicitudes = solicitudes.length
-  const pendientes       = porTipo['Pendiente'] ?? 0
-  const proyActivos      = proyectos.filter(p => p.estado === 'Activo').length
-  const proyInactivos    = proyectos.length - proyActivos
-
-  const idsActivos = new Set(
-    solicitudes
-      .filter(s => s.estado_soli?.nombre === 'Aprobado')
-      .map(s => s.id)
+  const pendientes  = porEstado['Pendiente'] ?? 0
+  const proyActivos = proyectos.filter(p => p.estado === 'Activo').length
+  const montoAprobado = montoSolicitudes(
+    solicitudes.filter(s => ['Aprobado', 'Facturación Pendiente', 'Completado'].includes(s.estado_soli?.nombre ?? '')),
+    detalles,
   )
-  const montoTotal = detalles
-    .filter(d => idsActivos.has(d.solicitud_id))
-    .reduce((sum, d) => sum + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+  const montoTotal = montoSolicitudes(solicitudes, detalles)
 
-  const montoTodas = detalles.reduce((sum, d) => sum + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-
-  const donutData = Object.entries(porTipo)
-    .filter(([, v]) => v > 0)
-    .map(([name, value]) => ({ name, value }))
+  const donutData = Object.entries(porEstado).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }))
 
   const months = getLast6Months()
   const barMensual = months.map(({ key, label }) => ({
     mes:       label,
     Nuevas:    solicitudes.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === key).length,
-    Aprobadas: solicitudes.filter(s => {
-      if (!s.fecha_creacion) return false
-      return monthKey(s.fecha_creacion) === key && s.estado_soli?.nombre === 'Aprobado'
-    }).length,
+    Aprobadas: solicitudes.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === key && ['Aprobado', 'Facturación Pendiente', 'Completado'].includes(s.estado_soli?.nombre ?? '')).length,
   }))
 
   const montoByProyecto: Record<string, number> = {}
   for (const s of solicitudes) {
     const nombre = s.proyecto?.nombre ?? 'Sin proyecto'
-    const monto  = detalles
-      .filter(d => d.solicitud_id === s.id)
-      .reduce((acc, d) => acc + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+    const monto = detalles.filter(d => d.solicitud_id === s.id).reduce((acc, d) => acc + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
     montoByProyecto[nombre] = (montoByProyecto[nombre] ?? 0) + monto
   }
-  const barProyecto = Object.entries(montoByProyecto)
-    .filter(([, v]) => v > 0)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5)
-    .map(([name, monto]) => ({
-      name:  name.length > 22 ? name.slice(0, 22) + '…' : name,
-      monto,
-    }))
+  const barProyecto = Object.entries(montoByProyecto).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a).slice(0, 5).map(([name, monto]) => ({
+    name: name.length > 22 ? name.slice(0, 22) + '…' : name,
+    monto,
+  }))
 
   const proyEstados = proyectos.reduce<Record<string, number>>((acc, p) => {
-    const e = p.estado ?? 'Sin estado'
-    acc[e]  = (acc[e] ?? 0) + 1
-    return acc
+    const e = p.estado ?? 'Sin estado'; acc[e] = (acc[e] ?? 0) + 1; return acc
   }, {})
   const barEstadoProy = Object.entries(proyEstados).map(([estado, cantidad]) => ({ estado, cantidad }))
-
   const pendientesList = solicitudes.filter(s => s.estado_soli?.nombre === 'Pendiente').slice(0, 6)
 
-  // ── render ───────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        <DashHeader title="Panel de Administración" subtitle={new Date().toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} />
 
-        {/* Header */}
-        <div className="flex items-end justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">Panel de Administración</h1>
-            <p className="text-xs text-gray-400 mt-0.5">
-              {new Date().toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            </p>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            <span className="h-2 w-2 rounded-full bg-green-400 inline-block" />
-            Datos en tiempo real
-          </div>
-        </div>
-
-        {/* ── KPIs ── */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard
-            label="Pend. de aprobación"
-            value={pendientes}
-            sub={`de ${totalSolicitudes} solicitudes`}
-            icon={<Clock size={18} />}
-            color="amber"
-            alert={pendientes > 0}
-            onClick={() => navigate('/solicitudes')}
-          />
-          <KpiCard
-            label="Solicitudes este mes"
-            value={barMensual[barMensual.length - 1]?.Nuevas ?? 0}
-            sub="en el mes actual"
-            icon={<TrendingUp size={18} />}
-            color="blue"
-          />
-          <KpiCard
-            label="Proyectos activos"
-            value={proyActivos}
-            sub={`${proyInactivos} inactivos`}
-            icon={<FolderOpen size={18} />}
-            color="green"
-            onClick={() => navigate('/proyectos')}
-          />
-          <KpiCard
-            label="Monto aprobado"
-            value={fmtMoney(montoTotal)}
-            sub={`${fmtMoney(montoTodas)} potencial total`}
-            icon={<DollarSign size={18} />}
-            color="indigo"
-          />
+          <KpiCard label="Pend. de aprobación" value={pendientes} sub={`de ${solicitudes.length} solicitudes`} icon={<Clock size={18} />} color="amber" alert={pendientes > 0} onClick={() => navigate('/solicitudes')} />
+          <KpiCard label="Solicitudes este mes" value={barMensual[barMensual.length - 1]?.Nuevas ?? 0} sub="en el mes actual" icon={<TrendingUp size={18} />} color="blue" />
+          <KpiCard label="Proyectos activos" value={proyActivos} sub={`${proyectos.length - proyActivos} inactivos`} icon={<FolderOpen size={18} />} color="green" onClick={() => navigate('/proyectos')} />
+          <KpiCard label="Monto aprobado" value={fmtMoney(montoAprobado)} sub={`${fmtMoney(montoTotal)} potencial`} icon={<DollarSign size={18} />} color="indigo" />
         </div>
 
-        {/* ── Charts row 1 ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
           <ChartCard title="Distribución por estado" subtitle="Todas las solicitudes">
             {donutData.length === 0 ? <EmptyChart /> : (
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
-                  <Pie
-                    data={donutData}
-                    cx="42%" cy="50%"
-                    innerRadius={58} outerRadius={88}
-                    paddingAngle={3}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {donutData.map((entry, i) => (
-                      <Cell key={i} fill={ESTADO_COLOR[entry.name] ?? '#94A3B8'} />
-                    ))}
+                  <Pie data={donutData} cx="42%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={3} dataKey="value" stroke="none">
+                    {donutData.map((e, i) => <Cell key={i} fill={ESTADO_COLOR[e.name] ?? '#94A3B8'} />)}
                   </Pie>
-                  <Tooltip
-                    contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }}
-                    formatter={(v, name) => [`${v} solicitudes`, name as string]}
-                  />
-                  <Legend
-                    layout="vertical" align="right" verticalAlign="middle"
-                    iconType="circle" iconSize={8}
-                    formatter={(v) => <span style={{ fontSize: 11, color: '#6B7280' }}>{v}</span>}
-                  />
+                  <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }} formatter={(v, name) => [`${v} solicitudes`, name as string]} />
+                  <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" iconSize={8} formatter={(v) => <span style={{ fontSize: 11, color: '#6B7280' }}>{v}</span>} />
                 </PieChart>
               </ResponsiveContainer>
             )}
@@ -398,10 +196,7 @@ function AdminDashboard() {
               <BarChart data={barMensual} barSize={14} barGap={2}>
                 <XAxis dataKey="mes" tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 11, fill: '#9CA3AF' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }}
-                  cursor={{ fill: '#F9FAFB' }}
-                />
+                <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }} cursor={{ fill: '#F9FAFB' }} />
                 <Legend iconType="circle" iconSize={8} formatter={(v) => <span style={{ fontSize: 11, color: '#6B7280' }}>{v}</span>} />
                 <Bar dataKey="Nuevas"    fill="#003D7D" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Aprobadas" fill="#10B981" radius={[4, 4, 0, 0]} />
@@ -410,30 +205,15 @@ function AdminDashboard() {
           </ChartCard>
         </div>
 
-        {/* ── Charts row 2 ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-
           <div className="lg:col-span-2">
             <ChartCard title="Monto por proyecto" subtitle="Top 5 — solicitudes aprobadas">
               {barProyecto.length === 0 ? <EmptyChart /> : (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={barProyecto} layout="vertical" barSize={16} margin={{ left: 8, right: 20 }}>
-                    <XAxis
-                      type="number"
-                      tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                      axisLine={false} tickLine={false}
-                      tickFormatter={(v) => `S/${(v / 1000).toFixed(0)}K`}
-                    />
-                    <YAxis
-                      type="category" dataKey="name" width={130}
-                      tick={{ fontSize: 11, fill: '#6B7280' }}
-                      axisLine={false} tickLine={false}
-                    />
-                    <Tooltip
-                      contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }}
-                      cursor={{ fill: '#F9FAFB' }}
-                      formatter={(v) => [fmtMoneyFull(Number(v)), 'Monto']}
-                    />
+                    <XAxis type="number" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `S/${(v / 1000).toFixed(0)}K`} />
+                    <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11, fill: '#6B7280' }} axisLine={false} tickLine={false} />
+                    <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }} cursor={{ fill: '#F9FAFB' }} formatter={(v) => [fmtMoneyFull(Number(v)), 'Monto']} />
                     <Bar dataKey="monto" fill="#F65740" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -451,31 +231,22 @@ function AdminDashboard() {
                     <div key={estado}>
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-1.5">
-                          {isActivo
-                            ? <CheckCircle size={13} className="text-green-500" />
-                            : <XCircle    size={13} className="text-gray-400"  />
-                          }
+                          {isActivo ? <CheckCircle size={13} className="text-green-500" /> : <XCircle size={13} className="text-gray-400" />}
                           <span className="text-xs font-medium text-gray-700">{estado}</span>
                         </div>
                         <span className="text-xs font-bold text-gray-900">{cantidad}</span>
                       </div>
                       <div className="h-2 w-full rounded-full bg-gray-100 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-700 ${isActivo ? 'bg-green-500' : 'bg-gray-300'}`}
-                          style={{ width: `${pct}%` }}
-                        />
+                        <div className={`h-full rounded-full ${isActivo ? 'bg-green-500' : 'bg-gray-300'}`} style={{ width: `${pct}%` }} />
                       </div>
                       <p className="text-right text-xs text-gray-400 mt-0.5">{pct}%</p>
                     </div>
                   )
                 })}
-
                 {proyectos.some(p => p.presupuesto) && (
                   <div className="mt-2 pt-3 border-t border-gray-100">
                     <p className="text-xs text-gray-400">Presupuesto total</p>
-                    <p className="text-base font-bold text-[#003D7D]">
-                      {fmtMoneyFull(proyectos.reduce((s, p) => s + (p.presupuesto ?? 0), 0))}
-                    </p>
+                    <p className="text-base font-bold text-[#003D7D]">{fmtMoneyFull(proyectos.reduce((s, p) => s + (p.presupuesto ?? 0), 0))}</p>
                   </div>
                 )}
               </div>
@@ -483,84 +254,369 @@ function AdminDashboard() {
           </ChartCard>
         </div>
 
-        {/* ── Pendientes table ── */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">
-                Pendientes de aprobación
-              </h2>
-              {pendientes > 0 && (
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">
-                  {pendientes}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => navigate('/solicitudes')}
-              className="flex items-center gap-1 text-xs text-[#003D7D] hover:underline font-medium"
-            >
-              Ver todas <ArrowRight size={12} />
-            </button>
-          </div>
-
-          {pendientesList.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 gap-2 text-gray-400">
-              <CheckCircle size={28} className="text-green-300" />
-              <p className="text-sm">Sin solicitudes pendientes</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100 text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {['Código', 'Proveedor', 'Proyecto', 'Fecha pedido'].map(h => (
-                      <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide">{h}</th>
-                    ))}
-                    <th className="px-5 py-3" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50 bg-white">
-                  {pendientesList.map(s => (
-                    <tr
-                      key={s.id}
-                      className="hover:bg-amber-50/60 transition-colors cursor-pointer"
-                      onClick={() => navigate(`/solicitudes/${s.id}`)}
-                    >
-                      <td className="px-5 py-3.5 font-mono text-xs font-semibold text-[#003D7D]">
-                        {s.codigo ?? `#${s.id}`}
-                      </td>
-                      <td className="px-5 py-3.5 text-gray-900 font-medium">
-                        {s.razon_social ?? '—'}
-                      </td>
-                      <td className="px-5 py-3.5 text-gray-500">
-                        {s.proyecto?.nombre ?? '—'}
-                      </td>
-                      <td className="px-5 py-3.5 text-gray-500 text-xs">
-                        {s.fecha_pedido
-                          ? new Date(s.fecha_pedido + 'T00:00:00').toLocaleDateString('es-PE', { dateStyle: 'medium' })
-                          : '—'
-                        }
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
-                        <span className="text-xs font-semibold text-[#003D7D] hover:underline">
-                          Revisar →
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
+        <SolicitudTable title="Pendientes de aprobación" rows={pendientesList} badge count={pendientes} onVerTodas={() => navigate('/solicitudes')} onView={(s) => navigate(`/solicitudes/${s.id}`)} />
       </div>
     </div>
   )
 }
 
-// ── sub-components ───────────────────────────────────────────────
+// ── APROBADOR ────────────────────────────────────────────────────
+function AprobadorDashboard() {
+  const navigate = useNavigate()
+  const [data,           setData]           = useState<AprobadorData | null>(null)
+  const [loading,        setLoading]        = useState(true)
+  const [error,          setError]          = useState(false)
+  const [proyectoFilter, setProyectoFilter] = useState<number | null>(null)
+
+  useEffect(() => {
+    getAprobadorData().then(setData).catch(() => setError(true)).finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <Spinner />
+  if (error || !data) return <ErrorState />
+
+  const { enCola, aprobadas, rechazadas, proyectos, detalles } = data
+
+  const applyFilter = <T extends SolicitudRow>(list: T[]) =>
+    proyectoFilter ? list.filter(s => s.proyecto_id === proyectoFilter) : list
+
+  const colaFiltrada      = applyFilter(enCola)
+  const aprobadasFiltradas = applyFilter(aprobadas)
+  const rechazadasFiltradas = applyFilter(rechazadas)
+
+  const montoCola      = montoSolicitudes(colaFiltrada, detalles)
+  const montoAprobado  = montoSolicitudes(aprobadasFiltradas, detalles)
+  const cmk            = currentMonthKey()
+  const pmk            = prevMonthKey()
+  const aprobMes       = aprobadasFiltradas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
+  const aprobMesAnterior = aprobadasFiltradas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === pmk).length
+
+  const donutData = [
+    { name: 'Aprobadas', value: aprobadasFiltradas.length },
+    { name: 'Rechazadas', value: rechazadasFiltradas.length },
+    { name: 'En cola', value: colaFiltrada.length },
+  ].filter(d => d.value > 0)
+
+  const donutColors = ['#10B981', '#EF4444', '#8B5CF6']
+
+  const recientes = [...aprobadasFiltradas, ...rechazadasFiltradas]
+    .sort((a, b) => new Date(b.fecha_creacion ?? '').getTime() - new Date(a.fecha_creacion ?? '').getTime())
+    .slice(0, 6)
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        <div className="flex items-end justify-between">
+          <DashHeader title="Panel Gerencia" subtitle="Resumen de aprobaciones y solicitudes en cola" />
+          <select
+            value={proyectoFilter ?? ''}
+            onChange={e => setProyectoFilter(e.target.value ? Number(e.target.value) : null)}
+            className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 shadow-sm"
+          >
+            <option value="">Todos los proyectos</option>
+            {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          </select>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard label="En cola de aprobación" value={colaFiltrada.length} sub="esperando tu decisión" icon={<Hourglass size={18} />} color="amber" alert={colaFiltrada.length > 0} onClick={() => navigate('/solicitudes')} />
+          <KpiCard label="Monto en cola" value={fmtMoney(montoCola)} sub="pendiente de aprobación" icon={<DollarSign size={18} />} color="indigo" />
+          <KpiCard label="Aprobadas este mes" value={aprobMes} sub={`${aprobMesAnterior} el mes anterior`} icon={<ThumbsUp size={18} />} color="green" />
+          <KpiCard label="Monto aprobado total" value={fmtMoney(montoAprobado)} sub={`${rechazadasFiltradas.length} rechazadas`} icon={<TrendingUp size={18} />} color="blue" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartCard title="Distribución de solicitudes" subtitle="Aprobadas vs rechazadas vs en cola">
+            {donutData.length === 0 ? <EmptyChart /> : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={donutData} cx="42%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={3} dataKey="value" stroke="none">
+                    {donutData.map((_, i) => <Cell key={i} fill={donutColors[i]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }} formatter={(v, name) => [`${v} solicitudes`, name as string]} />
+                  <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" iconSize={8} formatter={(v) => <span style={{ fontSize: 11, color: '#6B7280' }}>{v}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </ChartCard>
+
+          <ChartCard title="Cola de aprobación" subtitle="Solicitudes evaluadas esperando decisión">
+            {colaFiltrada.length === 0 ? (
+              <div className="h-[200px] flex flex-col items-center justify-center gap-2 text-gray-300">
+                <CheckCircle size={26} className="text-green-300" />
+                <p className="text-xs">Sin solicitudes en cola</p>
+              </div>
+            ) : (
+              <div className="flex flex-col divide-y divide-gray-50 max-h-[220px] overflow-y-auto">
+                {colaFiltrada.slice(0, 6).map(s => (
+                  <div key={s.id} className="flex items-center justify-between py-2.5 cursor-pointer hover:bg-gray-50 px-1 rounded-lg" onClick={() => navigate(`/solicitudes/${s.id}`)}>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="font-mono text-xs font-semibold text-[#003D7D]">{s.codigo ?? `#${s.id}`}</span>
+                      <span className="text-xs text-gray-500 truncate max-w-[180px]">{s.razon_social ?? '—'}</span>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <span className="text-xs text-gray-400">{s.proyecto?.nombre ?? '—'}</span>
+                      <span className="text-xs text-amber-600 font-medium">{s.fecha_creacion ? `${daysBetween(s.fecha_creacion)}d` : '—'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ChartCard>
+        </div>
+
+        <SolicitudTable title="Historial reciente" rows={recientes} onVerTodas={() => navigate('/solicitudes')} onView={(s) => navigate(`/solicitudes/${s.id}`)} showEstado />
+      </div>
+    </div>
+  )
+}
+
+// ── EVALUADOR ────────────────────────────────────────────────────
+function EvaluadorDashboard() {
+  const navigate = useNavigate()
+  const [data,    setData]    = useState<EvaluadorData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(false)
+
+  useEffect(() => {
+    getEvaluadorData().then(setData).catch(() => setError(true)).finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <Spinner />
+  if (error || !data) return <ErrorState />
+
+  const { enRevision, evaluadas, devueltas } = data
+
+  const cmk          = currentMonthKey()
+  const evaluadasMes = evaluadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
+  const enRevisionMes = enRevision.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
+
+  const masAntiguas = [...enRevision]
+    .sort((a, b) => new Date(a.fecha_creacion ?? '').getTime() - new Date(b.fecha_creacion ?? '').getTime())
+    .slice(0, 6)
+
+  const avgDias = enRevision.length > 0
+    ? Math.round(enRevision.reduce((sum, s) => sum + daysBetween(s.fecha_creacion ?? new Date().toISOString()), 0) / enRevision.length)
+    : 0
+
+  const donutData = [
+    { name: 'En Revisión', value: enRevision.length },
+    { name: 'Evaluadas',   value: evaluadas.length },
+    { name: 'Devueltas',   value: devueltas.length },
+  ].filter(d => d.value > 0)
+
+  const donutColors = ['#3B82F6', '#8B5CF6', '#F59E0B']
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        <DashHeader title="Panel Evaluador" subtitle="Solicitudes en revisión pendientes de tu evaluación" />
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard label="En cola de revisión" value={enRevision.length} sub="esperando evaluación" icon={<FileText size={18} />} color="blue" alert={enRevision.length > 0} onClick={() => navigate('/solicitudes')} />
+          <KpiCard label="Promedio de espera" value={`${avgDias}d`} sub="días en revisión" icon={<Clock size={18} />} color="amber" />
+          <KpiCard label="Evaluadas este mes" value={evaluadasMes} sub={`${enRevisionMes} ingresaron este mes`} icon={<CheckCircle size={18} />} color="green" />
+          <KpiCard label="Devueltas (Pendiente)" value={devueltas.length} sub="requieren corrección" icon={<RotateCcw size={18} />} color="indigo" />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartCard title="Estado de solicitudes" subtitle="Distribución actual">
+            {donutData.length === 0 ? <EmptyChart /> : (
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <Pie data={donutData} cx="42%" cy="50%" innerRadius={58} outerRadius={88} paddingAngle={3} dataKey="value" stroke="none">
+                    {donutData.map((_, i) => <Cell key={i} fill={donutColors[i]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }} formatter={(v, name) => [`${v} solicitudes`, name as string]} />
+                  <Legend layout="vertical" align="right" verticalAlign="middle" iconType="circle" iconSize={8} formatter={(v) => <span style={{ fontSize: 11, color: '#6B7280' }}>{v}</span>} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
+          </ChartCard>
+
+          <ChartCard title="Más antiguas sin evaluar" subtitle="Ordenadas por tiempo de espera">
+            {masAntiguas.length === 0 ? (
+              <div className="h-[200px] flex flex-col items-center justify-center gap-2 text-gray-300">
+                <CheckCircle size={26} className="text-green-300" />
+                <p className="text-xs">Sin solicitudes en revisión</p>
+              </div>
+            ) : (
+              <div className="flex flex-col divide-y divide-gray-50 max-h-[220px] overflow-y-auto">
+                {masAntiguas.map(s => {
+                  const dias = daysBetween(s.fecha_creacion ?? new Date().toISOString())
+                  const urgente = dias >= 3
+                  return (
+                    <div key={s.id} className="flex items-center justify-between py-2.5 cursor-pointer hover:bg-gray-50 px-1 rounded-lg" onClick={() => navigate(`/solicitudes/${s.id}`)}>
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-mono text-xs font-semibold text-[#003D7D]">{s.codigo ?? `#${s.id}`}</span>
+                        <span className="text-xs text-gray-500 truncate max-w-[180px]">{s.razon_social ?? '—'}</span>
+                      </div>
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span className="text-xs text-gray-400">{s.proyecto?.nombre ?? '—'}</span>
+                        <span className={`text-xs font-semibold ${urgente ? 'text-red-500' : 'text-gray-400'}`}>{dias}d de espera</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </ChartCard>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── VISUALIZADOR ─────────────────────────────────────────────────
+function VisualizadorDashboard() {
+  const navigate = useNavigate()
+  const [data,    setData]    = useState<VisualizadorData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(false)
+
+  useEffect(() => {
+    getVisualizadorData().then(setData).catch(() => setError(true)).finally(() => setLoading(false))
+  }, [])
+
+  if (loading) return <Spinner />
+  if (error || !data) return <ErrorState />
+
+  const { facturacionPendiente, completadas, detalles } = data
+
+  const cmk             = currentMonthKey()
+  const completadasMes  = completadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
+  const montoPendiente  = montoSolicitudes(facturacionPendiente, detalles)
+  const montoCompletado = montoSolicitudes(completadas, detalles)
+  const montoMes        = montoSolicitudes(completadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk), detalles)
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+        <DashHeader title="Panel Finanzas" subtitle="Seguimiento de pagos y facturación" />
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard label="Facturación pendiente" value={facturacionPendiente.length} sub="esperando factura" icon={<Receipt size={18} />} color="amber" alert={facturacionPendiente.length > 0} onClick={() => navigate('/solicitudes')} />
+          <KpiCard label="Monto por cobrar" value={fmtMoney(montoPendiente)} sub="en facturación pendiente" icon={<DollarSign size={18} />} color="indigo" />
+          <KpiCard label="Completadas este mes" value={completadasMes} sub="pagos procesados" icon={<CheckCircle size={18} />} color="green" />
+          <KpiCard label="Monto pagado (total)" value={fmtMoney(montoCompletado)} sub={`${fmtMoney(montoMes)} este mes`} icon={<TrendingUp size={18} />} color="blue" />
+        </div>
+
+        <SolicitudTable
+          title="Facturación pendiente"
+          rows={facturacionPendiente.slice(0, 8)}
+          count={facturacionPendiente.length}
+          badge
+          onVerTodas={() => navigate('/solicitudes')}
+          onView={(s) => navigate(`/solicitudes/${s.id}`)}
+          showEstado
+        />
+
+        <SolicitudTable
+          title="Completadas recientes"
+          rows={completadas.slice(0, 6)}
+          onVerTodas={() => navigate('/solicitudes')}
+          onView={(s) => navigate(`/solicitudes/${s.id}`)}
+          showEstado
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── USUARIO ──────────────────────────────────────────────────────
+function UsuarioDashboard() {
+  const navigate = useNavigate()
+  const { user } = useAuthStore()
+  const [data,    setData]    = useState<UsuarioData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(false)
+
+  useEffect(() => {
+    if (!user?.id) return
+    getUsuarioData(user.id).then(setData).catch(() => setError(true)).finally(() => setLoading(false))
+  }, [user?.id])
+
+  if (loading) return <Spinner />
+  if (error || !data) return <ErrorState />
+
+  const { solicitudes, detalles } = data
+
+  const porEstado: Record<string, number> = {}
+  for (const s of solicitudes) {
+    const nombre = s.estado_soli?.nombre ?? 'Sin estado'
+    porEstado[nombre] = (porEstado[nombre] ?? 0) + 1
+  }
+
+  const montoAprobado = montoSolicitudes(
+    solicitudes.filter(s => ['Aprobado', 'Facturación Pendiente', 'Completado'].includes(s.estado_soli?.nombre ?? '')),
+    detalles,
+  )
+  const activas = solicitudes.filter(s => !['Cancelado', 'Rechazado', 'Completado'].includes(s.estado_soli?.nombre ?? ''))
+
+  const estadoItems = [
+    { label: 'Pendiente',   color: 'bg-yellow-100 text-yellow-700',   count: porEstado['Pendiente'] ?? 0 },
+    { label: 'En Revisión', color: 'bg-blue-100 text-blue-700',       count: porEstado['En Revision'] ?? 0 },
+    { label: 'Evaluado',    color: 'bg-purple-100 text-purple-700',   count: porEstado['Evaluado'] ?? 0 },
+    { label: 'Aprobado',    color: 'bg-green-100 text-green-700',     count: porEstado['Aprobado'] ?? 0 },
+    { label: 'Completado',  color: 'bg-emerald-100 text-emerald-700', count: porEstado['Completado'] ?? 0 },
+    { label: 'Rechazado',   color: 'bg-red-100 text-red-700',         count: porEstado['Rechazado'] ?? 0 },
+  ].filter(e => e.count > 0)
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-5xl mx-auto px-6 py-6 space-y-6">
+        <div className="flex items-end justify-between">
+          <DashHeader title="Mis Solicitudes" subtitle="Resumen de tus solicitudes y su estado actual" />
+          <button
+            onClick={() => navigate('/solicitudes/nueva')}
+            className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-sm font-medium hover:bg-[#002D5C] transition-colors"
+          >
+            <Plus size={15} /> Nueva solicitud
+          </button>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <KpiCard label="Solicitudes activas" value={activas.length} sub={`de ${solicitudes.length} en total`} icon={<FileText size={18} />} color="blue" onClick={() => navigate('/solicitudes')} />
+          <KpiCard label="Monto aprobado" value={fmtMoney(montoAprobado)} sub="en solicitudes aprobadas" icon={<DollarSign size={18} />} color="green" />
+          <KpiCard label="Pendientes de envío" value={porEstado['Pendiente'] ?? 0} sub="listas para enviar a revisión" icon={<Send size={18} />} color="amber" alert={(porEstado['Pendiente'] ?? 0) > 0} onClick={() => navigate('/solicitudes')} />
+        </div>
+
+        {estadoItems.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide mb-4">Por estado</h2>
+            <div className="flex flex-wrap gap-3">
+              {estadoItems.map(e => (
+                <div key={e.label} className={`flex items-center gap-2 px-4 py-2.5 rounded-xl ${e.color}`}>
+                  <span className="text-lg font-bold">{e.count}</span>
+                  <span className="text-xs font-medium">{e.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <SolicitudTable
+          title="Mis últimas solicitudes"
+          rows={solicitudes.slice(0, 8)}
+          onVerTodas={() => navigate('/solicitudes')}
+          onView={(s) => navigate(`/solicitudes/${s.id}`)}
+          showEstado
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── shared sub-components ────────────────────────────────────────
+
+function DashHeader({ title, subtitle }: { title: string; subtitle?: string }) {
+  return (
+    <div>
+      <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+      {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+    </div>
+  )
+}
 
 type KpiColor = 'amber' | 'blue' | 'green' | 'indigo'
 
@@ -571,32 +627,20 @@ const KPI_STYLES: Record<KpiColor, { icon: string; val: string; border: string }
   indigo: { icon: 'bg-indigo-100 text-indigo-600', val: 'text-indigo-700',  border: 'border-indigo-100' },
 }
 
-function KpiCard({
-  label, value, sub, icon, color, alert, onClick,
-}: {
-  label: string
-  value: string | number
-  sub?: string
-  icon: React.ReactNode
-  color: KpiColor
-  alert?: boolean
-  onClick?: () => void
+function KpiCard({ label, value, sub, icon, color, alert, onClick }: {
+  label: string; value: string | number; sub?: string
+  icon: React.ReactNode; color: KpiColor; alert?: boolean; onClick?: () => void
 }) {
   const s = KPI_STYLES[color]
   return (
-    <div
-      className={`relative bg-white rounded-2xl border ${s.border} shadow-sm p-5 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
-      onClick={onClick}
-    >
+    <div className={`relative bg-white rounded-2xl border ${s.border} shadow-sm p-5 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`} onClick={onClick}>
       {alert && (
         <span className="absolute top-3 right-3 flex h-2.5 w-2.5">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
           <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
         </span>
       )}
-      <div className={`inline-flex items-center justify-center rounded-xl p-2.5 mb-3 ${s.icon}`}>
-        {icon}
-      </div>
+      <div className={`inline-flex items-center justify-center rounded-xl p-2.5 mb-3 ${s.icon}`}>{icon}</div>
       <p className={`text-2xl font-bold tracking-tight ${s.val}`}>{value}</p>
       <p className="text-xs font-semibold text-gray-700 mt-0.5 leading-snug">{label}</p>
       {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
@@ -604,13 +648,7 @@ function KpiCard({
   )
 }
 
-function ChartCard({
-  title, subtitle, children,
-}: {
-  title: string
-  subtitle?: string
-  children: React.ReactNode
-}) {
+function ChartCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
       <div className="mb-4">
@@ -618,6 +656,89 @@ function ChartCard({
         {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
       </div>
       {children}
+    </div>
+  )
+}
+
+function SolicitudTable({ title, rows, count, badge, onVerTodas, onView, showEstado }: {
+  title: string; rows: SolicitudRow[]; count?: number; badge?: boolean
+  onVerTodas?: () => void; onView: (s: SolicitudRow) => void; showEstado?: boolean
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">{title}</h2>
+          {badge && count != null && count > 0 && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-700">{count}</span>
+          )}
+        </div>
+        {onVerTodas && (
+          <button onClick={onVerTodas} className="flex items-center gap-1 text-xs text-[#003D7D] hover:underline font-medium">
+            Ver todas <ArrowRight size={12} />
+          </button>
+        )}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-14 gap-2 text-gray-400">
+          <CheckCircle size={28} className="text-green-300" />
+          <p className="text-sm">Sin registros</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-100 text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                {['Código', 'Proveedor', 'Proyecto', 'Fecha pedido', ...(showEstado ? ['Estado'] : []), ''].map(h => (
+                  <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50 bg-white">
+              {rows.map(s => (
+                <tr key={s.id} className="hover:bg-[#003D7D]/[0.03] cursor-pointer transition-colors" onClick={() => onView(s)}>
+                  <td className="px-5 py-3.5">
+                    <span className="font-mono text-xs bg-[#003D7D]/8 text-[#003D7D] px-2 py-0.5 rounded-md">{s.codigo ?? `#${s.id}`}</span>
+                  </td>
+                  <td className="px-5 py-3.5 font-medium text-gray-900">{s.razon_social ?? '—'}</td>
+                  <td className="px-5 py-3.5 text-gray-500 text-xs">{s.proyecto?.nombre ?? '—'}</td>
+                  <td className="px-5 py-3.5 text-gray-500 text-xs">
+                    {s.fecha_pedido ? new Date(s.fecha_pedido + 'T00:00:00').toLocaleDateString('es-PE', { dateStyle: 'medium' }) : '—'}
+                  </td>
+                  {showEstado && (
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${ESTADO_BADGE[s.estado_soli?.nombre ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {s.estado_soli?.nombre ?? '—'}
+                      </span>
+                    </td>
+                  )}
+                  <td className="px-5 py-3.5 text-right">
+                    <span className="text-xs font-semibold text-[#003D7D]">Revisar →</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Spinner() {
+  return (
+    <div className="flex h-80 items-center justify-center">
+      <div className="h-9 w-9 animate-spin rounded-full border-4 border-[#003D7D] border-t-transparent" />
+    </div>
+  )
+}
+
+function ErrorState() {
+  return (
+    <div className="flex h-80 flex-col items-center justify-center gap-3 text-gray-400">
+      <AlertCircle size={32} className="text-red-300" />
+      <p className="text-sm">No se pudo cargar el panel.</p>
     </div>
   )
 }
