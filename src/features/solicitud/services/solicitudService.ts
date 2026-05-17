@@ -306,3 +306,37 @@ export async function getArchivoUrl(path: string): Promise<string> {
   if (error) throw error
   return data.signedUrl
 }
+
+export async function duplicarSolicitud(id: number, userId: string): Promise<Solicitud> {
+  const original = await getSolicitudById(id)
+  const payload: SolicitudInsert = {
+    tipo_id:                        original.tipo_id,
+    proyecto_id:                    original.proyecto_id,
+    razon_social:                   original.razon_social,
+    direccion:                      original.direccion,
+    ruc:                            original.ruc,
+    contacto_nombre:                original.contacto_nombre,
+    contacto_telefono:              original.contacto_telefono,
+    contacto_correo:                original.contacto_correo,
+    banco:                          original.banco,
+    numero_cuenta:                  original.numero_cuenta,
+    cuenta_detracciones:            original.cuenta_detracciones,
+    forma_pago:                     original.forma_pago,
+    forma_pago_id:                  original.forma_pago_id,
+    porcentaje_contrato:            original.porcentaje_contrato,
+    porcentaje_acumulado_contrato:  original.porcentaje_acumulado_contrato,
+    porcentaje_pendiente_contrato:  original.porcentaje_pendiente_contrato,
+    condiciones:                    original.condiciones,
+    fecha_pedido:                   original.fecha_pedido,
+    fecha_requerida:                original.fecha_requerida,
+    prioridad:                      original.prioridad ?? 'Media',
+    usuario_creador:                userId,
+    detalles: (original.detalles ?? []).map(d => ({
+      solicitud_id:   0,
+      cantidad:       d.cantidad,
+      descripcion:    d.descripcion,
+      valor_unitario: d.valor_unitario,
+    })),
+  }
+  return createSolicitud(payload)
+}
