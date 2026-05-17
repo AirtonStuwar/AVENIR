@@ -8,7 +8,8 @@
       "Bash(Format-List)",
       "Bash(npm audit *)",
       "Bash(npm outdated *)",
-      "Bash(npm update *)"
+      "Bash(npm update *)",
+      "Bash(git add *)"
     ]
   }
 }

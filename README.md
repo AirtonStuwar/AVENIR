@@ -13,6 +13,7 @@ Plataforma web para la gestión y aprobación de solicitudes de compra/servicio,
 | Estado global | Zustand |
 | Backend / Auth / Storage | Supabase |
 | Gráficos | Recharts |
+| Exportación | exceljs |
 | Notificaciones | react-hot-toast |
 
 ## Requisitos previos
@@ -30,11 +31,12 @@ cd AVENIR
 npm install
 ```
 
-2. Crea el archivo `.env.local` en la raíz con tus credenciales de Supabase:
+2. Crea el archivo `.env.local` en la raíz con tus credenciales:
 
 ```env
 VITE_SUPABASE_URL=https://tu-proyecto.supabase.co
 VITE_SUPABASE_ANON_KEY=tu-anon-key
+DECOLECTA_API_KEY=tu-api-key   # Solo para el proxy de consulta RUC en desarrollo
 ```
 
 3. Inicia el servidor de desarrollo:
@@ -57,22 +59,34 @@ npm run lint      # ESLint
 Las solicitudes siguen el siguiente flujo de estados:
 
 ```
-Pendiente → En Revision → Evaluado → Aprobado
-                ↓                       ↓
-            Pendiente               Rechazado
-                
-Pendiente → Cancelado
+Pendiente ──────────────────────────────────── Cancelado
+    │
+    │ enviarARevision (USUARIO/ADMIN)
+    ▼
+En Revision ──── devolverSolicitud ──────────► Pendiente
+    │
+    │ marcarEvaluado (EVALUADOR/ADMIN)
+    ▼
+Evaluado ──────── rechazarSolicitud ─────────► Rechazado
+    │
+    │ aprobarSolicitud (APROBADOR/ADMIN)
+    ▼
+Facturación Pendiente
+    │
+    │ subirFactura (USUARIO owner/ADMIN)
+    ▼
+Completado
 ```
 
 ## Roles y permisos
 
 | Rol | ID | Dashboard | Solicitudes visibles | Acciones permitidas |
 |---|---|---|---|---|
-| Admin | 1 | Completo | Todas | Todas |
-| Aprobador | 9 | Completo | Evaluado / Aprobado / Rechazado | Aprobar, Rechazar |
-| Evaluador | 8 | Panel propio | En Revision | Marcar evaluado, Devolver |
-| Visualizador | 10 | Panel propio | Aprobado | Solo lectura |
-| Usuario | 11 | — | Propias | Crear, Editar (Pendiente), Enviar, Cancelar |
+| Admin | 1 | Completo (gráficos) | Todas | Todas |
+| Aprobador | 9 | Completo (gráficos) | Evaluado / Rechazado / Facturación Pendiente / Completado | Aprobar, Rechazar |
+| Evaluador | 8 | Simplificado | En Revision | Marcar evaluado, Devolver |
+| Visualizador | 10 | Simplificado | Completado | Solo lectura |
+| Usuario | 11 | Simplificado | Propias | Crear, Editar (Pendiente), Enviar, Cancelar, Subir factura |
 
 ## Estructura del proyecto
 
@@ -106,18 +120,22 @@ src/
 | `solicitud_archivo` | Archivos PDF adjuntos (bucket `solicitud-archivos`) |
 | `estado_soli` | Catálogo de estados del flujo |
 | `solicitud_tipo` | Tipos de solicitud |
+| `solicitud_forma_pago` | Formas de pago seleccionables |
 | `proyecto` | Proyectos asociables a solicitudes |
 | `usuario_rol` | Rol asignado a cada usuario |
 | `area_usuario` | Área a la que pertenece cada usuario |
 | `vista_creadores` | Vista pública sobre `auth.users` para exponer emails |
 
-## Documentos requeridos por solicitud
+## Documentos por solicitud
 
-Cada solicitud debe adjuntar 4 archivos PDF obligatorios antes de poder finalizarse:
+Los archivos se almacenan en el bucket de Supabase Storage `solicitud-archivos` con la ruta `{solicitudId}/{tipoArchivo}/{timestamp}.{ext}`.
 
+**Durante la creación (paso 3 del wizard):**
 1. Contrato
 2. Cotización
 3. Cuadro Comparativo
 4. Sustento
 
-Los archivos se almacenan en el bucket de Supabase Storage `solicitud-archivos`.
+**Al completar el proceso (estado Facturación Pendiente):**
+
+5. Factura — el USUARIO adjunta el PDF de factura junto con el número de factura; esto mueve la solicitud a Completado.
