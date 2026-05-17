@@ -329,7 +329,6 @@ export async function duplicarSolicitud(id: number, userId: string): Promise<Sol
     condiciones:                    original.condiciones,
     fecha_pedido:                   original.fecha_pedido,
     fecha_requerida:                original.fecha_requerida,
-    prioridad:                      original.prioridad ?? 'Media',
     usuario_creador:                userId,
     detalles: (original.detalles ?? []).map(d => ({
       solicitud_id:   0,

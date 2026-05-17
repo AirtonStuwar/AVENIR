@@ -40,7 +40,6 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
   const [condiciones, setCondiciones] = useState('Se penalizara el retraso o incumplimiento de algun acuerdo en la fecha de entrega acordada')
   const [fecha_pedido, setFechaPedido] = useState('')
   const [fecha_requerida, setFechaRequerida] = useState('')
-  const [prioridad, setPrioridad] = useState('Media')
   const [tipos, setTipos] = useState<Array<{id:number;nombre:string}>>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -84,7 +83,6 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
     setCondiciones(solicitud.condiciones ?? '')
     setFechaPedido(solicitud.fecha_pedido ?? '')
     setFechaRequerida(solicitud.fecha_requerida ?? '')
-    setPrioridad(solicitud.prioridad ?? 'Media')
   }, [open, solicitud])
 
   const resetForm = () => {
@@ -106,7 +104,6 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
     setCondiciones('')
     setFechaPedido('')
     setFechaRequerida('')
-    setPrioridad('Media')
   }
 
   const submit = async () => {
@@ -127,7 +124,6 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
     if (!condiciones?.trim()) e.condiciones = 'Condiciones es obligatorio' 
     if (!fecha_pedido?.trim()) e.fecha_pedido = 'Fecha pedido es obligatorio'
     if (!fecha_requerida?.trim()) e.fecha_requerida = 'Fecha requerida es obligatoria'
-    if (!prioridad?.trim()) e.prioridad = 'Prioridad es obligatoria'
 
     if (Object.keys(e).length > 0) {
       setErrors(e)
@@ -156,7 +152,6 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
         condiciones:                   condiciones || null,
         fecha_pedido:                  fecha_pedido || null,
         fecha_requerida:               fecha_requerida || null,
-        prioridad:                     prioridad || 'Media',
       }
       if (isEditMode) {
         await onUpdate!(fields)
@@ -446,15 +441,15 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
             </div>
           </div>
 
-          {/* Sección: Fechas y prioridad */}
+          {/* Sección: Fechas */}
           <div className="mb-8">
             <h4 className="mb-3 flex items-center text-sm font-semibold text-[#003D7D]">
               <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              Fechas y Prioridad
+              Fechas
             </h4>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">
                   Fecha pedido <span className="text-red-500">*</span>
@@ -476,20 +471,6 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
                   value={fecha_requerida}
                   onChange={(e) => setFechaRequerida(e.target.value)}
                 />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">
-                  Prioridad <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
-                  value={prioridad}
-                  onChange={(e) => setPrioridad(e.target.value)}
-                >
-                  <option value="Alta" className="text-red-600">🔴 Alta</option>
-                  <option value="Media" className="text-yellow-600">🟡 Media</option>
-                  <option value="Baja" className="text-green-600">🟢 Baja</option>
-                </select>
               </div>
             </div>
           </div>

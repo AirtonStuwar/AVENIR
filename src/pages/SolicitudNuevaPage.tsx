@@ -156,7 +156,6 @@ export default function SolicitudNuevaPage() {
         porcentaje_pendiente_contrato,
         condiciones: condiciones || null,
         fecha_pedido, fecha_requerida,
-        prioridad: null,
         usuario_creador: user?.id ?? null,
       })
       setSolicitudId(nueva.id)
@@ -302,7 +301,7 @@ export default function SolicitudNuevaPage() {
 
               {/* Contacto */}
               <div>
-                <SectionTitle>Contacto</SectionTitle>
+                <SectionTitle>Contacto del Proveedor</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className={LABEL}>Nombre *</label>
