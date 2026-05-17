@@ -17,7 +17,9 @@ No test framework is configured.
 
 **Stack:** React 19 + TypeScript, Vite, React Router v7, Zustand, Tailwind CSS v4, Supabase (auth + database + storage), Recharts, exceljs, lucide-react, react-hot-toast.
 
-**Feature-driven structure:** Code is organized under `src/features/<domain>/` — each domain contains `components/`, `services/`, `hooks/`, and `types/` subfolders. Pages live in `src/pages/` and are thin route-level components. Layout shells (`MainLayout`, `Sidebar`, `Topbar`, `ProtectedRoute`) are in `src/components/layout/`. A shared `DataTable` component lives in `src/components/ui/`.
+**Feature-driven structure:** Code is organized under `src/features/<domain>/` — each domain contains `components/`, `services/`, `hooks/`, `types/`, and optionally `constants/` subfolders. Pages live in `src/pages/` and are thin route-level components. Layout shells (`MainLayout`, `Sidebar`, `Topbar`, `ProtectedRoute`) are in `src/components/layout/`. A shared `DataTable` component lives in `src/components/ui/`.
+
+**`src/features/solicitud/constants/bancos.ts`** — lista hardcodeada de bancos peruanos con helpers: `labelNumeroCuenta(banco)` devuelve "Número de cuenta" si es BBVA o "Número CCI" para el resto; `maxLengthNumeroCuenta(banco)` devuelve 18 para BBVA y 20 para el resto. Usado en `SolicitudModal` y `SolicitudNuevaPage`. El campo `banco` es un `<select>` con esta lista; al cambiar banco se limpia `numero_cuenta`.
 
 > **Casing quirk:** `src/features/Solicitudes/` (capital S) is a near-empty folder — the actual solicitud feature code lives in `src/features/solicitud/` (lowercase).
 
@@ -30,7 +32,7 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `VISUALIZADOR = 10` — read-only
 - `USUARIO = 11` — can create requests
 
-**Data access pattern:** Feature-level service files (`*Service.ts`) wrap Supabase queries. Custom hooks (`useSolicitudes`, `useProyectos`) own local state for pagination and filters, call the services, and expose data + handlers to page components. `useSolicitudes` automatically syncs `role` and `userId` from the auth store into query filters via a `useEffect`.
+**Data access pattern:** Feature-level service files (`*Service.ts`) wrap Supabase queries. Custom hooks (`useSolicitudes`, `useProyectos`) own local state for pagination and filters, call the services, and expose data + handlers to page components. `useSolicitudes` automatically syncs `role` and `userId` from the auth store into query filters via a `useEffect`. El hook expone `setProyectoFilter` para filtrar por proyecto desde `SolicitudesPage` (aplica a todos los roles).
 
 **Routing** (`App.tsx`):
 - `/login` — public
@@ -39,6 +41,8 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - Catch-all redirects to `/dashboard`
 
 **Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `vista_creadores` (view exposing user emails).
+
+El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no se usa ni se escribe. La columna puede seguir existiendo en la BD sin afectar nada.
 
 `vista_creadores` must be created manually:
 ```sql
@@ -66,7 +70,14 @@ The service caches estado IDs in memory to avoid repeated lookups (`estado_soli`
 
 **SolicitudDetallePage** calculates totals client-side: `subtotal` (sum of line items), `igv = subtotal * 0.18` (18% Peruvian IGV), and `totalConIgv`. The `solicitud_detalle.valor_total` column may be DB-computed; the code uses `d.valor_total ?? d.cantidad * d.valor_unitario` as fallback. Currency is displayed in Peruvian soles (`S/`) using the `es-PE` locale.
 
-**Dashboard** renders differently by role: Admin/Aprobador see Recharts charts (BarChart, PieChart) with 6-month trends and project budgets; other roles see a simplified view.
+**Dashboard** renders a dedicated panel per role via `DashboardPage.tsx` which branches on `userRole`:
+- `ADMIN` — KPIs globales, dona por estado, barras mensual/proyectos, tabla de pendientes. Usa `getDashboardData()`.
+- `APROBADOR` — cola de aprobación, montos, dona aprobadas/rechazadas/en cola, con **filtro por proyecto** (client-side). Usa `getAprobadorData()`.
+- `EVALUADOR` — cola En Revision, promedio de días de espera, lista de más antiguas con alerta ≥3 días. Usa `getEvaluadorData()`.
+- `VISUALIZADOR` — facturación pendiente, montos por cobrar/pagados, tabla de completadas. Usa `getVisualizadorData()`.
+- `USUARIO` — mis solicitudes, breakdown por estado, monto aprobado, acceso rápido a nueva solicitud. Usa `getUsuarioData(userId)`.
+
+Cada función de servicio en `dashboardService.ts` hace sus propias queries optimizadas y devuelve solo los datos relevantes al rol.
 
 **TypeScript config:** strict mode with `noUnusedLocals` and `noUnusedParameters` enabled — unused variables will cause build errors. Use `Omit<T, 'id' | 'fecha_creacion' | ...>` for insert/update types (see `SolicitudInsert` as the canonical example).
 

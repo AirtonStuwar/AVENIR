@@ -82,11 +82,11 @@ Completado
 
 | Rol | ID | Dashboard | Solicitudes visibles | Acciones permitidas |
 |---|---|---|---|---|
-| Admin | 1 | Completo (gráficos) | Todas | Todas |
-| Aprobador | 9 | Completo (gráficos) | Evaluado / Rechazado / Facturación Pendiente / Completado | Aprobar, Rechazar |
-| Evaluador | 8 | Simplificado | En Revision | Marcar evaluado, Devolver |
-| Visualizador | 10 | Simplificado | Completado | Solo lectura |
-| Usuario | 11 | Simplificado | Propias | Crear, Editar (Pendiente), Enviar, Cancelar, Subir factura |
+| Admin | 1 | KPIs globales + gráficas + top proyectos | Todas | Todas |
+| Aprobador | 9 | Cola de aprobación + montos + filtro por proyecto | Evaluado / Aprobado / Rechazado / Facturación Pendiente / Completado | Aprobar, Rechazar |
+| Evaluador | 8 | Cola de revisión + promedio espera + antigüedad | En Revision / Evaluado / Pendiente | Marcar evaluado, Devolver |
+| Visualizador | 10 | Facturación pendiente + montos pagados | Todas | Solo lectura, exportar Excel |
+| Usuario | 11 | Mis solicitudes por estado + monto aprobado | Propias | Crear, Editar (Pendiente), Enviar, Cancelar, Subir factura |
 
 ## Estructura del proyecto
 
@@ -98,12 +98,20 @@ src/
 │   └── layout/                   # MainLayout, Sidebar, Topbar, ProtectedRoute
 ├── features/
 │   ├── dashboard/
-│   │   └── services/             # getDashboardData()
+│   │   └── services/             # getDashboardData, getAprobadorData,
+│   │                             # getEvaluadorData, getVisualizadorData,
+│   │                             # getUsuarioData
+│   ├── proyecto/
+│   │   ├── components/           # ProyectoModal, ProyectoDeleteDialog, ProyectosTable
+│   │   ├── hooks/                # useProyectos
+│   │   ├── services/             # proyectoService
+│   │   └── types/                # Proyecto
 │   └── solicitud/
 │       ├── components/           # SolicitudesTable, SolicitudArchivos,
-│       │                         # RechazoModal, ConfirmModal, ...
+│       │                         # RechazoModal, ConfirmModal, SolicitudModal, ...
+│       ├── constants/            # bancos.ts (lista de bancos + helpers CCI/cuenta)
 │       ├── hooks/                # useSolicitudes
-│       ├── services/             # solicitudService (CRUD + flujo)
+│       ├── services/             # solicitudService (CRUD + flujo), rucService
 │       └── types/                # Solicitud, ROLES, SolicitudFiltros, ...
 ├── pages/                        # SolicitudesPage, SolicitudDetallePage,
 │                                 # SolicitudNuevaPage, DashboardPage, ...
