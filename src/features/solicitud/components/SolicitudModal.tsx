@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
+import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../constants/bancos'
 import { getProyectos } from '../../proyecto/services/proyectoService'
 import { getFormasPago } from '../services/solicitudService'
 import { supabase } from '../../../api/supabase'
 import { useAuthStore } from '../../../store/authStore'
 import type { Proyecto } from '../../proyecto/types/proyecto'
-import type { SolicitudInsert, SolicitudFormaPago } from '../types/solicitud'
+import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFormaPago } from '../types/solicitud'
 
 interface Props {
   open: boolean
   onClose: () => void
   onCreate: (payload: SolicitudInsert) => Promise<void>
+  solicitud?: Solicitud | null
+  onUpdate?: (payload: SolicitudUpdate) => Promise<void>
 }
 
-export default function SolicitudModal({ open, onClose, onCreate }: Props) {
+export default function SolicitudModal({ open, onClose, onCreate, solicitud, onUpdate }: Props) {
+  const isEditMode = !!(solicitud && onUpdate)
   const user = useAuthStore((s) => s.user)
   const [loading, setLoading] = useState(false)
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
@@ -37,7 +41,6 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
   const [condiciones, setCondiciones] = useState('Se penalizara el retraso o incumplimiento de algun acuerdo en la fecha de entrega acordada')
   const [fecha_pedido, setFechaPedido] = useState('')
   const [fecha_requerida, setFechaRequerida] = useState('')
-  const [prioridad, setPrioridad] = useState('Media')
   const [tipos, setTipos] = useState<Array<{id:number;nombre:string}>>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
 
@@ -61,6 +64,28 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
     })()
   }, [open])
 
+  useEffect(() => {
+    if (!open || !solicitud) return
+    setRazonSocial(solicitud.razon_social ?? '')
+    setRuc(solicitud.ruc ?? '')
+    setProyectoId(solicitud.proyecto_id)
+    setTipoId(solicitud.tipo_id)
+    setDireccion(solicitud.direccion ?? '')
+    setContactoNombre(solicitud.contacto_nombre ?? '')
+    setContactoTelefono(solicitud.contacto_telefono ?? '')
+    setContactoCorreo(solicitud.contacto_correo ?? '')
+    setBanco(solicitud.banco ?? '')
+    setNumeroCuenta(solicitud.numero_cuenta ?? '')
+    setCuentaDetracciones(solicitud.cuenta_detracciones ?? '')
+    setFormaPagoId(solicitud.forma_pago_id)
+    setPorcentajeContrato(solicitud.porcentaje_contrato)
+    setPorcentajeAcumuladoContrato(solicitud.porcentaje_acumulado_contrato)
+    setPorcentajePendienteContrato(solicitud.porcentaje_pendiente_contrato)
+    setCondiciones(solicitud.condiciones ?? '')
+    setFechaPedido(solicitud.fecha_pedido ?? '')
+    setFechaRequerida(solicitud.fecha_requerida ?? '')
+  }, [open, solicitud])
+
   const resetForm = () => {
     setRazonSocial('')
     setRuc('')
@@ -80,7 +105,6 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
     setCondiciones('')
     setFechaPedido('')
     setFechaRequerida('')
-    setPrioridad('Media')
   }
 
   const submit = async () => {
@@ -101,7 +125,6 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
     if (!condiciones?.trim()) e.condiciones = 'Condiciones es obligatorio' 
     if (!fecha_pedido?.trim()) e.fecha_pedido = 'Fecha pedido es obligatorio'
     if (!fecha_requerida?.trim()) e.fecha_requerida = 'Fecha requerida es obligatoria'
-    if (!prioridad?.trim()) e.prioridad = 'Prioridad es obligatoria'
 
     if (Object.keys(e).length > 0) {
       setErrors(e)
@@ -110,35 +133,38 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
 
     setLoading(true)
     try {
-      const payload: SolicitudInsert = {
-        tipo_id: tipo_id ?? null,
-        proyecto_id: proyecto_id ?? null,
-        razon_social: razon_social || null,
-        direccion: direccion || null,
-        ruc: ruc || null,
-        contacto_nombre: contacto_nombre || null,
-        contacto_telefono: contacto_telefono || null,
-        contacto_correo: contacto_correo || null,
-        banco: banco || null,
-        numero_cuenta: numero_cuenta || null,
-        cuenta_detracciones: cuenta_detracciones || null,
-        forma_pago: formasPago.find(f => f.id === forma_pago_id)?.nombre ?? null,
+      const fields = {
+        tipo_id:                       tipo_id ?? null,
+        proyecto_id:                   proyecto_id ?? null,
+        razon_social:                  razon_social || null,
+        direccion:                     direccion || null,
+        ruc:                           ruc || null,
+        contacto_nombre:               contacto_nombre || null,
+        contacto_telefono:             contacto_telefono || null,
+        contacto_correo:               contacto_correo || null,
+        banco:                         banco || null,
+        numero_cuenta:                 numero_cuenta || null,
+        cuenta_detracciones:           cuenta_detracciones || null,
+        forma_pago:                    formasPago.find(f => f.id === forma_pago_id)?.nombre ?? null,
         forma_pago_id,
-        porcentaje_contrato: porcentaje_contrato ?? null,
+        porcentaje_contrato:           porcentaje_contrato ?? null,
         porcentaje_acumulado_contrato: porcentaje_acumulado_contrato ?? null,
         porcentaje_pendiente_contrato: porcentaje_pendiente_contrato ?? null,
-        condiciones: condiciones || null,
-        fecha_pedido: fecha_pedido || null,
-        fecha_requerida: fecha_requerida || null,
-        prioridad: prioridad || 'Media',
-        usuario_creador: user?.id ?? null,
+        condiciones:                   condiciones || null,
+        fecha_pedido:                  fecha_pedido || null,
+        fecha_requerida:               fecha_requerida || null,
       }
-      await onCreate(payload)
+      if (isEditMode) {
+        await onUpdate!(fields)
+        toast.success('Solicitud actualizada exitosamente')
+      } else {
+        await onCreate({ ...fields, usuario_creador: user?.id ?? null })
+        toast.success('Solicitud creada exitosamente')
+      }
       resetForm()
       onClose()
-      toast.success('Solicitud creada exitosamente')
     } catch (err: any) {
-      toast.error(err?.message ?? 'Error al crear solicitud')
+      toast.error(err?.message ?? 'Error al guardar solicitud')
     } finally {
       setLoading(false)
     }
@@ -153,8 +179,8 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
         <div className="sticky top-0 z-10 border-b border-gray-200 bg-gradient-to-r from-[#003D7D] to-[#0056a3] px-6 py-4 rounded-t-xl">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xl font-semibold text-white">Nueva Solicitud</h3>
-              <p className="mt-1 text-sm text-blue-100">Complete todos los campos obligatorios para crear la solicitud</p>
+              <h3 className="text-xl font-semibold text-white">{isEditMode ? 'Editar Solicitud' : 'Nueva Solicitud'}</h3>
+              <p className="mt-1 text-sm text-blue-100">{isEditMode ? 'Modifica los campos y guarda los cambios' : 'Complete todos los campos obligatorios para crear la solicitud'}</p>
             </div>
             <button 
               className="text-white/80 transition-colors hover:text-white"
@@ -277,21 +303,24 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">Banco</label>
-                <input
+                <select
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
-                  placeholder="Nombre del banco"
                   value={banco}
-                  onChange={(e) => { setBanco(e.target.value); clearErrors() }}
-                />
+                  onChange={(e) => { setBanco(e.target.value); setNumeroCuenta(''); clearErrors() }}
+                >
+                  <option value="">Seleccionar banco</option>
+                  {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
                 {errors.banco && <p className="mt-1 text-sm text-red-600">{errors.banco}</p>}
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">Número de cuenta</label>
+                <label className="mb-1 block text-xs font-medium text-gray-700">{labelNumeroCuenta(banco)}</label>
                 <input
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
-                  placeholder="Número de cuenta"
+                  placeholder={placeholderNumeroCuenta(banco)}
+                  maxLength={maxLengthNumeroCuenta(banco)}
                   value={numero_cuenta}
-                  onChange={(e) => { setNumeroCuenta(e.target.value); clearErrors() }}
+                  onChange={(e) => { setNumeroCuenta(e.target.value.replace(/\D/g, '')); clearErrors() }}
                 />
                 {errors.numero_cuenta && <p className="mt-1 text-sm text-red-600">{errors.numero_cuenta}</p>}
               </div>
@@ -416,15 +445,15 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
             </div>
           </div>
 
-          {/* Sección: Fechas y prioridad */}
+          {/* Sección: Fechas */}
           <div className="mb-8">
             <h4 className="mb-3 flex items-center text-sm font-semibold text-[#003D7D]">
               <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
-              Fechas y Prioridad
+              Fechas
             </h4>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">
                   Fecha pedido <span className="text-red-500">*</span>
@@ -446,20 +475,6 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
                   value={fecha_requerida}
                   onChange={(e) => setFechaRequerida(e.target.value)}
                 />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">
-                  Prioridad <span className="text-red-500">*</span>
-                </label>
-                <select
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
-                  value={prioridad}
-                  onChange={(e) => setPrioridad(e.target.value)}
-                >
-                  <option value="Alta" className="text-red-600">🔴 Alta</option>
-                  <option value="Media" className="text-yellow-600">🟡 Media</option>
-                  <option value="Baja" className="text-green-600">🟢 Baja</option>
-                </select>
               </div>
             </div>
           </div>
@@ -501,9 +516,7 @@ export default function SolicitudModal({ open, onClose, onCreate }: Props) {
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                 Guardando...
               </div>
-            ) : (
-              'Crear Solicitud'
-            )}
+            ) : isEditMode ? 'Guardar cambios' : 'Crear Solicitud'}
           </button>
         </div>
       </div>

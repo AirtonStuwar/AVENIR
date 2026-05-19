@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Receipt, Upload, Eye } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Receipt, Upload, Eye, Copy } from 'lucide-react'
 import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
   enviarARevision, cancelarSolicitud, marcarEvaluado, devolverSolicitud, aprobarSolicitud, rechazarSolicitud,
   getArchivosBySolicitud, subirFactura, getArchivoUrl,
+  updateSolicitud, duplicarSolicitud,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
+import SolicitudModal from '../features/solicitud/components/SolicitudModal'
 import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import { useAuthStore } from '../store/authStore'
-import type { Solicitud, SolicitudDetalle, SolicitudArchivo } from '../features/solicitud/types/solicitud'
+import type { Solicitud, SolicitudDetalle, SolicitudArchivo, SolicitudUpdate } from '../features/solicitud/types/solicitud'
 import { ROLES } from '../features/solicitud/types/solicitud'
 
 const LABEL = 'block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5'
@@ -79,6 +81,8 @@ export default function SolicitudDetallePage() {
   const [devolucionOpen, setDevolucionOpen] = useState(false)
   const [modalOpen,      setModalOpen]      = useState(false)
   const [editingDet,     setEditingDet]     = useState<SolicitudDetalle | null>(null)
+  const [editInfoOpen,   setEditInfoOpen]   = useState(false)
+  const [duplicando,     setDuplicando]     = useState(false)
 
   // Confirm modal — guarda la CLAVE de la acción, no la función
   const [pendingAction,  setPendingAction]  = useState<ActionKey | null>(null)
@@ -117,9 +121,12 @@ export default function SolicitudDetallePage() {
   const isEvaluado             = nombre === 'Evaluado'
   const isFacturacionPendiente = nombre === 'Facturación Pendiente'
   const isCompletado           = nombre === 'Completado'
+  const isCancelado            = nombre === 'Cancelado'
+  const isRechazado            = nombre === 'Rechazado'
   const isOwnSolicitud         = solicitud?.usuario_creador === user?.id
 
-  const canEdit         = (userRole === ROLES.USUARIO && isPendiente && isOwnSolicitud) || userRole === ROLES.ADMIN
+  const canEdit         = isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canDuplicar     = userRole === ROLES.USUARIO && isOwnSolicitud && (isCompletado || isCancelado || isRechazado)
   const canEnviar       = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente
   const canCancelar     = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente
   const canEvaluar      = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
@@ -263,6 +270,28 @@ export default function SolicitudDetallePage() {
     }
   }
 
+  // ── Edit info general ────────────────────────────────────────────
+  const handleUpdateInfo = async (payload: SolicitudUpdate) => {
+    if (!solicitud || !id) return
+    await updateSolicitud(solicitud.id, payload)
+    await reload(id)
+  }
+
+  // ── Duplicar ─────────────────────────────────────────────────────
+  const handleDuplicar = async () => {
+    if (!solicitud || !user) return
+    setDuplicando(true)
+    try {
+      const nueva = await duplicarSolicitud(solicitud.id, user.id)
+      toast.success('Solicitud duplicada correctamente')
+      navigate(`/solicitudes/${nueva.id}`)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al duplicar')
+    } finally {
+      setDuplicando(false)
+    }
+  }
+
   // ── Detalle handlers ─────────────────────────────────────────
   const openAdd  = () => { setEditingDet(null); setModalOpen(true) }
   const openEdit = (d: SolicitudDetalle) => { setEditingDet(d); setModalOpen(true) }
@@ -328,6 +357,15 @@ export default function SolicitudDetallePage() {
         </span>
 
         <div className="ml-auto flex items-center gap-2">
+          {canDuplicar && (
+            <button onClick={handleDuplicar} disabled={duplicando || actioning}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 disabled:opacity-50 transition-colors">
+              {duplicando
+                ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+                : <Copy size={13} />}
+              Duplicar
+            </button>
+          )}
           {canEnviar && (
             <button onClick={handleEnviar} disabled={actioning}
               className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
@@ -371,8 +409,14 @@ export default function SolicitudDetallePage() {
 
         {/* ── INFO GENERAL ── */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Información general</h2>
+            {canEdit && (
+              <button onClick={() => setEditInfoOpen(true)}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors">
+                <Pencil size={13} /> Editar
+              </button>
+            )}
           </div>
           <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
             <InfoField label="Código"          value={solicitud.codigo} />
@@ -608,6 +652,14 @@ export default function SolicitudDetallePage() {
         detalle={editingDet}
         onClose={() => setModalOpen(false)}
         onSubmit={handleModalSubmit}
+      />
+
+      <SolicitudModal
+        open={editInfoOpen}
+        onClose={() => setEditInfoOpen(false)}
+        onCreate={async () => {}}
+        solicitud={solicitud}
+        onUpdate={handleUpdateInfo}
       />
 
       <ConfirmModal

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Search, RefreshCw, FolderOpen, FileText, XCircle } from 'lucide-react'
 import type { Solicitud } from '../types/solicitud'
+import { getProyectos } from '../../proyecto/services/proyectoService'
 
 function fmtDate(d: string | null): string {
   if (!d) return '—'
@@ -26,15 +27,26 @@ interface Props {
   onSelectionChange?: (ids: Set<number>) => void
   mesAprobacion?: number | null
   onMesAprobacionChange?: (mes: number | null) => void
+  proyectoFilter?: number | null
+  onProyectoFilterChange?: (id: number | null) => void
 }
 
 export default function SolicitudesTable({
   data, total, page, pageSize, totalPages, loading,
   onSearch, onPageChange, onRefresh, onCreate, onView, onCancel,
   selectedIds, onSelectionChange, mesAprobacion, onMesAprobacionChange,
+  proyectoFilter, onProyectoFilterChange,
 }: Props) {
   const [searchVal, setSearchVal] = useState('')
+  const [proyectos, setProyectos] = useState<Array<{id: number; nombre: string}>>([])
   const selectAllRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!onProyectoFilterChange) return
+    getProyectos({ page: 1, pageSize: 500 })
+      .then(res => setProyectos(res.data))
+      .catch(() => {})
+  }, [onProyectoFilterChange])
 
   const selectable       = !!onSelectionChange
   const selected         = selectedIds ?? new Set<number>()
@@ -80,6 +92,19 @@ export default function SolicitudesTable({
         </div>
 
         <div className="flex items-center gap-2">
+          {onProyectoFilterChange && (
+            <select
+              value={proyectoFilter ?? ''}
+              onChange={e => onProyectoFilterChange(e.target.value ? Number(e.target.value) : null)}
+              className="h-9 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+            >
+              <option value="">Todos los proyectos</option>
+              {proyectos.map(p => (
+                <option key={p.id} value={p.id}>{p.nombre}</option>
+              ))}
+            </select>
+          )}
+
           {onMesAprobacionChange && (
             <select
               value={mesAprobacion ?? ''}

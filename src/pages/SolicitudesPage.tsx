@@ -19,9 +19,16 @@ import type { Solicitud } from '../features/solicitud/types/solicitud'
 export default function SolicitudesPage() {
   const navigate = useNavigate()
   const { userRole, user } = useAuthStore()
-  const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, setMesAprobacion, refresh } = useSolicitudes()
+  const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, setProyectoFilter, setMesAprobacion, refresh } = useSolicitudes()
 
   const isVisualizador = userRole === ROLES.VISUALIZADOR
+
+  // ── Filtro proyecto ───────────────────────────────────────────
+  const [proyectoFilter, setProyectoFilterLocal] = useState<number | null>(null)
+  const handleProyectoChange = (id: number | null) => {
+    setProyectoFilterLocal(id)
+    setProyectoFilter(id)
+  }
 
   // ── Mes aprobación (solo VISUALIZADOR) ───────────────────────
   const [mesAprobacion, setMesAprobacionLocal] = useState<number | null>(null)
@@ -229,6 +236,8 @@ export default function SolicitudesPage() {
         onCancel={canCancelFromList ? handleCancel : undefined}
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
+        proyectoFilter={proyectoFilter}
+        onProyectoFilterChange={handleProyectoChange}
         mesAprobacion={isVisualizador ? mesAprobacion : undefined}
         onMesAprobacionChange={isVisualizador ? handleMesChange : undefined}
       />

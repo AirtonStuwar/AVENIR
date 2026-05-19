@@ -35,7 +35,6 @@ export interface Solicitud {
   condiciones: string | null
   fecha_pedido: string | null
   fecha_requerida: string | null
-  prioridad: string | null
   estado_id: number | null
   fecha_creacion: string | null
   usuario_creador: string | null

@@ -19,6 +19,7 @@ import { useAuthStore } from '../store/authStore'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import type { SolicitudDetalle, SolicitudFormaPago } from '../features/solicitud/types/solicitud'
 import { buscarRuc } from '../features/solicitud/services/rucService'
+import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
 
 const INPUT =
   'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all'
@@ -156,7 +157,6 @@ export default function SolicitudNuevaPage() {
         porcentaje_pendiente_contrato,
         condiciones: condiciones || null,
         fecha_pedido, fecha_requerida,
-        prioridad: null,
         usuario_creador: user?.id ?? null,
       })
       setSolicitudId(nueva.id)
@@ -302,7 +302,7 @@ export default function SolicitudNuevaPage() {
 
               {/* Contacto */}
               <div>
-                <SectionTitle>Contacto</SectionTitle>
+                <SectionTitle>Contacto del Proveedor</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className={LABEL}>Nombre *</label>
@@ -331,11 +331,20 @@ export default function SolicitudNuevaPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className={LABEL}>Banco</label>
-                    <input className={INPUT} placeholder="Nombre del banco" value={banco} onChange={(e) => setBanco(e.target.value)} />
+                    <select className={INPUT} value={banco} onChange={(e) => { setBanco(e.target.value); setNumeroCuenta('') }}>
+                      <option value="">Seleccionar banco</option>
+                      {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
                   </div>
                   <div>
-                    <label className={LABEL}>Número de cuenta</label>
-                    <input className={INPUT} placeholder="Número de cuenta" value={numero_cuenta} onChange={(e) => setNumeroCuenta(e.target.value)} />
+                    <label className={LABEL}>{labelNumeroCuenta(banco)}</label>
+                    <input
+                      className={INPUT}
+                      placeholder={placeholderNumeroCuenta(banco)}
+                      maxLength={maxLengthNumeroCuenta(banco)}
+                      value={numero_cuenta}
+                      onChange={(e) => setNumeroCuenta(e.target.value.replace(/\D/g, ''))}
+                    />
                   </div>
                   <div>
                     <label className={LABEL}>Cuenta detracciones (CCI)</label>
