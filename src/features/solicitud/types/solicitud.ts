@@ -77,7 +77,7 @@ export type SolicitudInsert = Omit<
   | 'usuario_aprobador'    // se completa al aprobar
   | 'numero_factura'       // se registra al completar el proceso
   | 'monto_total'          // calculado al enviar a revisión
-  | 'detalles'             // reemplazado por SolicitudDetalleInsert[] abajo
+  | 'detalles'             // se reemplaza por SolicitudDetalleInsert[]
 > & { detalles?: SolicitudDetalleInsert[] }
 
 export type SolicitudUpdate = Partial<Omit<Solicitud, 'id' | 'fecha_creacion'>>
