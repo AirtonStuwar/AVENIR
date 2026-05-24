@@ -69,6 +69,9 @@ export default function SolicitudDetallePage() {
   const [detalles,         setDetalles]         = useState<SolicitudDetalle[]>([])
   const [actioning,        setActioning]        = useState(false)
 
+  // Archivos de la solicitud
+  const [archivosSubidos,  setArchivosSubidos]  = useState<SolicitudArchivo[]>([])
+
   // Factura
   const [facturaArchivo,   setFacturaArchivo]   = useState<SolicitudArchivo | null>(null)
   const [numeroFactura,    setNumeroFactura]    = useState('')
@@ -127,7 +130,11 @@ export default function SolicitudDetallePage() {
 
   const canEdit         = isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const canDuplicar     = userRole === ROLES.USUARIO && isOwnSolicitud && (isCompletado || isCancelado || isRechazado)
-  const canEnviar       = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente
+  const DOCS_OBLIGATORIOS = ['Contrato', 'Cotizacion', 'Sustento']
+  const tieneDocsObligatorios = DOCS_OBLIGATORIOS.every(doc =>
+    archivosSubidos.some(a => a.tipo_archivo === doc)
+  )
+  const canEnviar       = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente && tieneDocsObligatorios
   const canCancelar     = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente
   const canEvaluar      = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canDevolver     = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
@@ -546,7 +553,17 @@ export default function SolicitudDetallePage() {
         </div>
 
         {/* ── DOCUMENTOS ── */}
-        <SolicitudArchivos solicitudId={solicitud.id} editable={canEdit} />
+        <SolicitudArchivos
+          solicitudId={solicitud.id}
+          editable={canEdit}
+          onChange={setArchivosSubidos}
+        />
+        {isPendiente && !tieneDocsObligatorios && (
+          <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            <AlertCircle size={15} className="shrink-0" />
+            Para enviar a revisión debes adjuntar los documentos obligatorios: Contrato, Cotización y Sustento.
+          </div>
+        )}
 
         {/* ── FACTURA ── */}
         {(isFacturacionPendiente || isCompletado) && (
