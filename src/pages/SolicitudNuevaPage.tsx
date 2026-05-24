@@ -577,8 +577,8 @@ export default function SolicitudNuevaPage() {
             <div className="flex items-center gap-3 px-5 py-4 bg-blue-50 border border-blue-200 rounded-2xl">
               <CheckCircle size={20} className="text-blue-600 shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-blue-800">Paso final: adjunta los 4 documentos requeridos</p>
-                <p className="text-xs text-blue-600">Todos son obligatorios (PDF). Podrás completarlos desde el detalle de la solicitud si los tienes disponibles luego.</p>
+                <p className="text-sm font-semibold text-blue-800">Paso final: adjunta los documentos requeridos</p>
+                <p className="text-xs text-blue-600">Contrato, Cotización y Sustento son obligatorios (PDF). Cuadro Comparativo es opcional. Podrás completarlos desde el detalle de la solicitud si los tienes disponibles luego.</p>
               </div>
             </div>
 
@@ -590,14 +590,14 @@ export default function SolicitudNuevaPage() {
 
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
               <span className="text-sm text-gray-500">
-                {archivos.length < 4
-                  ? <span className="text-amber-600 font-medium">Faltan {4 - archivos.length} documento(s)</span>
-                  : <span className="text-green-600 font-medium flex items-center gap-1.5"><CheckCircle size={14} /> Todos los documentos subidos</span>
+                {archivos.filter(a => ['Contrato', 'Cotizacion', 'Sustento'].includes(a.tipo_archivo ?? '')).length < 3
+                  ? <span className="text-amber-600 font-medium">Faltan documentos obligatorios (Contrato, Cotización, Sustento)</span>
+                  : <span className="text-green-600 font-medium flex items-center gap-1.5"><CheckCircle size={14} /> Documentos obligatorios completos</span>
                 }
               </span>
               <button
                 onClick={() => navigate('/solicitudes')}
-                disabled={archivos.length < 4}
+                disabled={archivos.filter(a => ['Contrato', 'Cotizacion', 'Sustento'].includes(a.tipo_archivo ?? '')).length < 3}
                 className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
                 <CheckCircle size={15} /> Finalizar
