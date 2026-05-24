@@ -9,7 +9,9 @@ import {
 } from '../services/solicitudService'
 import type { SolicitudArchivo } from '../types/solicitud'
 
-const TIPOS = ['Contrato', 'Cotizacion', 'Cuadro Comparativo', 'Sustento'] as const
+const TIPOS_REQUERIDOS = ['Contrato', 'Cotizacion', 'Sustento'] as const
+const TIPOS_OPCIONALES = ['Cuadro Comparativo'] as const
+const TIPOS = [...TIPOS_REQUERIDOS, ...TIPOS_OPCIONALES] as const
 
 interface Props {
   solicitudId: number
@@ -91,7 +93,7 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange }: P
         <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">
           Documentos requeridos
         </h2>
-        <span className="text-xs text-gray-400">{archivos.length} / 4 subidos</span>
+        <span className="text-xs text-gray-400">{archivos.length} subido{archivos.length !== 1 ? 's' : ''} · 3 obligatorios</span>
       </div>
 
       {loading ? (
@@ -101,8 +103,9 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange }: P
       ) : (
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           {TIPOS.map(tipo => {
-            const archivo    = byTipo(tipo)
+            const archivo     = byTipo(tipo)
             const isUploading = uploading === tipo
+            const esOpcional  = (TIPOS_OPCIONALES as readonly string[]).includes(tipo)
 
             return (
               <div key={tipo} className={`rounded-xl border-2 p-4 flex flex-col gap-3 transition-all ${
@@ -113,10 +116,13 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange }: P
                 <div className="flex items-center gap-2">
                   {archivo
                     ? <CheckCircle size={15} className="text-green-600 shrink-0" />
-                    : <FileText  size={15} className="text-gray-400 shrink-0" />
+                    : <FileText    size={15} className="text-gray-400 shrink-0" />
                   }
                   <span className="text-sm font-semibold text-gray-800">{tipo}</span>
-                  <span className="ml-auto text-xs font-medium text-red-400">*</span>
+                  {esOpcional
+                    ? <span className="ml-auto text-xs text-gray-400 italic">Opcional</span>
+                    : <span className="ml-auto text-xs font-medium text-red-400">*</span>
+                  }
                 </div>
 
                 {archivo ? (
