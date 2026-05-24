@@ -3,7 +3,7 @@ import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, Sol
 import { ROLES } from '../types/solicitud'
 
 const TABLE   = 'solicitud'
-const SOL_SEL = '*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo), solicitud_forma_pago:forma_pago_id(id,nombre)'
+const SOL_SEL = '*, proyecto:proyecto_id(id,nombre,ruc,direccion), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo), solicitud_forma_pago:forma_pago_id(id,nombre)'
 
 // ── Estado ID cache ───────────────────────────────────────────────
 let estadoCache: Record<string, number> = {}
@@ -299,6 +299,29 @@ export async function deleteArchivoSolicitud(id: number, path: string): Promise<
   await supabase.storage.from(BUCKET).remove([path])
   const { error } = await supabase.from('solicitud_archivo').delete().eq('id', id)
   if (error) throw error
+}
+
+export async function uploadFirma(
+  blob: Blob,
+  solicitudId: number,
+  tipo: 'Firma_Usuario' | 'Firma_Aprobador',
+): Promise<SolicitudArchivo> {
+  // Eliminar firma anterior si existe
+  const existentes = await getArchivosBySolicitud(solicitudId)
+  const prev = existentes.find(a => a.tipo_archivo === tipo)
+  if (prev) await deleteArchivoSolicitud(prev.id, prev.archivo_path!)
+
+  const path = `${solicitudId}/${tipo}/${Date.now()}.png`
+  const { error: storageErr } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/png', upsert: true })
+  if (storageErr) throw storageErr
+
+  const { data, error } = await supabase
+    .from('solicitud_archivo')
+    .insert({ solicitud_id: solicitudId, nombre_archivo: `${tipo}.png`, archivo_path: path, tipo_archivo: tipo })
+    .select()
+    .maybeSingle()
+  if (error) throw error
+  return data as SolicitudArchivo
 }
 
 export async function getArchivoUrl(path: string): Promise<string> {

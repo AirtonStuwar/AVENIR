@@ -43,7 +43,7 @@ export interface Solicitud {
   comentario_gerencia: string | null
   numero_factura: string | null
   monto_total: number | null
-  proyecto?: { id: number; nombre: string } | null
+  proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null } | null
   solicitud_tipo?: { id: number; nombre: string } | null
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
   solicitud_forma_pago?: { id: number; nombre: string } | null

@@ -1,21 +1,37 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Receipt, Upload, Eye, Copy } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Receipt, Upload, Eye, Copy, FileDown } from 'lucide-react'
+import { pdf } from '@react-pdf/renderer'
 import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
   enviarARevision, cancelarSolicitud, marcarEvaluado, devolverSolicitud, aprobarSolicitud, rechazarSolicitud,
   getArchivosBySolicitud, subirFactura, getArchivoUrl,
-  updateSolicitud, duplicarSolicitud,
+  updateSolicitud, duplicarSolicitud, uploadFirma,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
 import SolicitudModal from '../features/solicitud/components/SolicitudModal'
 import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
+import FirmaModal from '../features/solicitud/components/FirmaModal'
+import { OrdenCompraPDF } from '../features/solicitud/components/OrdenCompraPDF'
 import { useAuthStore } from '../store/authStore'
 import type { Solicitud, SolicitudDetalle, SolicitudArchivo, SolicitudUpdate } from '../features/solicitud/types/solicitud'
 import { ROLES } from '../features/solicitud/types/solicitud'
+import logoUrl from '../assets/avenir-logo.png'
+
+// ── PDF helper ────────────────────────────────────────────────────
+async function fetchAsBase64(url: string): Promise<string> {
+  const res  = await fetch(url)
+  const blob = await res.blob()
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload  = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
 
 const LABEL = 'block text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5'
 const VALUE = 'text-sm text-gray-900'
@@ -50,7 +66,7 @@ const ESTADO_COLOR: Record<string, string> = {
 }
 
 // Tipos de acción para el modal de confirmación
-type ActionKey = 'enviar' | 'cancelar' | 'evaluar' | 'aprobar' | { deleteDetId: number }
+type ActionKey = 'cancelar' | 'evaluar' | { deleteDetId: number }
 
 interface ConfirmCfg {
   title: string
@@ -91,6 +107,13 @@ export default function SolicitudDetallePage() {
   const [pendingAction,  setPendingAction]  = useState<ActionKey | null>(null)
   const [confirmCfg,     setConfirmCfg]     = useState<ConfirmCfg>({ title: '', message: '', confirmLabel: 'Confirmar', variant: 'blue' })
 
+  // Firma modal
+  const [firmaOpen,      setFirmaOpen]      = useState(false)
+  const [firmaAction,    setFirmaAction]    = useState<'enviar' | 'aprobar'>('enviar')
+
+  // PDF
+  const [downloadingPDF, setDownloadingPDF] = useState(false)
+
   // ── Data loading ──────────────────────────────────────────────
   const loadFactura = async (solId: number) => {
     const archivos = await getArchivosBySolicitud(solId)
@@ -130,6 +153,7 @@ export default function SolicitudDetallePage() {
 
   const canEdit         = isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const canDuplicar     = userRole === ROLES.USUARIO && isOwnSolicitud && (isCompletado || isCancelado || isRechazado)
+  const canShowPDF      = !isPendiente && !isRechazado && !isCancelado
   const DOCS_OBLIGATORIOS = ['Contrato', 'Cotizacion', 'Sustento']
   const tieneDocsObligatorios = DOCS_OBLIGATORIOS.every(doc =>
     archivosSubidos.some(a => a.tipo_archivo === doc)
@@ -159,19 +183,12 @@ export default function SolicitudDetallePage() {
     setPendingAction(null)
     setActioning(true)
     try {
-      if (action === 'enviar') {
-        await enviarARevision(solId)
-        toast.success('Enviada a revisión')
-      } else if (action === 'cancelar') {
+      if (action === 'cancelar') {
         await cancelarSolicitud(solId)
         toast.success('Solicitud cancelada')
       } else if (action === 'evaluar') {
         await marcarEvaluado(solId)
         toast.success('Marcada como Evaluada')
-      } else if (action === 'aprobar') {
-        if (!user) return
-        await aprobarSolicitud(solId, user.id)
-        toast.success('Solicitud aprobada')
       } else if (typeof action === 'object' && 'deleteDetId' in action) {
         await deleteDetalle(action.deleteDetId)
         setDetalles(ds => ds.filter(x => x.id !== action.deleteDetId))
@@ -185,15 +202,74 @@ export default function SolicitudDetallePage() {
     }
   }
 
+  // ── Firma confirm handler ─────────────────────────────────────
+  const handleFirmaConfirm = async (blob: Blob) => {
+    if (!solicitud || !id) return
+    const tipo = firmaAction === 'enviar' ? 'Firma_Usuario' : 'Firma_Aprobador'
+    await uploadFirma(blob, solicitud.id, tipo)
+    setFirmaOpen(false)
+    setActioning(true)
+    try {
+      if (firmaAction === 'enviar') {
+        await enviarARevision(solicitud.id)
+        toast.success('Enviada a revisión')
+      } else {
+        if (!user) return
+        await aprobarSolicitud(solicitud.id, user.id)
+        toast.success('Solicitud aprobada')
+      }
+      await reload(id)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al ejecutar la acción')
+    } finally {
+      setActioning(false)
+    }
+  }
+
+  // ── PDF download ──────────────────────────────────────────────
+  const handleDownloadPDF = async () => {
+    if (!solicitud) return
+    setDownloadingPDF(true)
+    try {
+      // Fetch archivos and resolve firma URLs
+      const archivos = await getArchivosBySolicitud(solicitud.id)
+      const firmaU   = archivos.find(a => a.tipo_archivo === 'Firma_Usuario')
+      const firmaA   = archivos.find(a => a.tipo_archivo === 'Firma_Aprobador')
+
+      const [logoB64, firmaUB64, firmaAB64] = await Promise.all([
+        fetchAsBase64(logoUrl),
+        firmaU?.archivo_path ? getArchivoUrl(firmaU.archivo_path).then(fetchAsBase64) : Promise.resolve(null),
+        firmaA?.archivo_path ? getArchivoUrl(firmaA.archivo_path).then(fetchAsBase64) : Promise.resolve(null),
+      ])
+
+      const blob = await pdf(
+        <OrdenCompraPDF
+          solicitud={solicitud}
+          detalles={detalles}
+          logoSrc={logoB64}
+          firmaUsuarioSrc={firmaUB64}
+          firmaAprobadorSrc={firmaAB64}
+        />
+      ).toBlob()
+
+      const objUrl = URL.createObjectURL(blob)
+      const a      = document.createElement('a')
+      a.href     = objUrl
+      a.download = `Orden_${solicitud.codigo ?? solicitud.id}.pdf`
+      a.click()
+      URL.revokeObjectURL(objUrl)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al generar el PDF')
+    } finally {
+      setDownloadingPDF(false)
+    }
+  }
+
   // ── Handlers de botones ───────────────────────────────────────
   const handleEnviar = () => {
     if (!solicitud) return
-    openConfirm('enviar', {
-      title: 'Enviar a revisión',
-      message: `¿Enviar la solicitud ${solicitud.codigo ?? `#${solicitud.id}`} a revisión? Ya no podrá editarla.`,
-      confirmLabel: 'Enviar',
-      variant: 'blue',
-    })
+    setFirmaAction('enviar')
+    setFirmaOpen(true)
   }
 
   const handleCancelar = () => {
@@ -218,12 +294,8 @@ export default function SolicitudDetallePage() {
 
   const handleAprobar = () => {
     if (!solicitud) return
-    openConfirm('aprobar', {
-      title: 'Aprobar solicitud',
-      message: `¿Aprobar la solicitud ${solicitud.codigo ?? `#${solicitud.id}`}?`,
-      confirmLabel: 'Aprobar',
-      variant: 'blue',
-    })
+    setFirmaAction('aprobar')
+    setFirmaOpen(true)
   }
 
   const handleDevolver = async (comentario: string) => {
@@ -364,6 +436,15 @@ export default function SolicitudDetallePage() {
         </span>
 
         <div className="ml-auto flex items-center gap-2">
+          {canShowPDF && (
+            <button onClick={handleDownloadPDF} disabled={downloadingPDF || actioning}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 disabled:opacity-50 transition-colors">
+              {downloadingPDF
+                ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-400 border-t-transparent" />
+                : <FileDown size={13} />}
+              Descargar OC
+            </button>
+          )}
           {canDuplicar && (
             <button onClick={handleDuplicar} disabled={duplicando || actioning}
               className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 disabled:opacity-50 transition-colors">
@@ -704,6 +785,13 @@ export default function SolicitudDetallePage() {
         codigo={solicitud.codigo ?? null}
         onClose={() => setRechazoOpen(false)}
         onConfirm={handleRechazar}
+      />
+
+      <FirmaModal
+        open={firmaOpen}
+        title={firmaAction === 'enviar' ? 'Firma del solicitante' : 'Firma del aprobador'}
+        onClose={() => setFirmaOpen(false)}
+        onConfirm={handleFirmaConfirm}
       />
     </div>
   )
