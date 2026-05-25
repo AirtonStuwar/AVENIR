@@ -16,6 +16,9 @@ import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
 import { OrdenCompraPDF } from '../features/solicitud/components/OrdenCompraPDF'
+import EncuestaProveedorForm from '../features/proveedor/components/EncuestaProveedorForm'
+import { getEncuestaBySolicitud } from '../features/proveedor/services/proveedorService'
+import type { Encuesta } from '../features/proveedor/types/proveedor'
 import { useAuthStore } from '../store/authStore'
 import type { Solicitud, SolicitudDetalle, SolicitudArchivo, SolicitudUpdate } from '../features/solicitud/types/solicitud'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -88,6 +91,9 @@ export default function SolicitudDetallePage() {
   // Archivos de la solicitud
   const [archivosSubidos,  setArchivosSubidos]  = useState<SolicitudArchivo[]>([])
 
+  // Encuesta
+  const [encuesta,         setEncuesta]         = useState<Encuesta | null>(null)
+
   // Factura
   const [facturaArchivo,   setFacturaArchivo]   = useState<SolicitudArchivo | null>(null)
   const [numeroFactura,    setNumeroFactura]    = useState('')
@@ -124,7 +130,10 @@ export default function SolicitudDetallePage() {
     const sol = await getSolicitudById(Number(currentId))
     setSolicitud(sol)
     setDetalles(sol.detalles ?? [])
-    await loadFactura(Number(currentId))
+    await Promise.all([
+      loadFactura(Number(currentId)),
+      getEncuestaBySolicitud(Number(currentId)).then(setEncuesta).catch(() => {}),
+    ])
   }
 
   useEffect(() => {
@@ -134,7 +143,10 @@ export default function SolicitudDetallePage() {
       .then(async sol => {
         setSolicitud(sol)
         setDetalles(sol.detalles ?? [])
-        await loadFactura(Number(id))
+        await Promise.all([
+          loadFactura(Number(id)),
+          getEncuestaBySolicitud(Number(id)).then(setEncuesta).catch(() => {}),
+        ])
       })
       .catch(() => toast.error('No se pudo cargar la solicitud'))
       .finally(() => setLoadingSol(false))
@@ -164,7 +176,8 @@ export default function SolicitudDetallePage() {
   const canDevolver     = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canAprobar      = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canRechazar     = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
-  const canSubirFactura = isFacturacionPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canSubirFactura    = isFacturacionPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canEncuestar       = isCompletado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
 
   const estadoColor = ESTADO_COLOR[nombre] ?? 'bg-gray-100 text-gray-600'
 
@@ -749,6 +762,17 @@ export default function SolicitudDetallePage() {
               )}
             </div>
           </div>
+        )}
+
+        {/* ── ENCUESTA PROVEEDOR ── */}
+        {canEncuestar && (
+          <EncuestaProveedorForm
+            solicitudId={solicitud.id}
+            proveedorRuc={solicitud.ruc}
+            usuarioId={user!.id}
+            encuesta={encuesta}
+            onSaved={setEncuesta}
+          />
         )}
 
       </div>
