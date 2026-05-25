@@ -211,8 +211,17 @@ export default function SolicitudesTable({
                   <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{s.proyecto?.nombre ?? s.proyecto_id ?? '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(s.fecha_pedido)}</td>
                   <td className="px-4 py-3 max-w-[180px]">
-                    {s.creador_email
-                      ? <span className="text-xs text-gray-700 truncate block" title={s.creador_email}>{s.creador_email}</span>
+                    {(s.creador_nombre || s.creador_email)
+                      ? (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs font-medium text-gray-800 truncate" title={s.creador_nombre ?? s.creador_email ?? ''}>
+                            {s.creador_nombre ?? s.creador_email}
+                          </span>
+                          {s.creador_nombre && s.creador_email && (
+                            <span className="text-xs text-gray-400 truncate">{s.creador_email}</span>
+                          )}
+                        </div>
+                      )
                       : <span className="text-xs text-gray-300">—</span>
                     }
                   </td>

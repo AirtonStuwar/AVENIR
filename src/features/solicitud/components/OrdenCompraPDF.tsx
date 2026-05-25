@@ -10,6 +10,7 @@ export interface OrdenCompraPDFProps {
   firmaAprobadorSrc?:    string | null
   aprobadorNombre?:      string | null
   aprobadorEmail?:       string | null
+  aprobadorCargo?:       string | null
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -376,6 +377,7 @@ export function OrdenCompraPDF({
   firmaAprobadorSrc,
   aprobadorNombre,
   aprobadorEmail,
+  aprobadorCargo,
 }: OrdenCompraPDFProps) {
   const subtotal    = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
   const descuento   = 0
@@ -555,6 +557,9 @@ export function OrdenCompraPDF({
               </Text>
             )}
             <Text style={S.sigEmail}>{aprobadorEmail ?? solicitud.usuario_aprobador ?? '—'}</Text>
+            {aprobadorCargo && (
+              <Text style={[S.sigEmail, { fontStyle: 'italic' }]}>{aprobadorCargo}</Text>
+            )}
           </View>
         </View>
 

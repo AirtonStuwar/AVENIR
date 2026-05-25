@@ -256,6 +256,7 @@ export default function SolicitudDetallePage() {
           firmaAprobadorSrc={firmaAB64}
           aprobadorNombre={aprobador?.nombre_completo ?? null}
           aprobadorEmail={aprobador?.correo ?? null}
+          aprobadorCargo={aprobador?.cargo ?? null}
         />
       ).toBlob()
 
