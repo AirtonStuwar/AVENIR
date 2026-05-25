@@ -7,7 +7,7 @@ import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
   enviarARevision, cancelarSolicitud, marcarEvaluado, devolverSolicitud, aprobarSolicitud, rechazarSolicitud,
   getArchivosBySolicitud, subirFactura, getArchivoUrl,
-  updateSolicitud, duplicarSolicitud, uploadFirma,
+  updateSolicitud, duplicarSolicitud, uploadFirma, getUsuarioById,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
@@ -236,10 +236,15 @@ export default function SolicitudDetallePage() {
       const firmaU   = archivos.find(a => a.tipo_archivo === 'Firma_Usuario')
       const firmaA   = archivos.find(a => a.tipo_archivo === 'Firma_Aprobador')
 
-      const [logoB64, firmaUB64, firmaAB64] = await Promise.all([
+      const aprobadorPromise = solicitud.usuario_aprobador
+        ? getUsuarioById(solicitud.usuario_aprobador)
+        : Promise.resolve(null)
+
+      const [logoB64, firmaUB64, firmaAB64, aprobador] = await Promise.all([
         fetchAsBase64(logoUrl),
         firmaU?.archivo_path ? getArchivoUrl(firmaU.archivo_path).then(fetchAsBase64) : Promise.resolve(null),
         firmaA?.archivo_path ? getArchivoUrl(firmaA.archivo_path).then(fetchAsBase64) : Promise.resolve(null),
+        aprobadorPromise,
       ])
 
       const blob = await pdf(
@@ -249,6 +254,8 @@ export default function SolicitudDetallePage() {
           logoSrc={logoB64}
           firmaUsuarioSrc={firmaUB64}
           firmaAprobadorSrc={firmaAB64}
+          aprobadorNombre={aprobador?.nombre_completo ?? null}
+          aprobadorEmail={aprobador?.correo ?? null}
         />
       ).toBlob()
 

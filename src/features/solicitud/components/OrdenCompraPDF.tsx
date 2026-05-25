@@ -3,12 +3,13 @@ import type { Solicitud, SolicitudDetalle } from '../types/solicitud'
 
 // ── Types ────────────────────────────────────────────────────────
 export interface OrdenCompraPDFProps {
-  solicitud:            Solicitud
-  detalles:             SolicitudDetalle[]
-  logoSrc?:             string | null
-  firmaUsuarioSrc?:     string | null
-  firmaAprobadorSrc?:   string | null
-  aprobadorEmail?:      string | null
+  solicitud:             Solicitud
+  detalles:              SolicitudDetalle[]
+  logoSrc?:              string | null
+  firmaUsuarioSrc?:      string | null
+  firmaAprobadorSrc?:    string | null
+  aprobadorNombre?:      string | null
+  aprobadorEmail?:       string | null
 }
 
 // ── Helpers ──────────────────────────────────────────────────────
@@ -46,17 +47,19 @@ const S = StyleSheet.create({
 
   // ── Header ──────────────────────────────────────────────────
   header: {
-    flexDirection:    'row',
-    alignItems:       'center',
-    backgroundColor:  BLUE,
-    borderRadius:     6,
-    padding:          10,
-    marginBottom:     10,
+    flexDirection:   'row',
+    alignItems:      'center',
+    backgroundColor: WHITE,
+    borderBottomWidth: 2,
+    borderBottomColor: BLUE,
+    borderBottomStyle: 'solid',
+    paddingBottom:   10,
+    marginBottom:    10,
   },
   logo: {
-    width:       70,
-    height:      28,
-    objectFit:   'contain',
+    width:     70,
+    height:    28,
+    objectFit: 'contain',
   },
   logoPlaceholder: {
     width:  70,
@@ -69,13 +72,13 @@ const S = StyleSheet.create({
   headerTitle: {
     fontFamily:    'Helvetica-Bold',
     fontSize:      13,
-    color:         WHITE,
+    color:         BLUE,
     letterSpacing: 0.5,
   },
   headerSub: {
     fontFamily: 'Helvetica',
     fontSize:   7,
-    color:      '#93c5fd',
+    color:      GRAY_TEXT,
     marginTop:  2,
   },
   headerRight: {
@@ -85,11 +88,11 @@ const S = StyleSheet.create({
   },
   headerRightLabel: {
     fontFamily: 'Helvetica-Bold',
-    color:      WHITE,
+    color:      BLUE,
     fontSize:   8,
   },
   headerRightVal: {
-    color:    '#bfdbfe',
+    color:    GRAY_TEXT,
     fontSize: 7,
     marginTop: 1,
   },
@@ -371,6 +374,7 @@ export function OrdenCompraPDF({
   logoSrc,
   firmaUsuarioSrc,
   firmaAprobadorSrc,
+  aprobadorNombre,
   aprobadorEmail,
 }: OrdenCompraPDFProps) {
   const subtotal    = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
@@ -526,7 +530,15 @@ export function OrdenCompraPDF({
               : <View style={S.sigImgPlaceholder} />
             }
             <View style={S.sigLine} />
+            {solicitud.creador_nombre && (
+              <Text style={[S.sigEmail, { fontFamily: 'Helvetica-Bold', color: '#374151' }]}>
+                {solicitud.creador_nombre}
+              </Text>
+            )}
             <Text style={S.sigEmail}>{solicitud.creador_email ?? '—'}</Text>
+            {solicitud.creador_cargo && (
+              <Text style={[S.sigEmail, { fontStyle: 'italic' }]}>{solicitud.creador_cargo}</Text>
+            )}
           </View>
 
           {/* Aprobado por */}
@@ -537,6 +549,11 @@ export function OrdenCompraPDF({
               : <View style={S.sigImgPlaceholder} />
             }
             <View style={S.sigLine} />
+            {aprobadorNombre && (
+              <Text style={[S.sigEmail, { fontFamily: 'Helvetica-Bold', color: '#374151' }]}>
+                {aprobadorNombre}
+              </Text>
+            )}
             <Text style={S.sigEmail}>{aprobadorEmail ?? solicitud.usuario_aprobador ?? '—'}</Text>
           </View>
         </View>

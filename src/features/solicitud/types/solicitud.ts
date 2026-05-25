@@ -1,3 +1,13 @@
+export interface Usuario {
+  id:              string
+  nombres:         string | null
+  apellidos:       string | null
+  nombre_completo: string | null
+  correo:          string | null
+  cargo:           string | null
+  fecha_creacion:  string | null
+}
+
 export interface SolicitudFormaPago {
   id: number
   nombre: string
@@ -48,8 +58,11 @@ export interface Solicitud {
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
   solicitud_forma_pago?: { id: number; nombre: string } | null
   detalles?: SolicitudDetalle[]
-  creador_email?: string | null
-  area_nombre?: string | null
+  // enriched fields (set by enrichSolicitudes)
+  creador_email?:  string | null
+  creador_nombre?: string | null
+  creador_cargo?:  string | null
+  area_nombre?:    string | null
 }
 
 export interface SolicitudDetalle {
