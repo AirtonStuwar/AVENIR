@@ -8,13 +8,15 @@ import {
   AlertCircle, ArrowRight, Clock, DollarSign,
   FolderOpen, TrendingUp, CheckCircle, XCircle,
   FileText, Send, RotateCcw, ThumbsUp, Plus,
-  Hourglass, Receipt,
+  Hourglass, Receipt, Star, Users, ThumbsDown,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import {
   getDashboardData, getAprobadorData, getEvaluadorData, getVisualizadorData, getUsuarioData,
+  getProveedorMetricas,
   type DashboardData, type AprobadorData, type EvaluadorData,
   type VisualizadorData, type UsuarioData, type SolicitudRow,
+  type ProveedorMetricasData,
 } from '../features/dashboard/services/dashboardService'
 import { ROLES } from '../features/solicitud/types/solicitud'
 
@@ -255,6 +257,8 @@ function AdminDashboard() {
         </div>
 
         <SolicitudTable title="Pendientes de aprobación" rows={pendientesList} badge count={pendientes} onVerTodas={() => navigate('/solicitudes')} onView={(s) => navigate(`/solicitudes/${s.id}`)} />
+
+        <ProveedorMetricasPanel />
       </div>
     </div>
   )
@@ -366,6 +370,8 @@ function AprobadorDashboard() {
         </div>
 
         <SolicitudTable title="Historial reciente" rows={recientes} onVerTodas={() => navigate('/solicitudes')} onView={(s) => navigate(`/solicitudes/${s.id}`)} showEstado />
+
+        <ProveedorMetricasPanel />
       </div>
     </div>
   )
@@ -603,6 +609,112 @@ function UsuarioDashboard() {
           showEstado
         />
       </div>
+    </div>
+  )
+}
+
+// ── ProveedorMetricasPanel ───────────────────────────────────────
+function ProveedorMetricasPanel() {
+  const navigate = useNavigate()
+  const [data,    setData]    = useState<ProveedorMetricasData | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getProveedorMetricas().then(setData).catch(() => setData(null)).finally(() => setLoading(false))
+  }, [])
+
+  const starColor = (v: number) => v >= 4 ? 'text-teal-500' : v >= 3 ? 'text-amber-500' : 'text-red-500'
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Métricas de Proveedores</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Basado en encuestas de satisfacción internas</p>
+        </div>
+        <button
+          onClick={() => navigate('/proveedores')}
+          className="flex items-center gap-1 text-xs text-[#003D7D] hover:underline font-medium"
+        >
+          Ver todos <ArrowRight size={12} />
+        </button>
+      </div>
+
+      {loading ? (
+        <div className="py-10 flex justify-center">
+          <div className="h-7 w-7 animate-spin rounded-full border-4 border-[#003D7D] border-t-transparent" />
+        </div>
+      ) : !data ? (
+        <div className="py-10 flex flex-col items-center gap-2 text-gray-300">
+          <AlertCircle size={24} />
+          <p className="text-xs">No se pudo cargar</p>
+        </div>
+      ) : (
+        <div className="p-5 space-y-5">
+          {/* KPIs rápidos */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: 'Total proveedores', value: data.totalProveedores, icon: <Users size={15} />, cls: 'bg-blue-50 text-[#003D7D]' },
+              { label: 'Promedio general', value: data.promedioGeneral ? `${data.promedioGeneral} ★` : '—', icon: <Star size={15} />, cls: 'bg-amber-50 text-amber-600' },
+              { label: '% Recomendarían', value: data.pctRecomendaria !== null ? `${data.pctRecomendaria}%` : '—', icon: <ThumbsUp size={15} />, cls: 'bg-teal-50 text-teal-600' },
+              { label: 'Alertas (< 3★)', value: data.alertas, icon: <ThumbsDown size={15} />, cls: 'bg-red-50 text-red-500', alert: data.alertas > 0 },
+            ].map(k => (
+              <div key={k.label} className="flex items-center gap-2.5 p-3 rounded-xl border border-gray-100 bg-gray-50/50">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${k.cls}`}>
+                  {k.icon}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] text-gray-400 leading-tight">{k.label}</p>
+                  <p className={`text-base font-bold leading-tight ${k.alert ? 'text-red-500' : 'text-gray-800'}`}>{k.value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Ranking */}
+          {data.topProveedores.length === 0 ? (
+            <div className="flex flex-col items-center gap-1.5 py-6 text-gray-300">
+              <Star size={24} />
+              <p className="text-xs">Sin evaluaciones registradas aún</p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Top proveedores evaluados</p>
+              <div className="flex flex-col gap-2">
+                {data.topProveedores.map((p, i) => (
+                  <div key={p.ruc} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate('/proveedores')}>
+                    {/* Posición */}
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${i === 0 ? 'bg-amber-100 text-amber-600' : i === 1 ? 'bg-gray-100 text-gray-500' : i === 2 ? 'bg-orange-100 text-orange-600' : 'bg-gray-50 text-gray-400'}`}>
+                      {i + 1}
+                    </span>
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-semibold text-gray-800 truncate">{p.razon_social ?? p.ruc}</p>
+                      <p className="text-[10px] text-gray-400 font-mono">{p.ruc}</p>
+                    </div>
+                    {/* Score */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      {p.pct_recomendaria !== null && (
+                        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${p.pct_recomendaria >= 70 ? 'bg-teal-50 text-teal-600' : p.pct_recomendaria >= 40 ? 'bg-amber-50 text-amber-600' : 'bg-red-50 text-red-500'}`}>
+                          👍 {p.pct_recomendaria}%
+                        </span>
+                      )}
+                      <div className="flex items-center gap-1">
+                        <Star size={13} className="fill-amber-400 text-amber-400" />
+                        <span className={`text-sm font-bold ${starColor(p.promedio_general ?? 0)}`}>
+                          {p.promedio_general?.toFixed(1)}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-gray-300">({p.total_encuestas})</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

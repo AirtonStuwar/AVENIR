@@ -135,6 +135,79 @@ export async function getVisualizadorData(): Promise<VisualizadorData> {
   }
 }
 
+// ── Proveedor métricas ───────────────────────────────────────────
+export interface ProveedorMetrica {
+  ruc: string
+  razon_social: string | null
+  promedio_general: number | null
+  pct_recomendaria: number | null
+  total_encuestas: number
+}
+
+export interface ProveedorMetricasData {
+  totalProveedores: number
+  promedioGeneral: number | null
+  pctRecomendaria: number | null
+  alertas: number
+  topProveedores: ProveedorMetrica[]
+}
+
+export async function getProveedorMetricas(): Promise<ProveedorMetricasData> {
+  const [provRes, encRes] = await Promise.all([
+    supabase.from('proveedor').select('ruc, razon_social'),
+    supabase.from('encuesta_proveedor').select('proveedor_ruc, calidad, tiempo, precio, comunicacion, recomendaria'),
+  ])
+  if (provRes.error) throw provRes.error
+  if (encRes.error) throw encRes.error
+
+  const proveedores = (provRes.data ?? []) as { ruc: string; razon_social: string | null }[]
+  const encuestas   = (encRes.data ?? []) as {
+    proveedor_ruc: string | null
+    calidad: number; tiempo: number; precio: number; comunicacion: number
+    recomendaria: boolean
+  }[]
+
+  // Group by ruc
+  const byRuc: Record<string, typeof encuestas> = {}
+  for (const e of encuestas) {
+    if (!e.proveedor_ruc) continue
+    byRuc[e.proveedor_ruc] = byRuc[e.proveedor_ruc] ?? []
+    byRuc[e.proveedor_ruc].push(e)
+  }
+
+  const avg = (nums: number[]) => nums.reduce((s, v) => s + v, 0) / nums.length
+
+  const metricas: ProveedorMetrica[] = proveedores.map(p => {
+    const encs = byRuc[p.ruc] ?? []
+    if (encs.length === 0) {
+      return { ruc: p.ruc, razon_social: p.razon_social, promedio_general: null, pct_recomendaria: null, total_encuestas: 0 }
+    }
+    const promedio_general = +((
+      avg(encs.map(e => e.calidad)) +
+      avg(encs.map(e => e.tiempo)) +
+      avg(encs.map(e => e.precio)) +
+      avg(encs.map(e => e.comunicacion))
+    ) / 4).toFixed(1)
+    const pct_recomendaria = Math.round((encs.filter(e => e.recomendaria).length / encs.length) * 100)
+    return { ruc: p.ruc, razon_social: p.razon_social, promedio_general, pct_recomendaria, total_encuestas: encs.length }
+  })
+
+  const evaluados = metricas.filter(m => m.total_encuestas > 0)
+  const promedioGeneral  = evaluados.length
+    ? +(evaluados.reduce((s, m) => s + (m.promedio_general ?? 0), 0) / evaluados.length).toFixed(1)
+    : null
+  const pctRecomendaria  = evaluados.length
+    ? Math.round(evaluados.reduce((s, m) => s + (m.pct_recomendaria ?? 0), 0) / evaluados.length)
+    : null
+  const alertas = evaluados.filter(m => (m.promedio_general ?? 5) < 3).length
+
+  const topProveedores = [...evaluados]
+    .sort((a, b) => (b.promedio_general ?? 0) - (a.promedio_general ?? 0))
+    .slice(0, 5)
+
+  return { totalProveedores: proveedores.length, promedioGeneral, pctRecomendaria, alertas, topProveedores }
+}
+
 // ── Usuario ──────────────────────────────────────────────────────
 export interface UsuarioData {
   solicitudes: SolicitudRow[]
