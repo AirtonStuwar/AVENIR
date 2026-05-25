@@ -229,7 +229,9 @@ export async function getSolicitudById(id: number): Promise<Solicitud> {
     ;(data as any).detalles = detalles as SolicitudDetalle[]
   }
 
-  return data as Solicitud
+  // enriquecer con datos del usuario (nombre, email, cargo, área)
+  const [enriched] = await enrichSolicitudes([data as Solicitud])
+  return enriched
 }
 
 export async function createSolicitud(payload: SolicitudInsert): Promise<Solicitud> {
