@@ -14,6 +14,7 @@ import ProyectosPage from './pages/ProyectosPage';
 import SolicitudesPage from './pages/SolicitudesPage';
 import SolicitudNuevaPage from './pages/SolicitudNuevaPage';
 import SolicitudDetallePage from './pages/SolicitudDetallePage';
+import ProveedoresPage from './pages/ProveedoresPage';
 
 function App() {
   const setSession = useAuthStore((state) => state.setSession);
@@ -61,7 +62,7 @@ function App() {
             <Route path="/solicitudes" element={<SolicitudesPage />} />
             <Route path="/solicitudes/nueva" element={<SolicitudNuevaPage />} />
             <Route path="/solicitudes/:id" element={<SolicitudDetallePage />} />
-            <Route path="/proveedores" element={<div className="p-4">Sección Proveedores</div>} />
+            <Route path="/proveedores" element={<ProveedoresPage />} />
             <Route path="/proyectos" element={<ProyectosPage/>} />
           </Route>
         </Route>

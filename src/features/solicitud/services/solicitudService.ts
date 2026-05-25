@@ -1,9 +1,9 @@
 import { supabase } from '../../../api/supabase'
-import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado, SolicitudDetalleInsert, SolicitudDetalle, SolicitudArchivo, SolicitudFormaPago } from '../types/solicitud'
+import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado, SolicitudDetalleInsert, SolicitudDetalle, SolicitudArchivo, SolicitudFormaPago, Usuario } from '../types/solicitud'
 import { ROLES } from '../types/solicitud'
 
 const TABLE   = 'solicitud'
-const SOL_SEL = '*, proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo), solicitud_forma_pago:forma_pago_id(id,nombre)'
+const SOL_SEL = '*, proyecto:proyecto_id(id,nombre,ruc,direccion), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo), solicitud_forma_pago:forma_pago_id(id,nombre)'
 
 // ── Estado ID cache ───────────────────────────────────────────────
 let estadoCache: Record<string, number> = {}
@@ -34,18 +34,15 @@ async function enrichSolicitudes(solicitudes: Solicitud[]): Promise<Solicitud[]>
   const userIds = [...new Set(solicitudes.map(s => s.usuario_creador).filter(Boolean))] as string[]
   if (userIds.length === 0) return solicitudes
 
-  const [areaRes, userRes] = await Promise.all([
+  const [areaRes, usuarioRes] = await Promise.all([
     supabase
       .from('area_usuario')
       .select('usuario_id, area:area_id(nombre)')
       .in('usuario_id', userIds)
       .eq('estado', 1),
-    // vista_creadores: CREATE OR REPLACE VIEW public.vista_creadores AS
-    //   SELECT id, email FROM auth.users;
-    // GRANT SELECT ON public.vista_creadores TO anon, authenticated;
     supabase
-      .from('vista_creadores')
-      .select('id, email')
+      .from('usuario')
+      .select('id, nombre_completo, correo, cargo')
       .in('id', userIds),
   ])
 
@@ -56,16 +53,43 @@ async function enrichSolicitudes(solicitudes: Solicitud[]): Promise<Solicitud[]>
     }
   }
 
-  const emailMap: Record<string, string> = {}
-  for (const row of (userRes.data ?? []) as any[]) {
-    if (row.id && row.email) emailMap[row.id] = row.email
+  const usuarioMap: Record<string, Pick<Usuario, 'nombre_completo' | 'correo' | 'cargo'>> = {}
+  for (const row of (usuarioRes.data ?? []) as any[]) {
+    if (row.id) usuarioMap[row.id] = { nombre_completo: row.nombre_completo, correo: row.correo, cargo: row.cargo }
   }
 
-  return solicitudes.map(s => ({
-    ...s,
-    area_nombre:   s.usuario_creador ? (areaMap[s.usuario_creador]  ?? null) : null,
-    creador_email: s.usuario_creador ? (emailMap[s.usuario_creador] ?? null) : null,
-  }))
+  return solicitudes.map(s => {
+    const u = s.usuario_creador ? (usuarioMap[s.usuario_creador] ?? null) : null
+    return {
+      ...s,
+      area_nombre:    s.usuario_creador ? (areaMap[s.usuario_creador] ?? null) : null,
+      creador_email:  u?.correo          ?? null,
+      creador_nombre: u?.nombre_completo ?? null,
+      creador_cargo:  u?.cargo           ?? null,
+    }
+  })
+}
+
+// ── Helpers de usuario ────────────────────────────────────────────
+export async function getUsuarioById(id: string): Promise<Usuario | null> {
+  const { data, error } = await supabase
+    .from('usuario')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  return data as Usuario | null
+}
+
+export async function updateUsuario(id: string, payload: Partial<Omit<Usuario, 'id' | 'nombre_completo' | 'fecha_creacion'>>): Promise<Usuario> {
+  const { data, error } = await supabase
+    .from('usuario')
+    .update(payload)
+    .eq('id', id)
+    .select()
+    .maybeSingle()
+  if (error) throw error
+  return data as Usuario
 }
 
 export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<SolicitudPaginado> {
@@ -205,7 +229,9 @@ export async function getSolicitudById(id: number): Promise<Solicitud> {
     ;(data as any).detalles = detalles as SolicitudDetalle[]
   }
 
-  return data as Solicitud
+  // enriquecer con datos del usuario (nombre, email, cargo, área)
+  const [enriched] = await enrichSolicitudes([data as Solicitud])
+  return enriched
 }
 
 export async function createSolicitud(payload: SolicitudInsert): Promise<Solicitud> {
@@ -299,6 +325,29 @@ export async function deleteArchivoSolicitud(id: number, path: string): Promise<
   await supabase.storage.from(BUCKET).remove([path])
   const { error } = await supabase.from('solicitud_archivo').delete().eq('id', id)
   if (error) throw error
+}
+
+export async function uploadFirma(
+  blob: Blob,
+  solicitudId: number,
+  tipo: 'Firma_Usuario' | 'Firma_Aprobador',
+): Promise<SolicitudArchivo> {
+  // Eliminar firma anterior si existe
+  const existentes = await getArchivosBySolicitud(solicitudId)
+  const prev = existentes.find(a => a.tipo_archivo === tipo)
+  if (prev) await deleteArchivoSolicitud(prev.id, prev.archivo_path!)
+
+  const path = `${solicitudId}/${tipo}/${Date.now()}.png`
+  const { error: storageErr } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: 'image/png', upsert: true })
+  if (storageErr) throw storageErr
+
+  const { data, error } = await supabase
+    .from('solicitud_archivo')
+    .insert({ solicitud_id: solicitudId, nombre_archivo: `${tipo}.png`, archivo_path: path, tipo_archivo: tipo })
+    .select()
+    .maybeSingle()
+  if (error) throw error
+  return data as SolicitudArchivo
 }
 
 export async function getArchivoUrl(path: string): Promise<string> {

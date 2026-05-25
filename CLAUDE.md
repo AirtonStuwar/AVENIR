@@ -40,16 +40,11 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `/proveedores` — behind `ProtectedRoute` but currently a static placeholder div (no feature implemented)
 - Catch-all redirects to `/dashboard`
 
-**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `vista_creadores` (view exposing user emails).
+**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `usuario`.
 
 El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no se usa ni se escribe. La columna puede seguir existiendo en la BD sin afectar nada.
 
-`vista_creadores` must be created manually:
-```sql
-CREATE OR REPLACE VIEW public.vista_creadores AS
-  SELECT id, email FROM auth.users;
-GRANT SELECT ON public.vista_creadores TO anon, authenticated;
-```
+**`usuario`** — perfil extendido 1:1 con `auth.users`. Campos: `id` (UUID FK), `nombres`, `apellidos`, `nombre_completo` (GENERATED: nombres || apellidos), `correo`, `cargo`. Un trigger `on_auth_user_created` crea la fila automáticamente en cada signup. `enrichSolicitudes` consulta esta tabla para `creador_nombre`, `creador_email` y `creador_cargo`. La vista `vista_creadores` fue eliminada — ya no es necesaria.
 
 `area_usuario` links users to areas; only rows with `estado = 1` are treated as active when enriching solicitudes with area names.
 
