@@ -75,6 +75,7 @@ export default function SolicitudNuevaPage() {
   const [condiciones,                  setCondiciones]                 = useState(
     'Se penalizará el retraso o incumplimiento de algún acuerdo en la fecha de entrega acordada'
   )
+  const [motivo_factura,               setMotivoFactura]               = useState('')
   const [fecha_pedido,   setFechaPedido]   = useState('')
   const [fecha_requerida,setFechaRequerida]= useState('')
 
@@ -158,6 +159,7 @@ export default function SolicitudNuevaPage() {
         porcentaje_acumulado_contrato,
         porcentaje_pendiente_contrato,
         condiciones: condiciones || null,
+        motivo_factura: motivo_factura || null,
         fecha_pedido, fecha_requerida,
         usuario_creador: user?.id ?? null,
       })
@@ -436,11 +438,18 @@ export default function SolicitudNuevaPage() {
               {/* Condiciones */}
               <div>
                 <SectionTitle>Condiciones y observaciones</SectionTitle>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
                     <label className={LABEL}>Condiciones</label>
                     <textarea className={INPUT + ' resize-none'} rows={2} value={condiciones}
                       onChange={(e) => setCondiciones(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={LABEL}>Motivo de la factura</label>
+                    <textarea className={INPUT + ' resize-none'} rows={2}
+                      placeholder="Describe el motivo o concepto de la factura…"
+                      value={motivo_factura}
+                      onChange={(e) => setMotivoFactura(e.target.value)} />
                   </div>
                 </div>
               </div>

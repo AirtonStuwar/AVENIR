@@ -539,10 +539,20 @@ export default function SolicitudDetallePage() {
             </div>
           </div>
 
-          {solicitud.condiciones && (
-            <div className="px-6 pb-5 border-t border-gray-50 pt-4">
-              <p className={LABEL}>Condiciones</p>
-              <p className="text-sm text-gray-700">{solicitud.condiciones}</p>
+          {(solicitud.condiciones || solicitud.motivo_factura) && (
+            <div className="px-6 pb-5 border-t border-gray-50 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {solicitud.condiciones && (
+                <div>
+                  <p className={LABEL}>Condiciones</p>
+                  <p className="text-sm text-gray-700">{solicitud.condiciones}</p>
+                </div>
+              )}
+              {solicitud.motivo_factura && (
+                <div>
+                  <p className={LABEL}>Motivo de la factura</p>
+                  <p className="text-sm text-gray-700">{solicitud.motivo_factura}</p>
+                </div>
+              )}
             </div>
           )}
           {solicitud.comentario_gerencia && (

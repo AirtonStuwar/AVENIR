@@ -43,6 +43,7 @@ export interface Solicitud {
   porcentaje_acumulado_contrato: number | null
   porcentaje_pendiente_contrato: number | null
   condiciones: string | null
+  motivo_factura: string | null
   fecha_pedido: string | null
   fecha_requerida: string | null
   estado_id: number | null
