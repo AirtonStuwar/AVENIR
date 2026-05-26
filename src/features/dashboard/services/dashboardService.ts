@@ -56,9 +56,9 @@ export async function getDashboardData(): Promise<DashboardData> {
 
 // ── Aprobador ────────────────────────────────────────────────────
 export interface AprobadorData {
-  enCola: SolicitudRow[]       // estado = Evaluado
-  aprobadas: SolicitudRow[]    // estado = Aprobado / Facturación Pendiente / Completado
-  rechazadas: SolicitudRow[]   // estado = Rechazado
+  enCola: SolicitudRow[]     // estado = Evaluado
+  aprobadas: SolicitudRow[]  // estado = Aprobado
+  rechazadas: SolicitudRow[] // estado = Rechazado
   proyectos: ProyectoRow[]
   detalles: DetalleRow[]
 }
@@ -80,7 +80,7 @@ export async function getAprobadorData(): Promise<AprobadorData> {
   const all = (solRes.data ?? []) as unknown as SolicitudRow[]
   return {
     enCola:    all.filter(s => s.estado_soli?.nombre === 'Evaluado'),
-    aprobadas: all.filter(s => ['Aprobado', 'Facturación Pendiente', 'Completado'].includes(s.estado_soli?.nombre ?? '')),
+    aprobadas: all.filter(s => s.estado_soli?.nombre === 'Aprobado'),
     rechazadas: all.filter(s => s.estado_soli?.nombre === 'Rechazado'),
     proyectos: (proyRes.data ?? []) as ProyectoRow[],
     detalles:  (detRes.data ?? []) as DetalleRow[],
@@ -111,8 +111,7 @@ export async function getEvaluadorData(): Promise<EvaluadorData> {
 
 // ── Visualizador ─────────────────────────────────────────────────
 export interface VisualizadorData {
-  facturacionPendiente: SolicitudRow[]
-  completadas: SolicitudRow[]
+  aprobadas: SolicitudRow[]
   detalles: DetalleRow[]
 }
 
@@ -129,9 +128,8 @@ export async function getVisualizadorData(): Promise<VisualizadorData> {
 
   const all = (solRes.data ?? []) as unknown as SolicitudRow[]
   return {
-    facturacionPendiente: all.filter(s => s.estado_soli?.nombre === 'Facturación Pendiente'),
-    completadas:          all.filter(s => s.estado_soli?.nombre === 'Completado'),
-    detalles:             (detRes.data ?? []) as DetalleRow[],
+    aprobadas: all.filter(s => s.estado_soli?.nombre === 'Aprobado'),
+    detalles:  (detRes.data ?? []) as DetalleRow[],
   }
 }
 

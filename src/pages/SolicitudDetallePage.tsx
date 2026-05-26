@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Receipt, Upload, Eye, Copy, FileDown } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown } from 'lucide-react'
 import { pdf } from '@react-pdf/renderer'
 import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
   enviarARevision, cancelarSolicitud, marcarEvaluado, devolverSolicitud, aprobarSolicitud, rechazarSolicitud,
-  getArchivosBySolicitud, subirFactura, getArchivoUrl,
+  getArchivosBySolicitud, getArchivoUrl,
   updateSolicitud, duplicarSolicitud, uploadFirma, getUsuarioById,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
@@ -64,8 +64,6 @@ const ESTADO_COLOR: Record<string, string> = {
   Aprobado:                'bg-green-100 text-green-800',
   Rechazado:               'bg-red-100 text-red-800',
   Cancelado:               'bg-gray-100 text-gray-600',
-  'Facturación Pendiente': 'bg-orange-100 text-orange-800',
-  Completado:              'bg-teal-100 text-teal-800',
 }
 
 // Tipos de acción para el modal de confirmación
@@ -94,12 +92,9 @@ export default function SolicitudDetallePage() {
   // Encuesta
   const [encuesta,         setEncuesta]         = useState<Encuesta | null>(null)
 
-  // Factura
-  const [facturaArchivo,   setFacturaArchivo]   = useState<SolicitudArchivo | null>(null)
+  // Número de factura
   const [numeroFactura,    setNumeroFactura]    = useState('')
-  const [facturaFile,      setFacturaFile]      = useState<File | null>(null)
-  const [submittingFact,   setSubmittingFact]   = useState(false)
-  const facturaRef = useRef<HTMLInputElement | null>(null)
+  const [savingFactNum,    setSavingFactNum]    = useState(false)
 
   // Modales
   const [rechazoOpen,    setRechazoOpen]    = useState(false)
@@ -121,19 +116,11 @@ export default function SolicitudDetallePage() {
   const [downloadingPDF, setDownloadingPDF] = useState(false)
 
   // ── Data loading ──────────────────────────────────────────────
-  const loadFactura = async (solId: number) => {
-    const archivos = await getArchivosBySolicitud(solId)
-    setFacturaArchivo(archivos.find(a => a.tipo_archivo === 'Factura') ?? null)
-  }
-
   const reload = async (currentId: string) => {
     const sol = await getSolicitudById(Number(currentId))
     setSolicitud(sol)
     setDetalles(sol.detalles ?? [])
-    await Promise.all([
-      loadFactura(Number(currentId)),
-      getEncuestaBySolicitud(Number(currentId)).then(setEncuesta).catch(() => {}),
-    ])
+    await getEncuestaBySolicitud(Number(currentId)).then(setEncuesta).catch(() => {})
   }
 
   useEffect(() => {
@@ -143,41 +130,44 @@ export default function SolicitudDetallePage() {
       .then(async sol => {
         setSolicitud(sol)
         setDetalles(sol.detalles ?? [])
-        await Promise.all([
-          loadFactura(Number(id)),
-          getEncuestaBySolicitud(Number(id)).then(setEncuesta).catch(() => {}),
-        ])
+        await getEncuestaBySolicitud(Number(id)).then(setEncuesta).catch(() => {})
       })
       .catch(() => toast.error('No se pudo cargar la solicitud'))
       .finally(() => setLoadingSol(false))
   }, [id])
 
-  // ── Derived state ──────────────────────────────────────────────
-  const nombre                 = solicitud?.estado_soli?.nombre ?? ''
-  const isPendiente            = nombre === 'Pendiente'
-  const isEnRevision           = nombre === 'En Revision'
-  const isEvaluado             = nombre === 'Evaluado'
-  const isFacturacionPendiente = nombre === 'Facturación Pendiente'
-  const isCompletado           = nombre === 'Completado'
-  const isCancelado            = nombre === 'Cancelado'
-  const isRechazado            = nombre === 'Rechazado'
-  const isOwnSolicitud         = solicitud?.usuario_creador === user?.id
+  // Sync número de factura desde solicitud
+  useEffect(() => {
+    setNumeroFactura(solicitud?.numero_factura ?? '')
+  }, [solicitud?.numero_factura])
 
-  const canEdit         = isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const canDuplicar     = userRole === ROLES.USUARIO && isOwnSolicitud && (isCompletado || isCancelado || isRechazado)
-  const canShowPDF      = !isPendiente && !isRechazado && !isCancelado
+  // ── Derived state ──────────────────────────────────────────────
+  const nombre         = solicitud?.estado_soli?.nombre ?? ''
+  const isPendiente    = nombre === 'Pendiente'
+  const isEnRevision   = nombre === 'En Revision'
+  const isEvaluado     = nombre === 'Evaluado'
+  const isAprobado     = nombre === 'Aprobado'
+  const isCancelado    = nombre === 'Cancelado'
+  const isRechazado    = nombre === 'Rechazado'
+  const isOwnSolicitud = solicitud?.usuario_creador === user?.id
+
+  const canEdit      = isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canDuplicar  = userRole === ROLES.USUARIO && isOwnSolicitud && (isAprobado || isCancelado || isRechazado)
+  const canShowPDF   = !isPendiente && !isRechazado && !isCancelado
   const DOCS_OBLIGATORIOS = ['Contrato', 'Cotizacion', 'Sustento']
   const tieneDocsObligatorios = DOCS_OBLIGATORIOS.every(doc =>
     archivosSubidos.some(a => a.tipo_archivo === doc)
   )
-  const canEnviar       = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente && tieneDocsObligatorios
-  const canCancelar     = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente
-  const canEvaluar      = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
-  const canDevolver     = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
-  const canAprobar      = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
-  const canRechazar     = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
-  const canSubirFactura    = isFacturacionPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const canEncuestar       = isCompletado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canEnviar    = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente && tieneDocsObligatorios
+  const canCancelar  = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente
+  const canEvaluar   = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
+  const canDevolver  = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
+  const canAprobar   = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
+  const canRechazar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
+  const canEncuestar      = isAprobado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const hasFacturaDoc     = archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF')
+  const showNumFactura    = hasFacturaDoc || !!solicitud?.numero_factura
+  const canEditNumFactura = (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
 
   const estadoColor = ESTADO_COLOR[nombre] ?? 'bg-gray-100 text-gray-600'
 
@@ -343,30 +333,18 @@ export default function SolicitudDetallePage() {
     }
   }
 
-  // ── Factura handler ───────────────────────────────────────────
-  const handleSubirFactura = async () => {
-    if (!solicitud || !id || !numeroFactura.trim() || !facturaFile) return
-    setSubmittingFact(true)
+  // ── Número de factura ────────────────────────────────────────────
+  const handleGuardarNumFactura = async () => {
+    if (!solicitud || !id) return
+    setSavingFactNum(true)
     try {
-      await subirFactura(solicitud.id, numeroFactura.trim(), facturaFile)
-      toast.success('Factura registrada correctamente')
-      setNumeroFactura('')
-      setFacturaFile(null)
+      await updateSolicitud(solicitud.id, { numero_factura: numeroFactura.trim() || null })
+      toast.success('N° de factura guardado')
       await reload(id)
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Error al registrar factura')
+      toast.error(err instanceof Error ? err.message : 'Error al guardar')
     } finally {
-      setSubmittingFact(false)
-    }
-  }
-
-  const handleVerFactura = async () => {
-    if (!facturaArchivo?.archivo_path) return
-    try {
-      const url = await getArchivoUrl(facturaArchivo.archivo_path)
-      window.open(url, '_blank')
-    } catch {
-      toast.error('No se pudo abrir la factura')
+      setSavingFactNum(false)
     }
   }
 
@@ -561,10 +539,20 @@ export default function SolicitudDetallePage() {
             </div>
           </div>
 
-          {solicitud.condiciones && (
-            <div className="px-6 pb-5 border-t border-gray-50 pt-4">
-              <p className={LABEL}>Condiciones</p>
-              <p className="text-sm text-gray-700">{solicitud.condiciones}</p>
+          {(solicitud.condiciones || solicitud.motivo_factura) && (
+            <div className="px-6 pb-5 border-t border-gray-50 pt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {solicitud.condiciones && (
+                <div>
+                  <p className={LABEL}>Condiciones</p>
+                  <p className="text-sm text-gray-700">{solicitud.condiciones}</p>
+                </div>
+              )}
+              {solicitud.motivo_factura && (
+                <div>
+                  <p className={LABEL}>Motivo de la factura</p>
+                  <p className="text-sm text-gray-700">{solicitud.motivo_factura}</p>
+                </div>
+              )}
             </div>
           )}
           {solicitud.comentario_gerencia && (
@@ -667,97 +655,68 @@ export default function SolicitudDetallePage() {
           </div>
         )}
 
-        {/* ── FACTURA ── */}
-        {(isFacturacionPendiente || isCompletado) && (
+        {/* ── N° DE FACTURA ── */}
+        {showNumFactura && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-              <Receipt size={15} className="text-[#003D7D]" />
-              <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Factura</h2>
-              {isCompletado && (
-                <span className="ml-auto text-xs font-semibold text-teal-600 bg-teal-50 px-2.5 py-0.5 rounded-full">Registrada</span>
+              <CheckCircle size={15} className="text-[#003D7D]" />
+              <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Datos de la factura</h2>
+              {solicitud.numero_factura && (
+                <span className="ml-auto text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-0.5 rounded-full">Registrado</span>
               )}
             </div>
-
             <div className="px-6 py-5 space-y-4">
-              {canSubirFactura ? (
-                /* ── Formulario para subir factura (USUARIO en Facturación Pendiente) ── */
-                <>
-                  <p className="text-xs text-gray-500">
-                    Tu solicitud fue aprobada. Ingresa el número de factura y adjunta el archivo PDF para completar el proceso.
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className={LABEL}>N° de Factura <span className="text-red-400">*</span></label>
-                      <input
-                        type="text"
-                        value={numeroFactura}
-                        onChange={e => setNumeroFactura(e.target.value)}
-                        placeholder="Ej: F001-00123"
-                        className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
-                      />
-                    </div>
-                    <div>
-                      <label className={LABEL}>Archivo Factura (PDF) <span className="text-red-400">*</span></label>
-                      <input
-                        ref={facturaRef}
-                        type="file"
-                        accept="application/pdf"
-                        className="hidden"
-                        onChange={e => {
-                          const f = e.target.files?.[0]
-                          if (f && f.type !== 'application/pdf') { toast.error('Solo se permiten archivos PDF'); return }
-                          setFacturaFile(f ?? null)
-                          e.target.value = ''
-                        }}
-                      />
-                      <button
-                        onClick={() => facturaRef.current?.click()}
-                        className={`mt-1 w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl border text-xs transition-all ${
-                          facturaFile
-                            ? 'border-green-300 bg-green-50 text-green-700'
-                            : 'border-dashed border-gray-200 bg-gray-50 text-gray-500 hover:border-[#003D7D] hover:text-[#003D7D]'
-                        }`}
-                      >
-                        <Upload size={12} />
-                        {facturaFile ? facturaFile.name : 'Seleccionar PDF'}
-                      </button>
-                    </div>
+              {/* N° Factura editable */}
+              {canEditNumFactura ? (
+                <div className="flex items-end gap-3">
+                  <div className="flex-1 max-w-xs">
+                    <label className={LABEL}>N° de Factura</label>
+                    <input
+                      type="text"
+                      value={numeroFactura}
+                      onChange={e => setNumeroFactura(e.target.value)}
+                      placeholder="Ej: F001-00123"
+                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
+                    />
                   </div>
                   <button
-                    onClick={handleSubirFactura}
-                    disabled={submittingFact || !numeroFactura.trim() || !facturaFile}
-                    className="flex items-center gap-2 h-9 px-5 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                    onClick={handleGuardarNumFactura}
+                    disabled={savingFactNum || numeroFactura.trim() === (solicitud.numero_factura ?? '')}
+                    className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-40 transition-colors"
                   >
-                    {submittingFact
-                      ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      : <CheckCircle size={13} />
-                    }
-                    Registrar factura
+                    {savingFactNum
+                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      : 'Guardar'}
                   </button>
-                </>
+                </div>
               ) : (
-                /* ── Vista read-only (VISUALIZADOR, APROBADOR, etc. en Completado) ── */
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className={LABEL}>N° de Factura</p>
-                    <p className="text-sm font-semibold text-gray-900">{solicitud.numero_factura ?? '—'}</p>
-                  </div>
-                  <div>
-                    <p className={LABEL}>Archivo</p>
-                    {facturaArchivo ? (
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-sm text-gray-700 truncate">{facturaArchivo.nombre_archivo}</span>
-                        <button
-                          onClick={handleVerFactura}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-600 text-xs font-medium hover:bg-blue-100 transition-colors shrink-0"
-                        >
-                          <Eye size={12} /> Ver / Descargar
-                        </button>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-400 italic">No adjuntado</p>
-                    )}
-                  </div>
+                <div>
+                  <p className={LABEL}>N° de Factura</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-0.5">{solicitud.numero_factura ?? '—'}</p>
+                </div>
+              )}
+
+              {/* Campos de sólo lectura: motivo, fechas */}
+              {(solicitud.motivo_factura || solicitud.fecha_emision_factura || solicitud.fecha_vencimiento_factura) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-50">
+                  {solicitud.motivo_factura && (
+                    <div className="md:col-span-3">
+                      <p className={LABEL}>Motivo de la factura</p>
+                      <p className="text-sm text-gray-700 mt-0.5">{solicitud.motivo_factura}</p>
+                    </div>
+                  )}
+                  {solicitud.fecha_emision_factura && (
+                    <div>
+                      <p className={LABEL}>Fecha de emisión</p>
+                      <p className="text-sm text-gray-700 mt-0.5">{fmtDate(solicitud.fecha_emision_factura)}</p>
+                    </div>
+                  )}
+                  {solicitud.fecha_vencimiento_factura && (
+                    <div>
+                      <p className={LABEL}>Fecha de vencimiento</p>
+                      <p className="text-sm text-gray-700 mt-0.5">{fmtDate(solicitud.fecha_vencimiento_factura)}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

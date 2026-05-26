@@ -14,10 +14,9 @@ const ESTADO_COLOR: Record<string, string> = {
   'Pendiente':               'bg-yellow-100 text-yellow-800',
   'En Revision':             'bg-blue-100 text-blue-800',
   'Evaluado':                'bg-purple-100 text-purple-800',
+  'Aprobado':                'bg-green-100 text-green-800',
   'Rechazado':               'bg-red-100 text-red-800',
   'Cancelado':               'bg-gray-100 text-gray-500',
-  'Facturación Pendiente':   'bg-orange-100 text-orange-800',
-  'Completado':              'bg-teal-100 text-teal-800',
 }
 
 interface Props {

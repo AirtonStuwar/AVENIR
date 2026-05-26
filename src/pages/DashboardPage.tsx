@@ -22,25 +22,21 @@ import { ROLES } from '../features/solicitud/types/solicitud'
 
 // ── constants ────────────────────────────────────────────────────
 const ESTADO_COLOR: Record<string, string> = {
-  Pendiente:               '#F59E0B',
-  'En Revision':           '#3B82F6',
-  Evaluado:                '#8B5CF6',
-  Aprobado:                '#10B981',
-  'Facturación Pendiente': '#F97316',
-  Completado:              '#059669',
-  Rechazado:               '#EF4444',
-  Cancelado:               '#9CA3AF',
+  Pendiente:     '#F59E0B',
+  'En Revision': '#3B82F6',
+  Evaluado:      '#8B5CF6',
+  Aprobado:      '#10B981',
+  Rechazado:     '#EF4444',
+  Cancelado:     '#9CA3AF',
 }
 
 const ESTADO_BADGE: Record<string, string> = {
-  Pendiente:               'bg-yellow-100 text-yellow-800',
-  'En Revision':           'bg-blue-100 text-blue-800',
-  Evaluado:                'bg-purple-100 text-purple-800',
-  Aprobado:                'bg-green-100 text-green-800',
-  'Facturación Pendiente': 'bg-orange-100 text-orange-800',
-  Completado:              'bg-emerald-100 text-emerald-800',
-  Rechazado:               'bg-red-100 text-red-800',
-  Cancelado:               'bg-gray-100 text-gray-600',
+  Pendiente:     'bg-yellow-100 text-yellow-800',
+  'En Revision': 'bg-blue-100 text-blue-800',
+  Evaluado:      'bg-purple-100 text-purple-800',
+  Aprobado:      'bg-green-100 text-green-800',
+  Rechazado:     'bg-red-100 text-red-800',
+  Cancelado:     'bg-gray-100 text-gray-600',
 }
 
 // ── helpers ──────────────────────────────────────────────────────
@@ -135,7 +131,7 @@ function AdminDashboard() {
   const pendientes  = porEstado['Pendiente'] ?? 0
   const proyActivos = proyectos.filter(p => p.estado === 'Activo').length
   const montoAprobado = montoSolicitudes(
-    solicitudes.filter(s => ['Aprobado', 'Facturación Pendiente', 'Completado'].includes(s.estado_soli?.nombre ?? '')),
+    solicitudes.filter(s => s.estado_soli?.nombre === 'Aprobado'),
     detalles,
   )
   const montoTotal = montoSolicitudes(solicitudes, detalles)
@@ -146,7 +142,7 @@ function AdminDashboard() {
   const barMensual = months.map(({ key, label }) => ({
     mes:       label,
     Nuevas:    solicitudes.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === key).length,
-    Aprobadas: solicitudes.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === key && ['Aprobado', 'Facturación Pendiente', 'Completado'].includes(s.estado_soli?.nombre ?? '')).length,
+    Aprobadas: solicitudes.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === key && s.estado_soli?.nombre === 'Aprobado').length,
   }))
 
   const montoByProyecto: Record<string, number> = {}
@@ -487,39 +483,31 @@ function VisualizadorDashboard() {
   if (loading) return <Spinner />
   if (error || !data) return <ErrorState />
 
-  const { facturacionPendiente, completadas, detalles } = data
+  const { aprobadas, detalles } = data
 
-  const cmk             = currentMonthKey()
-  const completadasMes  = completadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
-  const montoPendiente  = montoSolicitudes(facturacionPendiente, detalles)
-  const montoCompletado = montoSolicitudes(completadas, detalles)
-  const montoMes        = montoSolicitudes(completadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk), detalles)
+  const cmk           = currentMonthKey()
+  const pmk           = prevMonthKey()
+  const aprobadasMes  = aprobadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
+  const aprobadasMesAnt = aprobadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === pmk).length
+  const montoAprobado = montoSolicitudes(aprobadas, detalles)
+  const montoMes      = montoSolicitudes(aprobadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk), detalles)
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        <DashHeader title="Panel Finanzas" subtitle="Seguimiento de pagos y facturación" />
+        <DashHeader title="Panel Finanzas" subtitle="Seguimiento de solicitudes aprobadas" />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="Facturación pendiente" value={facturacionPendiente.length} sub="esperando factura" icon={<Receipt size={18} />} color="amber" alert={facturacionPendiente.length > 0} onClick={() => navigate('/solicitudes')} />
-          <KpiCard label="Monto por cobrar" value={fmtMoney(montoPendiente)} sub="en facturación pendiente" icon={<DollarSign size={18} />} color="indigo" />
-          <KpiCard label="Completadas este mes" value={completadasMes} sub="pagos procesados" icon={<CheckCircle size={18} />} color="green" />
-          <KpiCard label="Monto pagado (total)" value={fmtMoney(montoCompletado)} sub={`${fmtMoney(montoMes)} este mes`} icon={<TrendingUp size={18} />} color="blue" />
+          <KpiCard label="Total aprobadas" value={aprobadas.length} sub="solicitudes aprobadas" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/solicitudes')} />
+          <KpiCard label="Monto aprobado" value={fmtMoney(montoAprobado)} sub="total acumulado" icon={<DollarSign size={18} />} color="indigo" />
+          <KpiCard label="Aprobadas este mes" value={aprobadasMes} sub={`${aprobadasMesAnt} el mes anterior`} icon={<TrendingUp size={18} />} color="blue" />
+          <KpiCard label="Monto este mes" value={fmtMoney(montoMes)} sub="solicitudes aprobadas este mes" icon={<Receipt size={18} />} color="amber" />
         </div>
 
         <SolicitudTable
-          title="Facturación pendiente"
-          rows={facturacionPendiente.slice(0, 8)}
-          count={facturacionPendiente.length}
-          badge
-          onVerTodas={() => navigate('/solicitudes')}
-          onView={(s) => navigate(`/solicitudes/${s.id}`)}
-          showEstado
-        />
-
-        <SolicitudTable
-          title="Completadas recientes"
-          rows={completadas.slice(0, 6)}
+          title="Solicitudes aprobadas"
+          rows={aprobadas.slice(0, 10)}
+          count={aprobadas.length}
           onVerTodas={() => navigate('/solicitudes')}
           onView={(s) => navigate(`/solicitudes/${s.id}`)}
           showEstado
@@ -554,18 +542,17 @@ function UsuarioDashboard() {
   }
 
   const montoAprobado = montoSolicitudes(
-    solicitudes.filter(s => ['Aprobado', 'Facturación Pendiente', 'Completado'].includes(s.estado_soli?.nombre ?? '')),
+    solicitudes.filter(s => s.estado_soli?.nombre === 'Aprobado'),
     detalles,
   )
-  const activas = solicitudes.filter(s => !['Cancelado', 'Rechazado', 'Completado'].includes(s.estado_soli?.nombre ?? ''))
+  const activas = solicitudes.filter(s => !['Cancelado', 'Rechazado', 'Aprobado'].includes(s.estado_soli?.nombre ?? ''))
 
   const estadoItems = [
-    { label: 'Pendiente',   color: 'bg-yellow-100 text-yellow-700',   count: porEstado['Pendiente'] ?? 0 },
-    { label: 'En Revisión', color: 'bg-blue-100 text-blue-700',       count: porEstado['En Revision'] ?? 0 },
-    { label: 'Evaluado',    color: 'bg-purple-100 text-purple-700',   count: porEstado['Evaluado'] ?? 0 },
-    { label: 'Aprobado',    color: 'bg-green-100 text-green-700',     count: porEstado['Aprobado'] ?? 0 },
-    { label: 'Completado',  color: 'bg-emerald-100 text-emerald-700', count: porEstado['Completado'] ?? 0 },
-    { label: 'Rechazado',   color: 'bg-red-100 text-red-700',         count: porEstado['Rechazado'] ?? 0 },
+    { label: 'Pendiente',   color: 'bg-yellow-100 text-yellow-700', count: porEstado['Pendiente'] ?? 0 },
+    { label: 'En Revisión', color: 'bg-blue-100 text-blue-700',     count: porEstado['En Revision'] ?? 0 },
+    { label: 'Evaluado',    color: 'bg-purple-100 text-purple-700', count: porEstado['Evaluado'] ?? 0 },
+    { label: 'Aprobado',    color: 'bg-green-100 text-green-700',   count: porEstado['Aprobado'] ?? 0 },
+    { label: 'Rechazado',   color: 'bg-red-100 text-red-700',       count: porEstado['Rechazado'] ?? 0 },
   ].filter(e => e.count > 0)
 
   return (

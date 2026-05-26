@@ -10,16 +10,23 @@ import {
 import type { SolicitudArchivo } from '../types/solicitud'
 
 const TIPOS_REQUERIDOS = ['Contrato', 'Cotizacion', 'Sustento'] as const
-const TIPOS_OPCIONALES = ['Cuadro Comparativo'] as const
+const TIPOS_OPCIONALES = ['Cuadro Comparativo', 'Factura XML', 'Factura PDF'] as const
 const TIPOS = [...TIPOS_REQUERIDOS, ...TIPOS_OPCIONALES] as const
+
+// Tipos de archivo aceptados por cada documento
+const ACCEPT: Record<string, string> = {
+  'Factura XML': '.xml,text/xml,application/xml',
+}
+const DEFAULT_ACCEPT = 'application/pdf'
 
 interface Props {
   solicitudId: number
   editable: boolean
   onChange?: (archivos: SolicitudArchivo[]) => void
+  tiposVisibles?: string[]  // si se indica, sólo muestra estos tipos de documento
 }
 
-export default function SolicitudArchivos({ solicitudId, editable, onChange }: Props) {
+export default function SolicitudArchivos({ solicitudId, editable, onChange, tiposVisibles }: Props) {
   const [archivos,  setArchivos]  = useState<SolicitudArchivo[]>([])
   const [loading,   setLoading]   = useState(true)
   const [uploading, setUploading] = useState<string | null>(null)
@@ -43,9 +50,16 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange }: P
   const byTipo = (tipo: string) => archivos.find(a => a.tipo_archivo === tipo) ?? null
 
   const handleUpload = async (tipo: string, file: File) => {
-    if (file.type !== 'application/pdf') {
-      toast.error('Solo se permiten archivos PDF')
-      return
+    if (tipo === 'Factura XML') {
+      if (!['text/xml', 'application/xml'].includes(file.type) && !file.name.endsWith('.xml')) {
+        toast.error('Solo se permiten archivos XML')
+        return
+      }
+    } else {
+      if (file.type !== 'application/pdf') {
+        toast.error('Solo se permiten archivos PDF')
+        return
+      }
     }
     const existing = byTipo(tipo)
     setUploading(tipo)
@@ -87,13 +101,24 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange }: P
     }
   }
 
+  const tiposAMostrar = tiposVisibles
+    ? TIPOS.filter(t => tiposVisibles.includes(t))
+    : TIPOS
+  const nObligatorios = tiposAMostrar.filter(t => (TIPOS_REQUERIDOS as readonly string[]).includes(t)).length
+  const nOpcionales   = tiposAMostrar.filter(t => (TIPOS_OPCIONALES as readonly string[]).includes(t)).length
+  const nSubidos      = archivos.filter(a => (tiposAMostrar as readonly string[]).includes(a.tipo_archivo ?? '')).length
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">
           Documentos requeridos
         </h2>
-        <span className="text-xs text-gray-400">{archivos.length} subido{archivos.length !== 1 ? 's' : ''} · 3 obligatorios</span>
+        <span className="text-xs text-gray-400">
+          {nSubidos} subido{nSubidos !== 1 ? 's' : ''}
+          {nObligatorios > 0 && ` · ${nObligatorios} obligatorio${nObligatorios !== 1 ? 's' : ''}`}
+          {nOpcionales   > 0 && ` · ${nOpcionales} opcional${nOpcionales !== 1 ? 'es' : ''}`}
+        </span>
       </div>
 
       {loading ? (
@@ -102,7 +127,7 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange }: P
         </div>
       ) : (
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {TIPOS.map(tipo => {
+          {tiposAMostrar.map(tipo => {
             const archivo     = byTipo(tipo)
             const isUploading = uploading === tipo
             const esOpcional  = (TIPOS_OPCIONALES as readonly string[]).includes(tipo)
@@ -152,7 +177,7 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange }: P
                     <input
                       ref={el => { refs.current[tipo] = el }}
                       type="file"
-                      accept="application/pdf"
+                      accept={ACCEPT[tipo] ?? DEFAULT_ACCEPT}
                       className="hidden"
                       onChange={e => {
                         const f = e.target.files?.[0]
@@ -167,7 +192,7 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange }: P
                     >
                       {isUploading
                         ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#003D7D] border-t-transparent" />
-                        : <><Upload size={12} /> Subir PDF</>
+                        : <><Upload size={12} /> {tipo === 'Factura XML' ? 'Subir XML' : 'Subir PDF'}</>
                       }
                     </button>
                   </>

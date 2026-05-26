@@ -39,6 +39,9 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
   const [porcentaje_acumulado_contrato, setPorcentajeAcumuladoContrato] = useState<number | null>(0)
   const [porcentaje_pendiente_contrato, setPorcentajePendienteContrato] = useState<number | null>(100)
   const [condiciones, setCondiciones] = useState('Se penalizara el retraso o incumplimiento de algun acuerdo en la fecha de entrega acordada')
+  const [motivo_factura,            setMotivoFactura]           = useState('')
+  const [fecha_emision_factura,     setFechaEmisionFactura]     = useState('')
+  const [fecha_vencimiento_factura, setFechaVencimientoFactura] = useState('')
   const [fecha_pedido, setFechaPedido] = useState('')
   const [fecha_requerida, setFechaRequerida] = useState('')
   const [tipos, setTipos] = useState<Array<{id:number;nombre:string}>>([])
@@ -82,6 +85,9 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
     setPorcentajeAcumuladoContrato(solicitud.porcentaje_acumulado_contrato)
     setPorcentajePendienteContrato(solicitud.porcentaje_pendiente_contrato)
     setCondiciones(solicitud.condiciones ?? '')
+    setMotivoFactura(solicitud.motivo_factura ?? '')
+    setFechaEmisionFactura(solicitud.fecha_emision_factura ?? '')
+    setFechaVencimientoFactura(solicitud.fecha_vencimiento_factura ?? '')
     setFechaPedido(solicitud.fecha_pedido ?? '')
     setFechaRequerida(solicitud.fecha_requerida ?? '')
   }, [open, solicitud])
@@ -103,6 +109,9 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
     setPorcentajeAcumuladoContrato(null)
     setPorcentajePendienteContrato(null)
     setCondiciones('')
+    setMotivoFactura('')
+    setFechaEmisionFactura('')
+    setFechaVencimientoFactura('')
     setFechaPedido('')
     setFechaRequerida('')
   }
@@ -151,6 +160,9 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
         porcentaje_acumulado_contrato: porcentaje_acumulado_contrato ?? null,
         porcentaje_pendiente_contrato: porcentaje_pendiente_contrato ?? null,
         condiciones:                   condiciones || null,
+        motivo_factura:                motivo_factura || null,
+        fecha_emision_factura:         fecha_emision_factura || null,
+        fecha_vencimiento_factura:     fecha_vencimiento_factura || null,
         fecha_pedido:                  fecha_pedido || null,
         fecha_requerida:               fecha_requerida || null,
       }
@@ -479,19 +491,50 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
             </div>
           </div>
 
-          {/* Sección: Estado y comentarios */}
+          {/* Sección: Condiciones y factura */}
           <div className="mb-6">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">
                   Condiciones <span className="text-red-500">*</span>
                 </label>
-                <input
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
+                <textarea
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
                   placeholder="Condiciones del contrato"
                   value={condiciones}
                   onChange={(e) => setCondiciones(e.target.value)}
                 />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">Motivo de la factura</label>
+                <textarea
+                  rows={2}
+                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
+                  placeholder="Describe el motivo o concepto de la factura…"
+                  value={motivo_factura}
+                  onChange={(e) => setMotivoFactura(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Fecha de emisión de la factura</label>
+                  <input
+                    type="date"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
+                    value={fecha_emision_factura}
+                    onChange={(e) => setFechaEmisionFactura(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-700">Fecha de vencimiento de la factura</label>
+                  <input
+                    type="date"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
+                    value={fecha_vencimiento_factura}
+                    onChange={(e) => setFechaVencimientoFactura(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
           </div>
