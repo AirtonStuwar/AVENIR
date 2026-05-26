@@ -41,11 +41,17 @@ export default function SolicitudNuevaPage() {
   const navigate  = useNavigate()
   const user      = useAuthStore((s) => s.user)
 
-  // ─── Step: 'form' → fill data | 'detalles' → line items | 'archivos' → docs ───
-  const [step,          setStep]          = useState<'form' | 'detalles' | 'archivos'>('form')
+  // ─── Step ───
+  const [step,          setStep]          = useState<'form' | 'detalles' | 'archivos' | 'factura'>('form')
   const [archivos,      setArchivos]      = useState<SolicitudArchivo[]>([])
   const [solicitudId,   setSolicitudId]   = useState<number | null>(null)
-  const [numeroFactura, setNumeroFactura] = useState('')
+
+  // Factura step fields
+  const [numeroFactura,         setNumeroFactura]         = useState('')
+  const [motivoFacturaStep,     setMotivoFacturaStep]     = useState('')
+  const [fechaEmisionFactura,   setFechaEmisionFactura]   = useState('')
+  const [fechaVencimFactura,    setFechaVencimFactura]    = useState('')
+  const [savingFactura,         setSavingFactura]         = useState(false)
   const [savingForm,    setSavingForm]    = useState(false)
   const [errors,        setErrors]        = useState<Record<string, string>>({})
   const [rucLoading,    setRucLoading]    = useState(false)
@@ -75,7 +81,6 @@ export default function SolicitudNuevaPage() {
   const [condiciones,                  setCondiciones]                 = useState(
     'Se penalizará el retraso o incumplimiento de algún acuerdo en la fecha de entrega acordada'
   )
-  const [motivo_factura,               setMotivoFactura]               = useState('')
   const [fecha_pedido,   setFechaPedido]   = useState('')
   const [fecha_requerida,setFechaRequerida]= useState('')
 
@@ -159,7 +164,9 @@ export default function SolicitudNuevaPage() {
         porcentaje_acumulado_contrato,
         porcentaje_pendiente_contrato,
         condiciones: condiciones || null,
-        motivo_factura: motivo_factura || null,
+        motivo_factura: null,
+        fecha_emision_factura: null,
+        fecha_vencimiento_factura: null,
         fecha_pedido, fecha_requerida,
         usuario_creador: user?.id ?? null,
       })
@@ -232,22 +239,30 @@ export default function SolicitudNuevaPage() {
 
         {/* Steps */}
         <div className="ml-auto flex items-center gap-2">
-          <span className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full ${
-            step === 'form' ? 'bg-[#003D7D] text-white' : 'bg-green-100 text-green-700'}`}>
-            {step !== 'form' ? <CheckCircle size={12} /> : '1'} Datos generales
-          </span>
-          <div className="w-6 h-px bg-gray-300" />
-          <span className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full ${
-            step === 'detalles' ? 'bg-[#003D7D] text-white'
-            : step === 'archivos' ? 'bg-green-100 text-green-700'
-            : 'bg-gray-100 text-gray-400'}`}>
-            {step === 'archivos' ? <CheckCircle size={12} /> : '2'} Detalles
-          </span>
-          <div className="w-6 h-px bg-gray-300" />
-          <span className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full ${
-            step === 'archivos' ? 'bg-[#003D7D] text-white' : 'bg-gray-100 text-gray-400'}`}>
-            3 Documentos
-          </span>
+          {([
+            { key: 'form',     label: 'Datos generales' },
+            { key: 'detalles', label: 'Detalles'        },
+            { key: 'archivos', label: 'Documentos'      },
+            { key: 'factura',  label: 'Factura'         },
+          ] as const).map((s, i, arr) => {
+            const steps = arr.map(x => x.key)
+            const idx      = steps.indexOf(step)
+            const sIdx     = steps.indexOf(s.key)
+            const isActive = step === s.key
+            const isDone   = idx > sIdx
+            return (
+              <div key={s.key} className="flex items-center gap-2">
+                {i > 0 && <div className="w-5 h-px bg-gray-300" />}
+                <span className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1 rounded-full ${
+                  isActive ? 'bg-[#003D7D] text-white'
+                  : isDone  ? 'bg-green-100 text-green-700'
+                  :           'bg-gray-100 text-gray-400'
+                }`}>
+                  {isDone ? <CheckCircle size={12} /> : i + 1} {s.label}
+                </span>
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -438,18 +453,11 @@ export default function SolicitudNuevaPage() {
               {/* Condiciones */}
               <div>
                 <SectionTitle>Condiciones y observaciones</SectionTitle>
-                <div className="grid grid-cols-1 gap-4">
-                  <div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
                     <label className={LABEL}>Condiciones</label>
                     <textarea className={INPUT + ' resize-none'} rows={2} value={condiciones}
                       onChange={(e) => setCondiciones(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className={LABEL}>Motivo de la factura</label>
-                    <textarea className={INPUT + ' resize-none'} rows={2}
-                      placeholder="Describe el motivo o concepto de la factura…"
-                      value={motivo_factura}
-                      onChange={(e) => setMotivoFactura(e.target.value)} />
                   </div>
                 </div>
               </div>
@@ -588,8 +596,8 @@ export default function SolicitudNuevaPage() {
             <div className="flex items-center gap-3 px-5 py-4 bg-blue-50 border border-blue-200 rounded-2xl">
               <CheckCircle size={20} className="text-blue-600 shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-blue-800">Paso final: adjunta los documentos requeridos</p>
-                <p className="text-xs text-blue-600">Contrato, Cotización y Sustento son obligatorios (PDF). Cuadro Comparativo, Factura XML y Factura PDF son opcionales. Podrás completarlos desde el detalle si los tienes disponibles luego.</p>
+                <p className="text-sm font-semibold text-blue-800">Adjunta los documentos requeridos</p>
+                <p className="text-xs text-blue-600">Contrato, Cotización y Sustento son obligatorios (PDF). Cuadro Comparativo es opcional. En el paso siguiente podrás adjuntar la factura.</p>
               </div>
             </div>
 
@@ -597,24 +605,8 @@ export default function SolicitudNuevaPage() {
               solicitudId={solicitudId}
               editable={true}
               onChange={setArchivos}
+              tiposVisibles={['Contrato', 'Cotizacion', 'Sustento', 'Cuadro Comparativo']}
             />
-
-            {/* N° de Factura — aparece cuando se sube Factura XML o Factura PDF */}
-            {archivos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF') && (
-              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-                  N° de Factura
-                </label>
-                <input
-                  type="text"
-                  value={numeroFactura}
-                  onChange={e => setNumeroFactura(e.target.value)}
-                  placeholder="Ej: F001-00123"
-                  className={INPUT}
-                />
-                <p className="mt-1.5 text-xs text-gray-400">Se guardará junto con los documentos al finalizar.</p>
-              </div>
-            )}
 
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
               <span className="text-sm text-gray-500">
@@ -624,16 +616,118 @@ export default function SolicitudNuevaPage() {
                 }
               </span>
               <button
-                onClick={async () => {
-                  if (numeroFactura.trim() && solicitudId) {
-                    try { await updateSolicitud(solicitudId, { numero_factura: numeroFactura.trim() }) } catch { /* silencioso */ }
-                  }
-                  navigate('/solicitudes')
-                }}
+                onClick={() => setStep('factura')}
                 disabled={archivos.filter(a => ['Contrato', 'Cotizacion', 'Sustento'].includes(a.tipo_archivo ?? '')).length < 3}
                 className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
-                <CheckCircle size={15} /> Finalizar
+                Continuar →
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── STEP 4: FACTURA ── */}
+        {step === 'factura' && solicitudId && (
+          <>
+            <div className="flex items-center gap-3 px-5 py-4 bg-green-50 border border-green-200 rounded-2xl">
+              <CheckCircle size={20} className="text-green-600 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-green-800">Paso opcional: datos de la factura</p>
+                <p className="text-xs text-green-600">Sube la factura XML y/o PDF e ingresa los datos. Puedes completarlo desde el detalle de la solicitud si aún no tienes la factura.</p>
+              </div>
+            </div>
+
+            {/* Archivos de factura */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Archivos de factura</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Ambos son opcionales</p>
+              </div>
+              <div className="p-6">
+                <SolicitudArchivos
+                  solicitudId={solicitudId}
+                  editable={true}
+                  onChange={setArchivos}
+                  tiposVisibles={['Factura XML', 'Factura PDF']}
+                />
+              </div>
+            </div>
+
+            {/* Datos de la factura */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Datos de la factura</h2>
+              </div>
+              <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className={LABEL}>N° de Factura</label>
+                  <input
+                    type="text"
+                    value={numeroFactura}
+                    onChange={e => setNumeroFactura(e.target.value)}
+                    placeholder="Ej: F001-00123"
+                    className={INPUT}
+                  />
+                </div>
+                <div>
+                  <label className={LABEL}>Motivo de la factura</label>
+                  <input
+                    type="text"
+                    value={motivoFacturaStep}
+                    onChange={e => setMotivoFacturaStep(e.target.value)}
+                    placeholder="Concepto o descripción de la factura"
+                    className={INPUT}
+                  />
+                </div>
+                <div>
+                  <label className={LABEL}>Fecha de emisión</label>
+                  <input
+                    type="date"
+                    value={fechaEmisionFactura}
+                    onChange={e => setFechaEmisionFactura(e.target.value)}
+                    className={INPUT}
+                  />
+                </div>
+                <div>
+                  <label className={LABEL}>Fecha de vencimiento</label>
+                  <input
+                    type="date"
+                    value={fechaVencimFactura}
+                    onChange={e => setFechaVencimFactura(e.target.value)}
+                    className={INPUT}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
+              <button
+                onClick={() => navigate('/solicitudes')}
+                className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Omitir y finalizar
+              </button>
+              <button
+                onClick={async () => {
+                  setSavingFactura(true)
+                  try {
+                    await updateSolicitud(solicitudId, {
+                      numero_factura:            numeroFactura.trim()      || null,
+                      motivo_factura:            motivoFacturaStep.trim()  || null,
+                      fecha_emision_factura:     fechaEmisionFactura       || null,
+                      fecha_vencimiento_factura: fechaVencimFactura        || null,
+                    })
+                  } catch { /* silencioso */ }
+                  finally { setSavingFactura(false) }
+                  navigate('/solicitudes')
+                }}
+                disabled={savingFactura}
+                className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-50 transition-all"
+              >
+                {savingFactura
+                  ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Guardando...</>
+                  : <><CheckCircle size={15} /> Finalizar</>
+                }
               </button>
             </div>
           </>

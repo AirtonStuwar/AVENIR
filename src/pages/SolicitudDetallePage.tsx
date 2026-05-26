@@ -660,12 +660,13 @@ export default function SolicitudDetallePage() {
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
               <CheckCircle size={15} className="text-[#003D7D]" />
-              <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Número de factura</h2>
+              <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Datos de la factura</h2>
               {solicitud.numero_factura && (
                 <span className="ml-auto text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-0.5 rounded-full">Registrado</span>
               )}
             </div>
-            <div className="px-6 py-5">
+            <div className="px-6 py-5 space-y-4">
+              {/* N° Factura editable */}
               {canEditNumFactura ? (
                 <div className="flex items-end gap-3">
                   <div className="flex-1 max-w-xs">
@@ -692,6 +693,30 @@ export default function SolicitudDetallePage() {
                 <div>
                   <p className={LABEL}>N° de Factura</p>
                   <p className="text-sm font-semibold text-gray-900 mt-0.5">{solicitud.numero_factura ?? '—'}</p>
+                </div>
+              )}
+
+              {/* Campos de sólo lectura: motivo, fechas */}
+              {(solicitud.motivo_factura || solicitud.fecha_emision_factura || solicitud.fecha_vencimiento_factura) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-50">
+                  {solicitud.motivo_factura && (
+                    <div className="md:col-span-3">
+                      <p className={LABEL}>Motivo de la factura</p>
+                      <p className="text-sm text-gray-700 mt-0.5">{solicitud.motivo_factura}</p>
+                    </div>
+                  )}
+                  {solicitud.fecha_emision_factura && (
+                    <div>
+                      <p className={LABEL}>Fecha de emisión</p>
+                      <p className="text-sm text-gray-700 mt-0.5">{fmtDate(solicitud.fecha_emision_factura)}</p>
+                    </div>
+                  )}
+                  {solicitud.fecha_vencimiento_factura && (
+                    <div>
+                      <p className={LABEL}>Fecha de vencimiento</p>
+                      <p className="text-sm text-gray-700 mt-0.5">{fmtDate(solicitud.fecha_vencimiento_factura)}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

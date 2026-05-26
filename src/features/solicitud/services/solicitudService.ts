@@ -367,6 +367,8 @@ export async function duplicarSolicitud(id: number, userId: string): Promise<Sol
     porcentaje_pendiente_contrato:  original.porcentaje_pendiente_contrato,
     condiciones:                    original.condiciones,
     motivo_factura:                 original.motivo_factura,
+    fecha_emision_factura:          original.fecha_emision_factura,
+    fecha_vencimiento_factura:      original.fecha_vencimiento_factura,
     fecha_pedido:                   original.fecha_pedido,
     fecha_requerida:                original.fecha_requerida,
     usuario_creador:                userId,

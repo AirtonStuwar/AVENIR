@@ -23,9 +23,10 @@ interface Props {
   solicitudId: number
   editable: boolean
   onChange?: (archivos: SolicitudArchivo[]) => void
+  tiposVisibles?: string[]  // si se indica, sólo muestra estos tipos de documento
 }
 
-export default function SolicitudArchivos({ solicitudId, editable, onChange }: Props) {
+export default function SolicitudArchivos({ solicitudId, editable, onChange, tiposVisibles }: Props) {
   const [archivos,  setArchivos]  = useState<SolicitudArchivo[]>([])
   const [loading,   setLoading]   = useState(true)
   const [uploading, setUploading] = useState<string | null>(null)
@@ -100,13 +101,24 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange }: P
     }
   }
 
+  const tiposAMostrar = tiposVisibles
+    ? TIPOS.filter(t => tiposVisibles.includes(t))
+    : TIPOS
+  const nObligatorios = tiposAMostrar.filter(t => (TIPOS_REQUERIDOS as readonly string[]).includes(t)).length
+  const nOpcionales   = tiposAMostrar.filter(t => (TIPOS_OPCIONALES as readonly string[]).includes(t)).length
+  const nSubidos      = archivos.filter(a => (tiposAMostrar as readonly string[]).includes(a.tipo_archivo ?? '')).length
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">
           Documentos requeridos
         </h2>
-        <span className="text-xs text-gray-400">{archivos.length} subido{archivos.length !== 1 ? 's' : ''} · 3 obligatorios · 3 opcionales</span>
+        <span className="text-xs text-gray-400">
+          {nSubidos} subido{nSubidos !== 1 ? 's' : ''}
+          {nObligatorios > 0 && ` · ${nObligatorios} obligatorio${nObligatorios !== 1 ? 's' : ''}`}
+          {nOpcionales   > 0 && ` · ${nOpcionales} opcional${nOpcionales !== 1 ? 'es' : ''}`}
+        </span>
       </div>
 
       {loading ? (
@@ -115,7 +127,7 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange }: P
         </div>
       ) : (
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {TIPOS.map(tipo => {
+          {tiposAMostrar.map(tipo => {
             const archivo     = byTipo(tipo)
             const isUploading = uploading === tipo
             const esOpcional  = (TIPOS_OPCIONALES as readonly string[]).includes(tipo)
