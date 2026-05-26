@@ -6,6 +6,7 @@ import { supabase } from '../api/supabase'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
 import {
   createSolicitud,
+  updateSolicitud,
   createDetalle,
   updateDetalle,
   deleteDetalle,
@@ -44,6 +45,7 @@ export default function SolicitudNuevaPage() {
   const [step,          setStep]          = useState<'form' | 'detalles' | 'archivos'>('form')
   const [archivos,      setArchivos]      = useState<SolicitudArchivo[]>([])
   const [solicitudId,   setSolicitudId]   = useState<number | null>(null)
+  const [numeroFactura, setNumeroFactura] = useState('')
   const [savingForm,    setSavingForm]    = useState(false)
   const [errors,        setErrors]        = useState<Record<string, string>>({})
   const [rucLoading,    setRucLoading]    = useState(false)
@@ -588,6 +590,23 @@ export default function SolicitudNuevaPage() {
               onChange={setArchivos}
             />
 
+            {/* N° de Factura — aparece cuando se sube Factura XML o Factura PDF */}
+            {archivos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF') && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                  N° de Factura
+                </label>
+                <input
+                  type="text"
+                  value={numeroFactura}
+                  onChange={e => setNumeroFactura(e.target.value)}
+                  placeholder="Ej: F001-00123"
+                  className={INPUT}
+                />
+                <p className="mt-1.5 text-xs text-gray-400">Se guardará junto con los documentos al finalizar.</p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
               <span className="text-sm text-gray-500">
                 {archivos.filter(a => ['Contrato', 'Cotizacion', 'Sustento'].includes(a.tipo_archivo ?? '')).length < 3
@@ -596,7 +615,12 @@ export default function SolicitudNuevaPage() {
                 }
               </span>
               <button
-                onClick={() => navigate('/solicitudes')}
+                onClick={async () => {
+                  if (numeroFactura.trim() && solicitudId) {
+                    try { await updateSolicitud(solicitudId, { numero_factura: numeroFactura.trim() }) } catch { /* silencioso */ }
+                  }
+                  navigate('/solicitudes')
+                }}
                 disabled={archivos.filter(a => ['Contrato', 'Cotizacion', 'Sustento'].includes(a.tipo_archivo ?? '')).length < 3}
                 className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
