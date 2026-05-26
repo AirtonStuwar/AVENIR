@@ -165,8 +165,9 @@ export default function SolicitudDetallePage() {
   const canAprobar   = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canRechazar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canEncuestar      = isAprobado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const canEditNumFactura = isAprobado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const showNumFactura    = isAprobado || !!solicitud?.numero_factura
+  const hasFacturaDoc     = archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF')
+  const showNumFactura    = hasFacturaDoc || !!solicitud?.numero_factura
+  const canEditNumFactura = (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
 
   const estadoColor = ESTADO_COLOR[nombre] ?? 'bg-gray-100 text-gray-600'
 
