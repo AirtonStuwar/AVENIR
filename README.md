@@ -1,6 +1,6 @@
 # AVENIR — Sistema de Gestión de Solicitudes
 
-Plataforma web para la gestión y aprobación de solicitudes de compra/servicio, con flujo de trabajo por roles, seguimiento de estados y panel de indicadores.
+Plataforma web para la gestión y aprobación de solicitudes de compra/servicio, con flujo de trabajo por roles, seguimiento de estados, encuesta de proveedores y panel de indicadores.
 
 ## Stack
 
@@ -15,6 +15,7 @@ Plataforma web para la gestión y aprobación de solicitudes de compra/servicio,
 | Gráficos | Recharts |
 | Exportación | exceljs |
 | Notificaciones | react-hot-toast |
+| PDF | @react-pdf/renderer |
 
 ## Requisitos previos
 
@@ -71,52 +72,99 @@ Evaluado ──────── rechazarSolicitud ─────────�
     │
     │ aprobarSolicitud (APROBADOR/ADMIN)
     ▼
-Facturación Pendiente
-    │
-    │ subirFactura (USUARIO owner/ADMIN)
-    ▼
-Completado
+ Aprobado  ◄── estado final positivo
+ (encuesta de proveedor disponible al llegar aquí)
 ```
+
+> Los estados "Facturación Pendiente" y "Completado" fueron eliminados. **Aprobado** es el estado terminal positivo.
 
 ## Roles y permisos
 
-| Rol | ID | Dashboard | Solicitudes visibles | Acciones permitidas |
+| Rol | ID | Dashboard | Solicitudes visibles | Acciones |
 |---|---|---|---|---|
-| Admin | 1 | KPIs globales + gráficas + top proyectos | Todas | Todas |
-| Aprobador | 9 | Cola de aprobación + montos + filtro por proyecto | Evaluado / Aprobado / Rechazado / Facturación Pendiente / Completado | Aprobar, Rechazar |
-| Evaluador | 8 | Cola de revisión + promedio espera + antigüedad | En Revision / Evaluado / Pendiente | Marcar evaluado, Devolver |
-| Visualizador | 10 | Facturación pendiente + montos pagados | Todas | Solo lectura, exportar Excel |
-| Usuario | 11 | Mis solicitudes por estado + monto aprobado | Propias | Crear, Editar (Pendiente), Enviar, Cancelar, Subir factura |
+| Admin | 1 | KPIs globales + gráficas + métricas proveedores | Todas | Todas |
+| Evaluador | 8 | Cola de revisión + promedio espera | En Revision / Evaluado / Pendiente | Marcar evaluado, Devolver |
+| Aprobador | 9 | Cola de aprobación + métricas proveedores | Evaluado / Aprobado / Rechazado | Aprobar, Rechazar |
+| Visualizador | 10 | Solicitudes aprobadas + montos | Aprobadas | Solo lectura, exportar Excel |
+| Usuario | 11 | Mis solicitudes por estado + monto aprobado | Propias | Crear, Editar (Pendiente), Enviar, Cancelar, Encuestar proveedor |
+
+### Módulos por rol
+
+| Módulo | Admin | Evaluador | Aprobador | Visualizador | Usuario |
+|---|---|---|---|---|---|
+| Dashboard | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Solicitudes | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Proveedores | ✅ | — | — | — | ✅ |
+| Proyectos | ✅ | — | — | — | — |
+
+## Wizard de nueva solicitud (4 pasos)
+
+1. **Datos generales** — proveedor, datos bancarios, proyecto, forma de pago, porcentajes de contrato, fechas y condiciones.
+2. **Detalles** — ítems de la solicitud (descripción, cantidad, valor unitario). Muestra subtotal, IGV (18%) y total.
+3. **Documentos** — subida de archivos obligatorios (Contrato, Cotización, Sustento) y opcional (Cuadro Comparativo). No permite avanzar sin los 3 obligatorios.
+4. **Factura** *(opcional)* — Factura XML y/o Factura PDF, número de factura, motivo, fecha de emisión y fecha de vencimiento. Se puede omitir y completar desde el detalle de la solicitud.
+
+## Documentos por solicitud
+
+Los archivos se almacenan en el bucket de Supabase Storage `solicitud-archivos` con la ruta `{solicitudId}/{tipoArchivo}/{timestamp}.{ext}`.
+
+| Tipo | Formato | Paso | Obligatorio |
+|---|---|---|---|
+| Contrato | PDF | Step 3 | ✅ |
+| Cotizacion | PDF | Step 3 | ✅ |
+| Sustento | PDF | Step 3 | ✅ |
+| Cuadro Comparativo | PDF | Step 3 | — |
+| Factura XML | XML | Step 4 | — |
+| Factura PDF | PDF | Step 4 | — |
+
+## Módulo de Proveedores
+
+Accesible en `/proveedores` para ADMIN y USUARIO. Muestra todos los proveedores que han tenido solicitudes aprobadas, con métricas agregadas de encuestas internas:
+
+- Promedio general (escala 1–5)
+- Promedios por criterio: Calidad, Tiempo de entrega, Precio, Comunicación
+- Porcentaje que recomendaría al proveedor
+- Total de encuestas y solicitudes
+
+La **encuesta de satisfacción** se habilita en el detalle de la solicitud cuando el estado es **Aprobado** (solo para el creador o ADMIN). Evalúa 4 criterios en escala 1–5 y pregunta si recomendaría al proveedor.
 
 ## Estructura del proyecto
 
 ```
 src/
 ├── api/
-│   └── supabase.ts               # Cliente Supabase
+│   └── supabase.ts                   # Cliente Supabase
+├── assets/                           # Imágenes estáticas (logo, etc.)
 ├── components/
-│   └── layout/                   # MainLayout, Sidebar, Topbar, ProtectedRoute
+│   ├── layout/                       # MainLayout, Sidebar, Topbar, ProtectedRoute
+│   └── ui/                           # DataTable compartido
 ├── features/
 │   ├── dashboard/
-│   │   └── services/             # getDashboardData, getAprobadorData,
-│   │                             # getEvaluadorData, getVisualizadorData,
-│   │                             # getUsuarioData
+│   │   └── services/                 # getDashboardData, getAprobadorData,
+│   │                                 # getEvaluadorData, getVisualizadorData,
+│   │                                 # getUsuarioData, getProveedorMetricas
 │   ├── proyecto/
-│   │   ├── components/           # ProyectoModal, ProyectoDeleteDialog, ProyectosTable
-│   │   ├── hooks/                # useProyectos
-│   │   ├── services/             # proyectoService
-│   │   └── types/                # Proyecto
+│   │   ├── components/               # ProyectoModal, ProyectoDeleteDialog, ProyectosTable
+│   │   ├── hooks/                    # useProyectos
+│   │   ├── services/                 # proyectoService
+│   │   └── types/                    # Proyecto
+│   ├── proveedor/
+│   │   ├── components/               # EncuestaProveedorForm
+│   │   ├── services/                 # proveedorService (métricas + encuesta CRUD)
+│   │   └── types/                    # Proveedor, ProveedorConMetricas, Encuesta
 │   └── solicitud/
-│       ├── components/           # SolicitudesTable, SolicitudArchivos,
-│       │                         # RechazoModal, ConfirmModal, SolicitudModal, ...
-│       ├── constants/            # bancos.ts (lista de bancos + helpers CCI/cuenta)
-│       ├── hooks/                # useSolicitudes
-│       ├── services/             # solicitudService (CRUD + flujo), rucService
-│       └── types/                # Solicitud, ROLES, SolicitudFiltros, ...
-├── pages/                        # SolicitudesPage, SolicitudDetallePage,
-│                                 # SolicitudNuevaPage, DashboardPage, ...
+│       ├── components/               # SolicitudesTable, SolicitudArchivos (tiposVisibles),
+│       │                             # SolicitudModal, RechazoModal, ConfirmModal,
+│       │                             # FirmaModal, OrdenCompraPDF, ...
+│       ├── constants/                # bancos.ts (lista + helpers CCI/cuenta)
+│       ├── hooks/                    # useSolicitudes
+│       ├── services/                 # solicitudService (CRUD + flujo), rucService
+│       └── types/                    # Solicitud, ROLES, SolicitudFiltros, ...
+├── pages/                            # SolicitudesPage, SolicitudDetallePage,
+│                                     # SolicitudNuevaPage (4-step wizard),
+│                                     # DashboardPage, ProyectosPage, ProveedoresPage
 └── store/
-    └── authStore.ts              # Zustand: usuario autenticado + rol
+    └── authStore.ts                  # Zustand: usuario autenticado + rol
 ```
 
 ## Tablas principales en Supabase
@@ -125,25 +173,22 @@ src/
 |---|---|
 | `solicitud` | Solicitudes de compra / servicio |
 | `solicitud_detalle` | Ítems de cada solicitud |
-| `solicitud_archivo` | Archivos PDF adjuntos (bucket `solicitud-archivos`) |
+| `solicitud_archivo` | Archivos adjuntos (bucket `solicitud-archivos`) |
 | `estado_soli` | Catálogo de estados del flujo |
 | `solicitud_tipo` | Tipos de solicitud |
 | `solicitud_forma_pago` | Formas de pago seleccionables |
 | `proyecto` | Proyectos asociables a solicitudes |
+| `usuario` | Perfil extendido 1:1 con auth.users |
 | `usuario_rol` | Rol asignado a cada usuario |
 | `area_usuario` | Área a la que pertenece cada usuario |
-| `vista_creadores` | Vista pública sobre `auth.users` para exponer emails |
+| `proveedor` | Registro de proveedores (indexados por RUC) |
+| `encuesta_proveedor` | Encuestas de satisfacción por solicitud |
 
-## Documentos por solicitud
+### Campos de factura en `solicitud`
 
-Los archivos se almacenan en el bucket de Supabase Storage `solicitud-archivos` con la ruta `{solicitudId}/{tipoArchivo}/{timestamp}.{ext}`.
-
-**Durante la creación (paso 3 del wizard):**
-1. Contrato
-2. Cotización
-3. Cuadro Comparativo
-4. Sustento
-
-**Al completar el proceso (estado Facturación Pendiente):**
-
-5. Factura — el USUARIO adjunta el PDF de factura junto con el número de factura; esto mueve la solicitud a Completado.
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `numero_factura` | TEXT | Número de factura (ej: F001-00123) |
+| `motivo_factura` | TEXT | Concepto o motivo de la factura |
+| `fecha_emision_factura` | DATE | Fecha de emisión de la factura |
+| `fecha_vencimiento_factura` | DATE | Fecha de vencimiento de la factura |
