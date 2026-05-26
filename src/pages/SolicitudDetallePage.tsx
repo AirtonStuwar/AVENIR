@@ -92,6 +92,10 @@ export default function SolicitudDetallePage() {
   // Encuesta
   const [encuesta,         setEncuesta]         = useState<Encuesta | null>(null)
 
+  // Número de factura
+  const [numeroFactura,    setNumeroFactura]    = useState('')
+  const [savingFactNum,    setSavingFactNum]    = useState(false)
+
   // Modales
   const [rechazoOpen,    setRechazoOpen]    = useState(false)
   const [devolucionOpen, setDevolucionOpen] = useState(false)
@@ -132,6 +136,11 @@ export default function SolicitudDetallePage() {
       .finally(() => setLoadingSol(false))
   }, [id])
 
+  // Sync número de factura desde solicitud
+  useEffect(() => {
+    setNumeroFactura(solicitud?.numero_factura ?? '')
+  }, [solicitud?.numero_factura])
+
   // ── Derived state ──────────────────────────────────────────────
   const nombre         = solicitud?.estado_soli?.nombre ?? ''
   const isPendiente    = nombre === 'Pendiente'
@@ -155,7 +164,9 @@ export default function SolicitudDetallePage() {
   const canDevolver  = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canAprobar   = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canRechazar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
-  const canEncuestar = isAprobado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canEncuestar      = isAprobado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canEditNumFactura = isAprobado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const showNumFactura    = isAprobado || !!solicitud?.numero_factura
 
   const estadoColor = ESTADO_COLOR[nombre] ?? 'bg-gray-100 text-gray-600'
 
@@ -318,6 +329,21 @@ export default function SolicitudDetallePage() {
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al rechazar')
       throw err
+    }
+  }
+
+  // ── Número de factura ────────────────────────────────────────────
+  const handleGuardarNumFactura = async () => {
+    if (!solicitud || !id) return
+    setSavingFactNum(true)
+    try {
+      await updateSolicitud(solicitud.id, { numero_factura: numeroFactura.trim() || null })
+      toast.success('N° de factura guardado')
+      await reload(id)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al guardar')
+    } finally {
+      setSavingFactNum(false)
     }
   }
 
@@ -615,6 +641,49 @@ export default function SolicitudDetallePage() {
           <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             <AlertCircle size={15} className="shrink-0" />
             Para enviar a revisión debes adjuntar los documentos obligatorios: Contrato, Cotización y Sustento.
+          </div>
+        )}
+
+        {/* ── N° DE FACTURA ── */}
+        {showNumFactura && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+              <CheckCircle size={15} className="text-[#003D7D]" />
+              <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Número de factura</h2>
+              {solicitud.numero_factura && (
+                <span className="ml-auto text-xs font-semibold text-green-600 bg-green-50 px-2.5 py-0.5 rounded-full">Registrado</span>
+              )}
+            </div>
+            <div className="px-6 py-5">
+              {canEditNumFactura ? (
+                <div className="flex items-end gap-3">
+                  <div className="flex-1 max-w-xs">
+                    <label className={LABEL}>N° de Factura</label>
+                    <input
+                      type="text"
+                      value={numeroFactura}
+                      onChange={e => setNumeroFactura(e.target.value)}
+                      placeholder="Ej: F001-00123"
+                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
+                    />
+                  </div>
+                  <button
+                    onClick={handleGuardarNumFactura}
+                    disabled={savingFactNum || numeroFactura.trim() === (solicitud.numero_factura ?? '')}
+                    className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-40 transition-colors"
+                  >
+                    {savingFactNum
+                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      : 'Guardar'}
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <p className={LABEL}>N° de Factura</p>
+                  <p className="text-sm font-semibold text-gray-900 mt-0.5">{solicitud.numero_factura ?? '—'}</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
