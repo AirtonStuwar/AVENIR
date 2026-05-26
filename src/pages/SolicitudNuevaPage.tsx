@@ -578,7 +578,7 @@ export default function SolicitudNuevaPage() {
               <CheckCircle size={20} className="text-blue-600 shrink-0" />
               <div>
                 <p className="text-sm font-semibold text-blue-800">Paso final: adjunta los documentos requeridos</p>
-                <p className="text-xs text-blue-600">Contrato, Cotización y Sustento son obligatorios (PDF). Cuadro Comparativo es opcional. Podrás completarlos desde el detalle de la solicitud si los tienes disponibles luego.</p>
+                <p className="text-xs text-blue-600">Contrato, Cotización y Sustento son obligatorios (PDF). Cuadro Comparativo, Factura XML y Factura PDF son opcionales. Podrás completarlos desde el detalle si los tienes disponibles luego.</p>
               </div>
             </div>
 

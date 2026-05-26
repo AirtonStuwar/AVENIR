@@ -24,8 +24,8 @@ async function resolveEstadoIds(nombres: string[]): Promise<number[]> {
 function getRoleEstadoTipos(role: number): string[] {
   const map: Record<number, string[]> = {
     [ROLES.EVALUADOR]:    ['En Revision'],
-    [ROLES.APROBADOR]:    ['Evaluado', 'Rechazado', 'Facturación Pendiente', 'Completado'],
-    [ROLES.VISUALIZADOR]: ['Completado'],
+    [ROLES.APROBADOR]:    ['Evaluado', 'Rechazado', 'Aprobado'],
+    [ROLES.VISUALIZADOR]: ['Aprobado'],
   }
   return map[role] ?? []
 }
@@ -178,8 +178,8 @@ export async function devolverSolicitud(id: number, comentario: string): Promise
 }
 
 export async function aprobarSolicitud(id: number, userId: string): Promise<Solicitud> {
-  const [estadoId] = await resolveEstadoIds(['Facturación Pendiente'])
-  if (!estadoId) throw new Error('Estado "Facturación Pendiente" no encontrado en BD')
+  const [estadoId] = await resolveEstadoIds(['Aprobado'])
+  if (!estadoId) throw new Error('Estado "Aprobado" no encontrado en BD')
   return updateSolicitud(id, {
     estado_id:         estadoId,
     fecha_aprobacion:  new Date().toISOString().slice(0, 10),
@@ -187,16 +187,6 @@ export async function aprobarSolicitud(id: number, userId: string): Promise<Soli
   })
 }
 
-export async function subirFactura(id: number, numeroFactura: string, file: File): Promise<Solicitud> {
-  const existentes = await getArchivosBySolicitud(id)
-  const existente  = existentes.find(a => a.tipo_archivo === 'Factura')
-  if (existente) await deleteArchivoSolicitud(existente.id, existente.archivo_path!)
-  await uploadArchivoSolicitud(file, id, 'Factura')
-
-  const [estadoId] = await resolveEstadoIds(['Completado'])
-  if (!estadoId) throw new Error('Estado "Completado" no encontrado en BD')
-  return updateSolicitud(id, { numero_factura: numeroFactura, estado_id: estadoId })
-}
 
 export async function rechazarSolicitud(id: number, comentario: string): Promise<Solicitud> {
   const [estadoId] = await resolveEstadoIds(['Rechazado'])
