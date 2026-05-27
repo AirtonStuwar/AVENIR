@@ -73,7 +73,7 @@ export interface Solicitud {
   solicitud_tipo?: { id: number; nombre: string } | null
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
   solicitud_forma_pago?: { id: number; nombre: string } | null
-  plan_contable_brash?: PlanContable | null
+  plan_contable?: PlanContable | null
   detalles?: SolicitudDetalle[]
   // enriched fields (set by enrichSolicitudes)
   creador_email?:  string | null

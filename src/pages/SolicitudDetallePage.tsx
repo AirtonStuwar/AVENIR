@@ -560,54 +560,6 @@ export default function SolicitudDetallePage() {
               )}
             </div>
           )}
-          {solicitud.plan_contable_brash && (
-            <div className="px-6 pb-5 border-t border-gray-50 pt-4">
-              <p className={LABEL}>Plan contable</p>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3">
-                <div>
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Tipo de gasto / costo</p>
-                  <p className="text-sm font-semibold text-gray-900">{solicitud.plan_contable_brash.tipo_gasto_costo ?? '—'}</p>
-                </div>
-                {solicitud.plan_contable_brash.nombre_cuenta_contable && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Nombre cuenta contable</p>
-                    <p className="text-sm text-gray-700">{solicitud.plan_contable_brash.nombre_cuenta_contable}</p>
-                  </div>
-                )}
-                {solicitud.plan_contable_brash.codigo_starsoft && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Código Starsoft</p>
-                    <p className="text-sm text-gray-700 font-mono">{solicitud.plan_contable_brash.codigo_starsoft}</p>
-                  </div>
-                )}
-                {solicitud.plan_contable_brash.cuenta_contable_2020_starsoft && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Cuenta contable 2020</p>
-                    <p className="text-sm text-gray-700 font-mono">{solicitud.plan_contable_brash.cuenta_contable_2020_starsoft}</p>
-                  </div>
-                )}
-                {solicitud.plan_contable_brash.partida_presupuestal && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Partida presupuestal</p>
-                    <p className="text-sm text-gray-700">{solicitud.plan_contable_brash.partida_presupuestal}</p>
-                  </div>
-                )}
-                {solicitud.plan_contable_brash.partida_presupuesta_n1 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Partida N1</p>
-                    <p className="text-sm text-gray-700">{solicitud.plan_contable_brash.partida_presupuesta_n1}</p>
-                  </div>
-                )}
-                {solicitud.plan_contable_brash.partida_presupuesta_n2 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Partida N2</p>
-                    <p className="text-sm text-gray-700">{solicitud.plan_contable_brash.partida_presupuesta_n2}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
           {solicitud.comentario_gerencia && (
             <div className="px-6 pb-5 border-t border-gray-50 pt-4">
               <p className={LABEL}>Comentario</p>
@@ -770,6 +722,61 @@ export default function SolicitudDetallePage() {
                       <p className="text-sm text-gray-700 mt-0.5">{fmtDate(solicitud.fecha_vencimiento_factura)}</p>
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── PLAN CONTABLE ── */}
+        {solicitud.plan_contable && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+              <CheckCircle size={15} className="text-[#003D7D]" />
+              <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Plan contable</h2>
+              <span className="ml-auto text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full">
+                {solicitud.plan_contable.tipo_gasto_costo}
+              </span>
+            </div>
+            <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+              <div>
+                <p className={LABEL}>Tipo de gasto / costo</p>
+                <p className="text-sm font-semibold text-gray-900">{solicitud.plan_contable.tipo_gasto_costo ?? '—'}</p>
+              </div>
+              {solicitud.plan_contable.nombre_cuenta_contable && (
+                <div>
+                  <p className={LABEL}>Nombre cuenta contable</p>
+                  <p className="text-sm text-gray-700">{solicitud.plan_contable.nombre_cuenta_contable}</p>
+                </div>
+              )}
+              {solicitud.plan_contable.codigo_starsoft && (
+                <div>
+                  <p className={LABEL}>Código Starsoft</p>
+                  <p className="text-sm text-gray-700 font-mono">{solicitud.plan_contable.codigo_starsoft}</p>
+                </div>
+              )}
+              {solicitud.plan_contable.cuenta_contable_2020_starsoft && (
+                <div>
+                  <p className={LABEL}>Cuenta contable 2020</p>
+                  <p className="text-sm text-gray-700 font-mono">{solicitud.plan_contable.cuenta_contable_2020_starsoft}</p>
+                </div>
+              )}
+              {solicitud.plan_contable.partida_presupuestal && (
+                <div>
+                  <p className={LABEL}>Partida presupuestal</p>
+                  <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuestal}</p>
+                </div>
+              )}
+              {solicitud.plan_contable.partida_presupuesta_n1 && (
+                <div>
+                  <p className={LABEL}>Partida N1</p>
+                  <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuesta_n1}</p>
+                </div>
+              )}
+              {solicitud.plan_contable.partida_presupuesta_n2 && (
+                <div>
+                  <p className={LABEL}>Partida N2</p>
+                  <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuesta_n2}</p>
                 </div>
               )}
             </div>

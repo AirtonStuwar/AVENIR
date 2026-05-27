@@ -3,7 +3,7 @@ import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, Sol
 import { ROLES } from '../types/solicitud'
 
 const TABLE   = 'solicitud'
-const SOL_SEL = '*, proyecto:proyecto_id(id,nombre,ruc,direccion), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo), solicitud_forma_pago:forma_pago_id(id,nombre), plan_contable_brash:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)'
+const SOL_SEL = '*, proyecto:proyecto_id(id,nombre,ruc,direccion), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo), solicitud_forma_pago:forma_pago_id(id,nombre), plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(id,tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)'
 
 // ── Estado ID cache ───────────────────────────────────────────────
 let estadoCache: Record<string, number> = {}
