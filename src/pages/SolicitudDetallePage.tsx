@@ -14,6 +14,7 @@ import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivo
 import SolicitudModal from '../features/solicitud/components/SolicitudModal'
 import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
+import EvaluarModal from '../features/solicitud/components/EvaluarModal'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
 import { OrdenCompraPDF } from '../features/solicitud/components/OrdenCompraPDF'
 import EncuestaProveedorForm from '../features/proveedor/components/EncuestaProveedorForm'
@@ -67,7 +68,7 @@ const ESTADO_COLOR: Record<string, string> = {
 }
 
 // Tipos de acción para el modal de confirmación
-type ActionKey = 'cancelar' | 'evaluar' | { deleteDetId: number }
+type ActionKey = 'cancelar' | { deleteDetId: number }
 
 interface ConfirmCfg {
   title: string
@@ -107,6 +108,9 @@ export default function SolicitudDetallePage() {
   // Confirm modal — guarda la CLAVE de la acción, no la función
   const [pendingAction,  setPendingAction]  = useState<ActionKey | null>(null)
   const [confirmCfg,     setConfirmCfg]     = useState<ConfirmCfg>({ title: '', message: '', confirmLabel: 'Confirmar', variant: 'blue' })
+
+  // Evaluar modal
+  const [evaluarOpen,    setEvaluarOpen]    = useState(false)
 
   // Firma modal
   const [firmaOpen,      setFirmaOpen]      = useState(false)
@@ -189,9 +193,6 @@ export default function SolicitudDetallePage() {
       if (action === 'cancelar') {
         await cancelarSolicitud(solId)
         toast.success('Solicitud cancelada')
-      } else if (action === 'evaluar') {
-        await marcarEvaluado(solId)
-        toast.success('Marcada como Evaluada')
       } else if (typeof action === 'object' && 'deleteDetId' in action) {
         await deleteDetalle(action.deleteDetId)
         setDetalles(ds => ds.filter(x => x.id !== action.deleteDetId))
@@ -295,13 +296,17 @@ export default function SolicitudDetallePage() {
 
   const handleEvaluar = () => {
     if (!solicitud) return
-    openConfirm('evaluar', {
-      title: 'Marcar como Evaluada',
-      message: `¿Marcar como Evaluada la solicitud ${solicitud.codigo ?? `#${solicitud.id}`}?`,
-      confirmLabel: 'Marcar evaluado',
-      variant: 'blue',
-    })
+    setEvaluarOpen(true)
   }
+
+  const handleConfirmEvaluar = async (planContableId: number) => {
+    if (!solicitud?.id || !id) return
+    await marcarEvaluado(solicitud.id, planContableId, user?.id ?? null)
+    toast.success('Marcada como Evaluada')
+    setEvaluarOpen(false)
+    await reload(id)
+  }
+
 
   const handleAprobar = () => {
     if (!solicitud) return
@@ -723,6 +728,61 @@ export default function SolicitudDetallePage() {
           </div>
         )}
 
+        {/* ── PLAN CONTABLE ── */}
+        {solicitud.plan_contable && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+              <CheckCircle size={15} className="text-[#003D7D]" />
+              <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Plan contable</h2>
+              <span className="ml-auto text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full">
+                {solicitud.plan_contable.tipo_gasto_costo}
+              </span>
+            </div>
+            <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+              <div>
+                <p className={LABEL}>Tipo de gasto / costo</p>
+                <p className="text-sm font-semibold text-gray-900">{solicitud.plan_contable.tipo_gasto_costo ?? '—'}</p>
+              </div>
+              {solicitud.plan_contable.nombre_cuenta_contable && (
+                <div>
+                  <p className={LABEL}>Nombre cuenta contable</p>
+                  <p className="text-sm text-gray-700">{solicitud.plan_contable.nombre_cuenta_contable}</p>
+                </div>
+              )}
+              {solicitud.plan_contable.codigo_starsoft && (
+                <div>
+                  <p className={LABEL}>Código Starsoft</p>
+                  <p className="text-sm text-gray-700 font-mono">{solicitud.plan_contable.codigo_starsoft}</p>
+                </div>
+              )}
+              {solicitud.plan_contable.cuenta_contable_2020_starsoft && (
+                <div>
+                  <p className={LABEL}>Cuenta contable 2020</p>
+                  <p className="text-sm text-gray-700 font-mono">{solicitud.plan_contable.cuenta_contable_2020_starsoft}</p>
+                </div>
+              )}
+              {solicitud.plan_contable.partida_presupuestal && (
+                <div>
+                  <p className={LABEL}>Partida presupuestal</p>
+                  <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuestal}</p>
+                </div>
+              )}
+              {solicitud.plan_contable.partida_presupuesta_n1 && (
+                <div>
+                  <p className={LABEL}>Partida N1</p>
+                  <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuesta_n1}</p>
+                </div>
+              )}
+              {solicitud.plan_contable.partida_presupuesta_n2 && (
+                <div>
+                  <p className={LABEL}>Partida N2</p>
+                  <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuesta_n2}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* ── ENCUESTA PROVEEDOR ── */}
         {canEncuestar && (
           <EncuestaProveedorForm
@@ -759,6 +819,13 @@ export default function SolicitudDetallePage() {
         variant={confirmCfg.variant}
         onConfirm={handleConfirmOk}
         onCancel={() => setPendingAction(null)}
+      />
+
+      <EvaluarModal
+        open={evaluarOpen}
+        codigoSolicitud={solicitud?.codigo ?? `#${solicitud?.id}`}
+        onConfirm={handleConfirmEvaluar}
+        onCancel={() => setEvaluarOpen(false)}
       />
 
       <RechazoModal

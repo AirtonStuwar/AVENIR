@@ -1,9 +1,9 @@
 import { supabase } from '../../../api/supabase'
-import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado, SolicitudDetalleInsert, SolicitudDetalle, SolicitudArchivo, SolicitudFormaPago, Usuario } from '../types/solicitud'
+import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado, SolicitudDetalleInsert, SolicitudDetalle, SolicitudArchivo, SolicitudFormaPago, PlanContable, Usuario } from '../types/solicitud'
 import { ROLES } from '../types/solicitud'
 
 const TABLE   = 'solicitud'
-const SOL_SEL = '*, proyecto:proyecto_id(id,nombre,ruc,direccion), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo), solicitud_forma_pago:forma_pago_id(id,nombre)'
+const SOL_SEL = '*, proyecto:proyecto_id(id,nombre,ruc,direccion), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo), solicitud_forma_pago:forma_pago_id(id,nombre), plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(id,tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)'
 
 // ── Estado ID cache ───────────────────────────────────────────────
 let estadoCache: Record<string, number> = {}
@@ -23,7 +23,7 @@ async function resolveEstadoIds(nombres: string[]): Promise<number[]> {
 
 function getRoleEstadoTipos(role: number): string[] {
   const map: Record<number, string[]> = {
-    [ROLES.EVALUADOR]:    ['En Revision'],
+    // EVALUADOR se maneja aparte con lógica OR en getSolicitudes
     [ROLES.APROBADOR]:    ['Evaluado', 'Rechazado', 'Aprobado'],
     [ROLES.VISUALIZADOR]: ['Aprobado'],
   }
@@ -106,6 +106,12 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
   // ── Filtro por rol ──────────────────────────────────────────────
   if (role === ROLES.USUARIO && userId) {
     query = query.eq('usuario_creador', userId)
+  } else if (role === ROLES.EVALUADOR && userId) {
+    // Ve: "En Revision" (cualquiera) + solicitudes que él mismo evaluó (cualquier estado)
+    const [enRevisionId] = await resolveEstadoIds(['En Revision'])
+    if (enRevisionId) {
+      query = query.or(`estado_id.eq.${enRevisionId},usuario_evaluador.eq.${userId}`)
+    }
   } else if (role && role !== ROLES.ADMIN) {
     const tipos = getRoleEstadoTipos(role)
     if (tipos.length > 0) {
@@ -165,10 +171,19 @@ export async function cancelarSolicitud(id: number): Promise<Solicitud> {
   return updateSolicitud(id, { estado_id: estadoId })
 }
 
-export async function marcarEvaluado(id: number): Promise<Solicitud> {
+export async function marcarEvaluado(id: number, planContableId: number, userId: string | null): Promise<Solicitud> {
   const [estadoId] = await resolveEstadoIds(['Evaluado'])
   if (!estadoId) throw new Error('Estado "Evaluado" no encontrado en BD')
-  return updateSolicitud(id, { estado_id: estadoId })
+  return updateSolicitud(id, { estado_id: estadoId, plan_contable_id: planContableId, usuario_evaluador: userId })
+}
+
+export async function getPlanContable(): Promise<PlanContable[]> {
+  const { data, error } = await supabase
+    .from('plan_contable_brash')
+    .select('id, tipo_gasto_costo, codigo_starsoft, cuenta_contable_2020_starsoft, nombre_cuenta_contable, partida_presupuestal, partida_presupuesta_n1, partida_presupuesta_n2')
+    .order('tipo_gasto_costo')
+  if (error) throw error
+  return (data ?? []) as PlanContable[]
 }
 
 export async function devolverSolicitud(id: number, comentario: string): Promise<Solicitud> {

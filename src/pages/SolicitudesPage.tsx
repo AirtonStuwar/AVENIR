@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Send, CheckCircle, ThumbsUp, X, Loader2, Download } from 'lucide-react'
+import { Send, ThumbsUp, X, Loader2, Download } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import SolicitudesTable from '../features/solicitud/components/SolicitudesTable'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
@@ -9,7 +9,6 @@ import { useSolicitudes } from '../features/solicitud/hooks/useSolicitudes'
 import {
   cancelarSolicitud,
   enviarARevision,
-  marcarEvaluado,
   aprobarSolicitud,
 } from '../features/solicitud/services/solicitudService'
 import { useAuthStore } from '../store/authStore'
@@ -45,13 +44,11 @@ export default function SolicitudesPage() {
 
   // Conteos por estado dentro de la selección
   const pendienteCount   = data.filter(s => selectedIds.has(s.id) && s.estado_soli?.nombre === 'Pendiente').length
-  const enRevisionCount  = data.filter(s => selectedIds.has(s.id) && s.estado_soli?.nombre === 'En Revision').length
   const evaluadoCount    = data.filter(s => selectedIds.has(s.id) && s.estado_soli?.nombre === 'Evaluado').length
 
   const canBulkEnviar   = (userRole === ROLES.USUARIO || userRole === ROLES.ADMIN) && pendienteCount > 0
-  const canBulkEvaluar  = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && enRevisionCount > 0
   const canBulkAprobar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && evaluadoCount > 0
-  const hasAnyBulk      = canBulkEnviar || canBulkEvaluar || canBulkAprobar
+  const hasAnyBulk      = canBulkEnviar || canBulkAprobar
 
   const handleBulkAction = async (
     estadoFiltro: string,
@@ -76,9 +73,8 @@ export default function SolicitudesPage() {
     refresh()
   }
 
-  const handleBulkEnviar  = () => handleBulkAction('Pendiente',   enviarARevision, 'enviadas a revisión')
-  const handleBulkEvaluar = () => handleBulkAction('En Revision', marcarEvaluado,  'marcadas como Evaluadas')
-  const handleBulkAprobar = () => handleBulkAction('Evaluado',    id => aprobarSolicitud(id, user!.id), 'aprobadas')
+  const handleBulkEnviar  = () => handleBulkAction('Pendiente', enviarARevision,                       'enviadas a revisión')
+  const handleBulkAprobar = () => handleBulkAction('Evaluado',  id => aprobarSolicitud(id, user!.id), 'aprobadas')
 
   // ── Exportar Excel (solo VISUALIZADOR) ───────────────────────
   const handleExport = async () => {
@@ -175,17 +171,6 @@ export default function SolicitudesPage() {
             >
               {bulkLoading ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
               Enviar a revisión ({pendienteCount})
-            </button>
-          )}
-
-          {canBulkEvaluar && (
-            <button
-              onClick={handleBulkEvaluar}
-              disabled={bulkLoading}
-              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 transition-colors"
-            >
-              {bulkLoading ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle size={12} />}
-              Marcar evaluado ({enRevisionCount})
             </button>
           )}
 
