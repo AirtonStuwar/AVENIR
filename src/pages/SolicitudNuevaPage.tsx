@@ -627,13 +627,15 @@ export default function SolicitudNuevaPage() {
         )}
 
         {/* ── STEP 4: FACTURA ── */}
-        {step === 'factura' && solicitudId && (
+        {step === 'factura' && solicitudId && (() => {
+          const facturaValida = !!numeroFactura.trim() && !!motivoFacturaStep.trim() && !!fechaEmisionFactura && !!fechaVencimFactura
+          return (
           <>
-            <div className="flex items-center gap-3 px-5 py-4 bg-green-50 border border-green-200 rounded-2xl">
-              <CheckCircle size={20} className="text-green-600 shrink-0" />
+            <div className="flex items-center gap-3 px-5 py-4 bg-[#003D7D]/[0.05] border border-[#003D7D]/20 rounded-2xl">
+              <CheckCircle size={20} className="text-[#003D7D] shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-green-800">Paso opcional: datos de la factura</p>
-                <p className="text-xs text-green-600">Sube la factura XML y/o PDF e ingresa los datos. Puedes completarlo desde el detalle de la solicitud si aún no tienes la factura.</p>
+                <p className="text-sm font-semibold text-[#003D7D]">Datos de la factura — obligatorio</p>
+                <p className="text-xs text-[#003D7D]/70">Completa todos los campos para finalizar la solicitud. Los archivos de factura son opcionales.</p>
               </div>
             </div>
 
@@ -657,10 +659,11 @@ export default function SolicitudNuevaPage() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100">
                 <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Datos de la factura</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Todos los campos son obligatorios <span className="text-red-500">*</span></p>
               </div>
               <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className={LABEL}>N° de Factura</label>
+                  <label className={LABEL}>N° de Factura <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={numeroFactura}
@@ -670,7 +673,7 @@ export default function SolicitudNuevaPage() {
                   />
                 </div>
                 <div>
-                  <label className={LABEL}>Motivo de la factura</label>
+                  <label className={LABEL}>Motivo de la factura <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     value={motivoFacturaStep}
@@ -680,7 +683,7 @@ export default function SolicitudNuevaPage() {
                   />
                 </div>
                 <div>
-                  <label className={LABEL}>Fecha de emisión</label>
+                  <label className={LABEL}>Fecha de emisión <span className="text-red-500">*</span></label>
                   <input
                     type="date"
                     value={fechaEmisionFactura}
@@ -689,7 +692,7 @@ export default function SolicitudNuevaPage() {
                   />
                 </div>
                 <div>
-                  <label className={LABEL}>Fecha de vencimiento</label>
+                  <label className={LABEL}>Fecha de vencimiento <span className="text-red-500">*</span></label>
                   <input
                     type="date"
                     value={fechaVencimFactura}
@@ -700,13 +703,10 @@ export default function SolicitudNuevaPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
-              <button
-                onClick={() => navigate('/solicitudes')}
-                className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Omitir y finalizar
-              </button>
+            <div className="flex items-center justify-end px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
+              {!facturaValida && (
+                <p className="mr-auto text-xs text-gray-400">Completa todos los campos obligatorios para finalizar.</p>
+              )}
               <button
                 onClick={async () => {
                   setSavingFactura(true)
@@ -721,8 +721,8 @@ export default function SolicitudNuevaPage() {
                   finally { setSavingFactura(false) }
                   navigate('/solicitudes')
                 }}
-                disabled={savingFactura}
-                className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-50 transition-all"
+                disabled={savingFactura || !facturaValida}
+                className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {savingFactura
                   ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Guardando...</>
@@ -731,7 +731,8 @@ export default function SolicitudNuevaPage() {
               </button>
             </div>
           </>
-        )}
+          )
+        })()}
       </div>
 
       {/* Modal agregar / editar detalle */}

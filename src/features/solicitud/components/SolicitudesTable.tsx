@@ -237,7 +237,7 @@ export default function SolicitudesTable({
                     />
                   </th>
                 )}
-                {['Código', 'Razón social', 'RUC', 'Proyecto', 'Fecha pedido', 'Creado por', 'Área', 'Estado', ''].map(h => (
+                {['Código', 'Razón social', 'RUC', 'Proyecto', 'Fecha pedido', 'Venc. Factura', 'Creado por', 'Área', 'Estado', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -274,6 +274,12 @@ export default function SolicitudesTable({
                     <td className="px-4 py-3 whitespace-nowrap text-gray-700 text-sm">{s.ruc ?? '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{s.proyecto?.nombre ?? '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(s.fecha_pedido)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-xs">
+                      {s.fecha_vencimiento_factura
+                        ? <span className="font-medium text-orange-700">{fmtDate(s.fecha_vencimiento_factura)}</span>
+                        : <span className="text-gray-300">—</span>
+                      }
+                    </td>
                     <td className="px-4 py-3 max-w-[180px]">
                       <CreadorDisplay s={s} />
                     </td>
@@ -365,6 +371,13 @@ export default function SolicitudesTable({
                   <div>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Fecha pedido</p>
                     <p className="text-xs text-gray-700">{fmtDate(s.fecha_pedido)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Venc. Factura</p>
+                    {s.fecha_vencimiento_factura
+                      ? <p className="text-xs font-medium text-orange-700">{fmtDate(s.fecha_vencimiento_factura)}</p>
+                      : <p className="text-xs text-gray-300">—</p>
+                    }
                   </div>
                   <div>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Creado por</p>
