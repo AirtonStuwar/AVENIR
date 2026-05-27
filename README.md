@@ -66,7 +66,7 @@ Pendiente ───────────────────────�
     ▼
 En Revision ──── devolverSolicitud ──────────► Pendiente
     │
-    │ marcarEvaluado (EVALUADOR/ADMIN)
+    │ marcarEvaluado + Plan Contable (EVALUADOR/ADMIN)
     ▼
 Evaluado ──────── rechazarSolicitud ─────────► Rechazado
     │
@@ -83,7 +83,7 @@ Evaluado ──────── rechazarSolicitud ─────────�
 | Rol | ID | Dashboard | Solicitudes visibles | Acciones |
 |---|---|---|---|---|
 | Admin | 1 | KPIs globales + gráficas + métricas proveedores | Todas | Todas |
-| Evaluador | 8 | Cola de revisión + promedio espera | En Revision / Evaluado / Pendiente | Marcar evaluado, Devolver |
+| Evaluador | 8 | Cola de revisión + promedio espera | En Revision (cualquiera) + propias evaluadas | Marcar evaluado (seleccionando Plan Contable), Devolver |
 | Aprobador | 9 | Cola de aprobación + métricas proveedores | Evaluado / Aprobado / Rechazado | Aprobar, Rechazar |
 | Visualizador | 10 | Solicitudes aprobadas + montos | Aprobadas | Solo lectura, exportar Excel |
 | Usuario | 11 | Mis solicitudes por estado + monto aprobado | Propias | Crear, Editar (Pendiente), Enviar, Cancelar, Encuestar proveedor |
@@ -155,11 +155,12 @@ src/
 │   └── solicitud/
 │       ├── components/               # SolicitudesTable, SolicitudArchivos (tiposVisibles),
 │       │                             # SolicitudModal, RechazoModal, ConfirmModal,
+│       │                             # EvaluarModal (plan contable combobox),
 │       │                             # FirmaModal, OrdenCompraPDF, ...
 │       ├── constants/                # bancos.ts (lista + helpers CCI/cuenta)
 │       ├── hooks/                    # useSolicitudes
-│       ├── services/                 # solicitudService (CRUD + flujo), rucService
-│       └── types/                    # Solicitud, ROLES, SolicitudFiltros, ...
+│       ├── services/                 # solicitudService (CRUD + flujo + getPlanContable), rucService
+│       └── types/                    # Solicitud, PlanContable, ROLES, SolicitudFiltros, ...
 ├── pages/                            # SolicitudesPage, SolicitudDetallePage,
 │                                     # SolicitudNuevaPage (4-step wizard),
 │                                     # DashboardPage, ProyectosPage, ProveedoresPage
@@ -183,6 +184,7 @@ src/
 | `area_usuario` | Área a la que pertenece cada usuario |
 | `proveedor` | Registro de proveedores (indexados por RUC) |
 | `encuesta_proveedor` | Encuestas de satisfacción por solicitud |
+| `plan_contable_brash` | Catálogo de partidas contables (usado por EVALUADOR) |
 
 ### Campos de factura en `solicitud`
 
@@ -192,3 +194,22 @@ src/
 | `motivo_factura` | TEXT | Concepto o motivo de la factura |
 | `fecha_emision_factura` | DATE | Fecha de emisión de la factura |
 | `fecha_vencimiento_factura` | DATE | Fecha de vencimiento de la factura |
+
+### Campos de plan contable en `solicitud`
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `plan_contable_id` | INTEGER | FK a `plan_contable_brash.id` — asignado al marcar Evaluado |
+| `usuario_evaluador` | UUID (TEXT) | ID del evaluador que marcó la solicitud como Evaluado |
+
+### `plan_contable_brash` — catálogo contable
+
+| Campo | Descripción |
+|---|---|
+| `tipo_gasto_costo` | Nombre del tipo de gasto/costo (mostrado en el combobox) |
+| `codigo_starsoft` | Código interno Starsoft |
+| `cuenta_contable_2020_starsoft` | Número de cuenta contable 2020 |
+| `nombre_cuenta_contable` | Nombre de la cuenta contable |
+| `partida_presupuestal` | Partida presupuestal general |
+| `partida_presupuesta_n1` | Partida presupuestal nivel 1 |
+| `partida_presupuesta_n2` | Partida presupuestal nivel 2 |

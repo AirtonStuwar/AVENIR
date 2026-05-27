@@ -39,7 +39,7 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `/dashboard`, `/solicitudes`, `/solicitudes/nueva`, `/solicitudes/:id`, `/proyectos`, `/proveedores` — all behind `ProtectedRoute`
 - Catch-all redirects to `/dashboard`
 
-**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `usuario`, `proveedor`, `encuesta_proveedor`.
+**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `usuario`, `proveedor`, `encuesta_proveedor`, `plan_contable_brash`.
 
 El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no se usa ni se escribe. La columna puede seguir existiendo en la BD sin afectar nada.
 
@@ -57,11 +57,13 @@ El componente acepta la prop `tiposVisibles?: string[]`; si se pasa, sólo rende
 
 **Solicitud workflow states** (`estado_soli` table drives UI logic):
 - Pendiente → (USUARIO/ADMIN) → `enviarARevision` → En Revision
-- En Revision → (EVALUADOR/ADMIN) → `marcarEvaluado` → Evaluado
+- En Revision → (EVALUADOR/ADMIN) → `marcarEvaluado(id, planContableId, userId)` → Evaluado
 - En Revision → (EVALUADOR/ADMIN) → `devolverSolicitud` → Pendiente
 - Evaluado → (APROBADOR/ADMIN) → `aprobarSolicitud` → **Aprobado** (estado final)
 - Evaluado → (APROBADOR/ADMIN) → `rechazarSolicitud` → Rechazado
 - Any active state → `cancelarSolicitud` → Cancelado
+
+`marcarEvaluado` saves `plan_contable_id` (mandatory) and `usuario_evaluador` (UUID of the evaluator) to `solicitud`. Both fields are excluded from `SolicitudInsert`.
 
 Los estados "Facturación Pendiente" y "Completado" fueron eliminados del flujo. **Aprobado** es el estado terminal positivo. La factura (XML y PDF) se sube opcionalmente en el Step 4 del wizard de creación, o desde el detalle de la solicitud. El campo `numero_factura` se puede editar cuando hay archivos de factura adjuntos o cuando la solicitud está Aprobada.
 
@@ -83,6 +85,8 @@ Step state is local to the page. The solicitud record is created at the end of S
 
 **SolicitudDetallePage** calculates totals client-side: `subtotal` (sum of line items), `igv = subtotal * 0.18` (18% Peruvian IGV), and `totalConIgv`. The `solicitud_detalle.valor_total` column may be DB-computed; the code uses `d.valor_total ?? d.cantidad * d.valor_unitario` as fallback. Currency is displayed in Peruvian soles (`S/`) using the `es-PE` locale. The "Datos de la factura" card appears whenever a Factura XML/PDF is uploaded or `numero_factura` is set; it also shows `motivo_factura`, `fecha_emision_factura`, and `fecha_vencimiento_factura` read-only.
 
+Order of cards in detail page: **Info general → Detalles → Documentos → Datos de la Factura → Plan Contable → Encuesta Proveedor**. The Plan Contable card shows all `plan_contable_brash` fields and only renders when `solicitud.plan_contable` is not null (i.e., after an EVALUADOR marks the solicitud as Evaluado).
+
 **SolicitudModal** (edit mode) includes all header fields plus `motivo_factura`, `fecha_emision_factura`, and `fecha_vencimiento_factura`.
 
 **Dashboard** renders a dedicated panel per role via `DashboardPage.tsx` which branches on `userRole`:
@@ -98,6 +102,24 @@ Cada función de servicio en `dashboardService.ts` hace sus propias queries opti
 - Lista de proveedores con métricas agregadas (promedio general, calidad, tiempo, precio, comunicación, % recomienda, total encuestas).
 - Datos provienen de `proveedor` + `encuesta_proveedor` via `getProveedorConMetricas()` en `proveedorService.ts`.
 - `EncuestaProveedorForm` aparece en `SolicitudDetallePage` cuando la solicitud está **Aprobada** y el usuario es el creador o ADMIN. Permite crear o editar la encuesta de satisfacción del proveedor (4 criterios 1-5 + recomendaría + comentarios).
+
+**Plan Contable (`plan_contable_brash` table):** catalog table used by the EVALUADOR to categorize each solicitud. Fields: `id`, `tipo_gasto_costo`, `codigo_starsoft`, `cuenta_contable_2020_starsoft`, `nombre_cuenta_contable`, `partida_presupuestal`, `partida_presupuesta_n1`, `partida_presupuesta_n2`. RLS policy: SELECT for authenticated users. Service function: `getPlanContable()` returns all rows ordered by `tipo_gasto_costo`.
+
+**EvaluarModal** (`src/features/solicitud/components/EvaluarModal.tsx`) — modal shown to EVALUADOR/ADMIN when marking a solicitud as Evaluado. Contains a searchable combobox (`Search` icon + input) that filters across `tipo_gasto_costo`, `nombre_cuenta_contable`, and `codigo_starsoft` using `search.trim().toLowerCase()`. Selection is mandatory — the confirm button is disabled until a plan contable entry is chosen. When the dropdown is open, the modal body adds `pb-64` to avoid clipping the absolutely-positioned list. No `overflow-hidden` on the modal wrapper; `rounded-t-2xl`/`rounded-b-2xl` are applied to the header/footer sections individually.
+
+**EVALUADOR list visibility:** In `getSolicitudes`, when `role === ROLES.EVALUADOR`, the query uses `.or(`estado_id.eq.${enRevisionId},usuario_evaluador.eq.${userId}`)` so the evaluator sees both *all* "En Revision" solicitudes and *their own* previously evaluated ones (any state). Bulk "Evaluar" action was removed from `SolicitudesPage` — plan contable selection makes per-row evaluation mandatory.
+
+**PostgREST FK join pattern:** When adding a foreign key to an existing table and joining it in `SOL_SEL`, use the explicit constraint hint to avoid schema cache ambiguity:
+```
+plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(id,tipo_gasto_costo,...)
+```
+Run `NOTIFY pgrst, 'reload schema'` if the join stops working after schema changes, but prefer the explicit FK name for reliability.
+
+**`solicitud` new columns added for plan contable:**
+- `plan_contable_id` — FK to `plan_contable_brash.id` (nullable, set when EVALUADOR marks Evaluado)
+- `usuario_evaluador` — UUID (text FK to auth.users, nullable, set when EVALUADOR marks Evaluado)
+
+Both are excluded from `SolicitudInsert`.
 
 **TypeScript config:** strict mode with `noUnusedLocals` and `noUnusedParameters` enabled — unused variables will cause build errors. Use `Omit<T, 'id' | 'fecha_creacion' | ...>` for insert/update types (see `SolicitudInsert` as the canonical example).
 
