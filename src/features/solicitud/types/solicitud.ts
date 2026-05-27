@@ -15,6 +15,17 @@ export interface SolicitudFormaPago {
   fecha_creacion: string | null
 }
 
+export interface PlanContable {
+  id: number
+  tipo_gasto_costo:            string | null
+  codigo_starsoft:             string | null
+  cuenta_contable_2020_starsoft: number | null
+  nombre_cuenta_contable:      string | null
+  partida_presupuestal:        string | null
+  partida_presupuesta_n1:      string | null
+  partida_presupuesta_n2:      string | null
+}
+
 export const ROLES = {
   ADMIN:        1,
   EVALUADOR:    8,
@@ -56,10 +67,13 @@ export interface Solicitud {
   comentario_gerencia: string | null
   numero_factura: string | null
   monto_total: number | null
+  plan_contable_id: number | null
+  usuario_evaluador: string | null
   proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null } | null
   solicitud_tipo?: { id: number; nombre: string } | null
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
   solicitud_forma_pago?: { id: number; nombre: string } | null
+  plan_contable_brash?: PlanContable | null
   detalles?: SolicitudDetalle[]
   // enriched fields (set by enrichSolicitudes)
   creador_email?:  string | null
@@ -93,6 +107,8 @@ export type SolicitudInsert = Omit<
   | 'usuario_aprobador'    // se completa al aprobar
   | 'numero_factura'       // se registra al completar el proceso
   | 'monto_total'          // calculado al enviar a revisión
+  | 'plan_contable_id'     // lo asigna el evaluador al marcar Evaluado
+  | 'usuario_evaluador'    // se registra al marcar Evaluado
   | 'detalles'             // se reemplaza por SolicitudDetalleInsert[]
 > & { detalles?: SolicitudDetalleInsert[] }
 
