@@ -23,10 +23,11 @@ interface Props {
   solicitudId: number
   editable: boolean
   onChange?: (archivos: SolicitudArchivo[]) => void
-  tiposVisibles?: string[]  // si se indica, sólo muestra estos tipos de documento
+  tiposVisibles?: string[]   // si se indica, sólo muestra estos tipos de documento
+  tiposOpcionales?: string[] // sobrescribe tipos que normalmente son obligatorios → los marca como opcionales
 }
 
-export default function SolicitudArchivos({ solicitudId, editable, onChange, tiposVisibles }: Props) {
+export default function SolicitudArchivos({ solicitudId, editable, onChange, tiposVisibles, tiposOpcionales }: Props) {
   const [archivos,  setArchivos]  = useState<SolicitudArchivo[]>([])
   const [loading,   setLoading]   = useState(true)
   const [uploading, setUploading] = useState<string | null>(null)
@@ -104,8 +105,14 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
   const tiposAMostrar = tiposVisibles
     ? TIPOS.filter(t => tiposVisibles.includes(t))
     : TIPOS
-  const nObligatorios = tiposAMostrar.filter(t => (TIPOS_REQUERIDOS as readonly string[]).includes(t)).length
-  const nOpcionales   = tiposAMostrar.filter(t => (TIPOS_OPCIONALES as readonly string[]).includes(t)).length
+
+  // Un tipo es opcional si está en TIPOS_OPCIONALES O si el caller lo marcó como opcional
+  const esOpcionalFn = (tipo: string) =>
+    (TIPOS_OPCIONALES as readonly string[]).includes(tipo) ||
+    (tiposOpcionales?.includes(tipo) ?? false)
+
+  const nObligatorios = tiposAMostrar.filter(t => !esOpcionalFn(t)).length
+  const nOpcionales   = tiposAMostrar.filter(t =>  esOpcionalFn(t)).length
   const nSubidos      = archivos.filter(a => (tiposAMostrar as readonly string[]).includes(a.tipo_archivo ?? '')).length
 
   return (
@@ -130,7 +137,7 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
           {tiposAMostrar.map(tipo => {
             const archivo     = byTipo(tipo)
             const isUploading = uploading === tipo
-            const esOpcional  = (TIPOS_OPCIONALES as readonly string[]).includes(tipo)
+            const esOpcional  = esOpcionalFn(tipo)
 
             return (
               <div key={tipo} className={`rounded-xl border-2 p-4 flex flex-col gap-3 transition-all ${

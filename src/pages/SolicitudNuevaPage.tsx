@@ -602,13 +602,27 @@ export default function SolicitudNuevaPage() {
         )}
 
         {/* ── STEP 3: ARCHIVOS ── */}
-        {step === 'archivos' && solicitudId && (
+        {step === 'archivos' && solicitudId && (() => {
+          const sustentoObligatorio = (porcentaje_acumulado_contrato ?? 0) > 9
+          const docsRequeridos      = sustentoObligatorio
+            ? ['Contrato', 'Cotizacion', 'Sustento']
+            : ['Contrato', 'Cotizacion']
+          const docsCompletos = docsRequeridos.every(tipo =>
+            archivos.some(a => a.tipo_archivo === tipo)
+          )
+          return (
           <>
             <div className="flex items-center gap-3 px-5 py-4 bg-blue-50 border border-blue-200 rounded-2xl">
               <CheckCircle size={20} className="text-blue-600 shrink-0" />
               <div>
                 <p className="text-sm font-semibold text-blue-800">Adjunta los documentos requeridos</p>
-                <p className="text-xs text-blue-600">Contrato, Cotización y Sustento son obligatorios (PDF). Cuadro Comparativo es opcional. En el paso siguiente podrás adjuntar la factura.</p>
+                <p className="text-xs text-blue-600">
+                  Contrato y Cotización son siempre obligatorios.
+                  {sustentoObligatorio
+                    ? ' Sustento también es obligatorio (% acumulado > 9%).'
+                    : ' Sustento y Cuadro Comparativo son opcionales.'
+                  }
+                </p>
               </div>
             </div>
 
@@ -617,25 +631,31 @@ export default function SolicitudNuevaPage() {
               editable={true}
               onChange={setArchivos}
               tiposVisibles={['Contrato', 'Cotizacion', 'Sustento', 'Cuadro Comparativo']}
+              tiposOpcionales={sustentoObligatorio ? [] : ['Sustento']}
             />
 
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
               <span className="text-sm text-gray-500">
-                {archivos.filter(a => ['Contrato', 'Cotizacion', 'Sustento'].includes(a.tipo_archivo ?? '')).length < 3
-                  ? <span className="text-amber-600 font-medium">Faltan documentos obligatorios (Contrato, Cotización, Sustento)</span>
-                  : <span className="text-green-600 font-medium flex items-center gap-1.5"><CheckCircle size={14} /> Documentos obligatorios completos</span>
+                {!docsCompletos
+                  ? <span className="text-amber-600 font-medium">
+                      Faltan: {docsRequeridos.filter(t => !archivos.some(a => a.tipo_archivo === t)).join(', ')}
+                    </span>
+                  : <span className="text-green-600 font-medium flex items-center gap-1.5">
+                      <CheckCircle size={14} /> Documentos obligatorios completos
+                    </span>
                 }
               </span>
               <button
                 onClick={() => setStep('factura')}
-                disabled={archivos.filter(a => ['Contrato', 'Cotizacion', 'Sustento'].includes(a.tipo_archivo ?? '')).length < 3}
+                disabled={!docsCompletos}
                 className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
                 Continuar →
               </button>
             </div>
           </>
-        )}
+          )
+        })()}
 
         {/* ── STEP 4: FACTURA ── */}
         {step === 'factura' && solicitudId && (() => {
