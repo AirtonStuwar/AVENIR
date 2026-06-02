@@ -159,7 +159,10 @@ export default function SolicitudDetallePage() {
   const canEdit      = isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const canDuplicar  = userRole === ROLES.USUARIO && isOwnSolicitud && (isAprobado || isCancelado || isRechazado)
   const canShowPDF   = !isPendiente && !isRechazado && !isCancelado
-  const DOCS_OBLIGATORIOS = ['Contrato', 'Cotizacion', 'Sustento']
+  const sustentoObligatorio   = (solicitud?.porcentaje_acumulado_contrato ?? 0) > 9
+  const DOCS_OBLIGATORIOS     = sustentoObligatorio
+    ? ['Contrato', 'Cotizacion', 'Sustento']
+    : ['Contrato', 'Cotizacion']
   const tieneDocsObligatorios = DOCS_OBLIGATORIOS.every(doc =>
     archivosSubidos.some(a => a.tipo_archivo === doc)
   )
@@ -594,7 +597,7 @@ export default function SolicitudDetallePage() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">
-              Detalles <span className="ml-1 text-gray-400 font-normal normal-case">({detalles.length} ítems)</span>
+              Bien o Servicio <span className="ml-1 text-gray-400 font-normal normal-case">({detalles.length} ítems)</span>
             </h2>
             <div className="flex items-center gap-3">
               {subtotal > 0 && <span className="text-sm font-bold text-[#003D7D]">{fmtMoney(totalConIgv)}</span>}
@@ -610,8 +613,8 @@ export default function SolicitudDetallePage() {
           {detalles.length === 0 ? (
             <div className="py-14 text-center text-sm text-gray-400">
               {canEdit
-                ? <button onClick={openAdd} className="text-[#003D7D] hover:underline">+ Agregar el primer detalle</button>
-                : 'Esta solicitud no tiene detalles registrados.'}
+                ? <button onClick={openAdd} className="text-[#003D7D] hover:underline">+ Agregar el primer bien o servicio</button>
+                : 'Esta solicitud no tiene bienes o servicios registrados.'}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -674,6 +677,7 @@ export default function SolicitudDetallePage() {
           solicitudId={solicitud.id}
           editable={canEdit}
           onChange={setArchivosSubidos}
+          tiposOpcionales={(solicitud.porcentaje_acumulado_contrato ?? 0) <= 9 ? ['Sustento'] : []}
         />
         {isPendiente && !tieneDocsObligatorios && (
           <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
