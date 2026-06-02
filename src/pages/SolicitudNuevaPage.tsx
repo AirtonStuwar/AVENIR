@@ -241,7 +241,7 @@ export default function SolicitudNuevaPage() {
         <div className="ml-auto flex items-center gap-2">
           {([
             { key: 'form',     label: 'Datos generales' },
-            { key: 'detalles', label: 'Detalles'        },
+            { key: 'detalles', label: 'Bien o Servicio'  },
             { key: 'archivos', label: 'Documentos'      },
             { key: 'factura',  label: 'Factura'         },
           ] as const).map((s, i, arr) => {
@@ -506,7 +506,7 @@ export default function SolicitudNuevaPage() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                 <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">
-                  Detalles <span className="ml-1 text-gray-400 font-normal normal-case">
+                  Bien o Servicio <span className="ml-1 text-gray-400 font-normal normal-case">
                     ({detalles.length} {detalles.length === 1 ? 'ítem' : 'ítems'})
                   </span>
                 </h2>
@@ -529,7 +529,7 @@ export default function SolicitudNuevaPage() {
               {detalles.length === 0 && !loadingDet ? (
                 <div className="py-14 text-center text-sm text-gray-400">
                   <button onClick={openAdd} className="text-[#003D7D] hover:underline">
-                    + Agregar el primer detalle
+                    + Agregar el primer bien o servicio
                   </button>
                 </div>
               ) : (
