@@ -413,18 +413,13 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
             </h4>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">
-                  % Contrato <span className="text-red-500">*</span>
-                </label>
+                <label className="mb-1 block text-xs font-medium text-gray-700">% Contrato</label>
                 <input
                   type="number"
-                  step="0.01"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
-                  placeholder="Porcentaje del contrato"
-                  value={porcentaje_contrato ?? ''}
-                  onChange={(e) => { setPorcentajeContrato(e.target.value ? Number(e.target.value) : null); clearErrors() }}
+                  value={100}
+                  readOnly
+                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm opacity-60 cursor-not-allowed"
                 />
-                {errors.porcentaje_contrato && <p className="mt-1 text-sm text-red-600">{errors.porcentaje_contrato}</p>}
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">
@@ -433,10 +428,17 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
+                  max="100"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
                   placeholder="Porcentaje acumulado"
                   value={porcentaje_acumulado_contrato ?? ''}
-                  onChange={(e) => { setPorcentajeAcumuladoContrato(e.target.value ? Number(e.target.value) : null); clearErrors() }}
+                  onChange={(e) => {
+                    const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)))
+                    setPorcentajeAcumuladoContrato(v)
+                    setPorcentajePendienteContrato(v === null ? null : 100 - v)
+                    clearErrors()
+                  }}
                 />
                 {errors.porcentaje_acumulado_contrato && <p className="mt-1 text-sm text-red-600">{errors.porcentaje_acumulado_contrato}</p>}
               </div>
@@ -447,10 +449,17 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
                 <input
                   type="number"
                   step="0.01"
+                  min="0"
+                  max="100"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
                   placeholder="Porcentaje pendiente"
                   value={porcentaje_pendiente_contrato ?? ''}
-                  onChange={(e) => { setPorcentajePendienteContrato(e.target.value ? Number(e.target.value) : null); clearErrors() }}
+                  onChange={(e) => {
+                    const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)))
+                    setPorcentajePendienteContrato(v)
+                    setPorcentajeAcumuladoContrato(v === null ? null : 100 - v)
+                    clearErrors()
+                  }}
                 />
                 {errors.porcentaje_pendiente_contrato && <p className="mt-1 text-sm text-red-600">{errors.porcentaje_pendiente_contrato}</p>}
               </div>

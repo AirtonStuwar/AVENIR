@@ -75,7 +75,7 @@ export default function SolicitudNuevaPage() {
   const [numero_cuenta,                setNumeroCuenta]                = useState('')
   const [cuenta_detracciones,          setCuentaDetracciones]          = useState('')
   const [forma_pago_id,                setFormaPagoId]                 = useState<number | null>(null)
-  const [porcentaje_contrato,          setPorcentajeContrato]          = useState<number | null>(100)
+  const [porcentaje_contrato]                                           = useState<number | null>(100)
   const [porcentaje_acumulado_contrato,setPorcentajeAcumulado]         = useState<number | null>(0)
   const [porcentaje_pendiente_contrato,setPorcentajePendiente]         = useState<number | null>(100)
   const [condiciones,                  setCondiciones]                 = useState(
@@ -411,21 +411,32 @@ export default function SolicitudNuevaPage() {
                 <SectionTitle>Porcentajes del contrato</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className={LABEL}>% Contrato *</label>
-                    <input className={inp(errors.porcentaje_contrato)} type="number" step="0.01" placeholder="100"
-                      value={porcentaje_contrato ?? ''} onChange={(e) => { setPorcentajeContrato(e.target.value ? Number(e.target.value) : null); setErrors((x) => ({ ...x, porcentaje_contrato: '' })) }} />
-                    {errors.porcentaje_contrato && <p className="mt-1 text-xs text-red-500">{errors.porcentaje_contrato}</p>}
+                    <label className={LABEL}>% Contrato</label>
+                    <input className={inp('')} type="number" value={100} readOnly
+                      style={{ opacity: 0.6, cursor: 'not-allowed', backgroundColor: '#f9fafb' }} />
                   </div>
                   <div>
                     <label className={LABEL}>% Acumulado *</label>
-                    <input className={inp(errors.porcentaje_acumulado)} type="number" step="0.01" placeholder="0"
-                      value={porcentaje_acumulado_contrato ?? ''} onChange={(e) => { setPorcentajeAcumulado(e.target.value ? Number(e.target.value) : null); setErrors((x) => ({ ...x, porcentaje_acumulado: '' })) }} />
+                    <input className={inp(errors.porcentaje_acumulado)} type="number" step="0.01" min="0" max="100" placeholder="0"
+                      value={porcentaje_acumulado_contrato ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)))
+                        setPorcentajeAcumulado(v)
+                        setPorcentajePendiente(v === null ? null : 100 - v)
+                        setErrors((x) => ({ ...x, porcentaje_acumulado: '' }))
+                      }} />
                     {errors.porcentaje_acumulado && <p className="mt-1 text-xs text-red-500">{errors.porcentaje_acumulado}</p>}
                   </div>
                   <div>
                     <label className={LABEL}>% Pendiente *</label>
-                    <input className={inp(errors.porcentaje_pendiente)} type="number" step="0.01" placeholder="100"
-                      value={porcentaje_pendiente_contrato ?? ''} onChange={(e) => { setPorcentajePendiente(e.target.value ? Number(e.target.value) : null); setErrors((x) => ({ ...x, porcentaje_pendiente: '' })) }} />
+                    <input className={inp(errors.porcentaje_pendiente)} type="number" step="0.01" min="0" max="100" placeholder="100"
+                      value={porcentaje_pendiente_contrato ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)))
+                        setPorcentajePendiente(v)
+                        setPorcentajeAcumulado(v === null ? null : 100 - v)
+                        setErrors((x) => ({ ...x, porcentaje_pendiente: '' }))
+                      }} />
                     {errors.porcentaje_pendiente && <p className="mt-1 text-xs text-red-500">{errors.porcentaje_pendiente}</p>}
                   </div>
                 </div>
