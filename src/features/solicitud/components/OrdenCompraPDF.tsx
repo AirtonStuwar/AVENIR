@@ -420,8 +420,8 @@ export function OrdenCompraPDF({
             <Text style={S.facturarATitle}>Facturar a</Text>
             <Text style={S.facturarABold}>{proyecto.nombre ?? '—'}</Text>
             <View style={S.facturarARow}>
-              {proyecto.ruc && <Text style={S.facturarAText}>RUC: {proyecto.ruc}</Text>}
-              {proyecto.direccion && <Text style={S.facturarAText}>Dirección: {proyecto.direccion}</Text>}
+              <Text style={S.facturarAText}>RUC: {proyecto.ruc ?? '—'}</Text>
+              <Text style={S.facturarAText}>Dirección: {proyecto.direccion ?? '—'}</Text>
             </View>
           </View>
         )}
