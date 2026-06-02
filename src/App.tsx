@@ -15,6 +15,9 @@ import SolicitudesPage from './pages/SolicitudesPage';
 import SolicitudNuevaPage from './pages/SolicitudNuevaPage';
 import SolicitudDetallePage from './pages/SolicitudDetallePage';
 import ProveedoresPage from './pages/ProveedoresPage';
+import ARendirPage from './pages/ARendirPage';
+import ARendirNuevaPage from './pages/ARendirNuevaPage';
+import ARendirDetallePage from './pages/ARendirDetallePage';
 
 function App() {
   const setSession = useAuthStore((state) => state.setSession);
@@ -64,6 +67,9 @@ function App() {
             <Route path="/solicitudes/:id" element={<SolicitudDetallePage />} />
             <Route path="/proveedores" element={<ProveedoresPage />} />
             <Route path="/proyectos" element={<ProyectosPage/>} />
+            <Route path="/arendir"        element={<ARendirPage />} />
+            <Route path="/arendir/nueva"  element={<ARendirNuevaPage />} />
+            <Route path="/arendir/:id"    element={<ARendirDetallePage />} />
           </Route>
         </Route>
 

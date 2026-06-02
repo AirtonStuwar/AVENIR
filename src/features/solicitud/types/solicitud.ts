@@ -7,6 +7,7 @@ export interface Usuario {
   cargo:           string | null
   fecha_creacion:  string | null
   firma_path:      string | null
+  dni:             string | null
 }
 
 export interface SolicitudFormaPago {
