@@ -151,7 +151,7 @@ export default function SolicitudNuevaPage() {
 
     setSavingForm(true)
     try {
-      const nueva = await createSolicitud({
+      const payload = {
         tipo_id, proyecto_id,
         razon_social, ruc, direccion,
         contacto_nombre, contacto_telefono, contacto_correo,
@@ -164,17 +164,27 @@ export default function SolicitudNuevaPage() {
         porcentaje_acumulado_contrato,
         porcentaje_pendiente_contrato,
         condiciones: condiciones || null,
-        motivo_factura: null,
-        fecha_emision_factura: null,
-        fecha_vencimiento_factura: null,
         fecha_pedido, fecha_requerida,
-        usuario_creador: user?.id ?? null,
-      })
-      setSolicitudId(nueva.id)
+      }
+
+      if (solicitudId) {
+        // Volvió atrás desde otro paso — actualiza en lugar de crear
+        await updateSolicitud(solicitudId, payload)
+        toast.success('Datos actualizados')
+      } else {
+        const nueva = await createSolicitud({
+          ...payload,
+          motivo_factura: null,
+          fecha_emision_factura: null,
+          fecha_vencimiento_factura: null,
+          usuario_creador: user?.id ?? null,
+        })
+        setSolicitudId(nueva.id)
+        toast.success('Solicitud creada — ahora agrega los bienes o servicios')
+      }
       setStep('detalles')
-      toast.success('Solicitud creada — ahora agrega los detalles')
     } catch (err: any) {
-      toast.error(err?.message ?? 'Error al crear la solicitud')
+      toast.error(err?.message ?? 'Error al guardar la solicitud')
     } finally {
       setSavingForm(false)
     }
@@ -275,7 +285,7 @@ export default function SolicitudNuevaPage() {
 
               {/* Cliente */}
               <div>
-                <SectionTitle>Información del cliente</SectionTitle>
+                <SectionTitle>Información del proveedor</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className={LABEL}>Razón social *</label>
@@ -591,7 +601,11 @@ export default function SolicitudNuevaPage() {
                 </div>
               )}
 
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                <button onClick={() => setStep('form')}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
+                  ← Atrás
+                </button>
                 <button onClick={() => setStep('archivos')}
                   className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] transition-all">
                   Continuar →
@@ -635,16 +649,22 @@ export default function SolicitudNuevaPage() {
             />
 
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
-              <span className="text-sm text-gray-500">
-                {!docsCompletos
-                  ? <span className="text-amber-600 font-medium">
-                      Faltan: {docsRequeridos.filter(t => !archivos.some(a => a.tipo_archivo === t)).join(', ')}
-                    </span>
-                  : <span className="text-green-600 font-medium flex items-center gap-1.5">
-                      <CheckCircle size={14} /> Documentos obligatorios completos
-                    </span>
-                }
-              </span>
+              <div className="flex items-center gap-3">
+                <button onClick={() => setStep('detalles')}
+                  className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
+                  ← Atrás
+                </button>
+                <span className="text-sm text-gray-500">
+                  {!docsCompletos
+                    ? <span className="text-amber-600 font-medium">
+                        Faltan: {docsRequeridos.filter(t => !archivos.some(a => a.tipo_archivo === t)).join(', ')}
+                      </span>
+                    : <span className="text-green-600 font-medium flex items-center gap-1.5">
+                        <CheckCircle size={14} /> Documentos obligatorios completos
+                      </span>
+                  }
+                </span>
+              </div>
               <button
                 onClick={() => setStep('factura')}
                 disabled={!docsCompletos}
@@ -734,9 +754,13 @@ export default function SolicitudNuevaPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
+              <button onClick={() => setStep('archivos')}
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
+                ← Atrás
+              </button>
               {!facturaValida && (
-                <p className="mr-auto text-xs text-gray-400">Completa todos los campos obligatorios para finalizar.</p>
+                <p className="mx-auto text-xs text-gray-400">Completa todos los campos obligatorios para finalizar.</p>
               )}
               <button
                 onClick={async () => {
