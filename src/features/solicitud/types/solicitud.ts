@@ -6,6 +6,7 @@ export interface Usuario {
   correo:          string | null
   cargo:           string | null
   fecha_creacion:  string | null
+  firma_path:      string | null
 }
 
 export interface SolicitudFormaPago {

@@ -15,6 +15,7 @@ interface AuthState {
   logout:         () => void;
   fetchUserRole:  (userId: string) => Promise<void>;
   initialize:     () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -68,5 +69,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     supabase.auth.onAuthStateChange(async (_event, session) => {
       await get().setSession(session);
     });
+  },
+
+  refreshProfile: async () => {
+    const userId = get().user?.id;
+    if (!userId) return;
+    const { data, error } = await supabase
+      .from('usuario')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+    if (!error && data) {
+      set({ usuarioProfile: data as Usuario });
+    }
   },
 }));
