@@ -21,6 +21,7 @@ import EncuestaProveedorForm from '../features/proveedor/components/EncuestaProv
 import { getEncuestaBySolicitud } from '../features/proveedor/services/proveedorService'
 import type { Encuesta } from '../features/proveedor/types/proveedor'
 import { useAuthStore } from '../store/authStore'
+import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import type { Solicitud, SolicitudDetalle, SolicitudArchivo, SolicitudUpdate } from '../features/solicitud/types/solicitud'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import logoUrl from '../assets/avenir-logo.png'
@@ -80,7 +81,7 @@ interface ConfirmCfg {
 export default function SolicitudDetallePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user, userRole } = useAuthStore()
+  const { user, userRole, usuarioProfile } = useAuthStore()
 
   const [solicitud,        setSolicitud]        = useState<Solicitud | null>(null)
   const [loadingSol,       setLoadingSol]       = useState(true)
@@ -207,14 +208,15 @@ export default function SolicitudDetallePage() {
   }
 
   // ── Firma confirm handler ─────────────────────────────────────
-  const handleFirmaConfirm = async (blob: Blob) => {
+  const handleFirmaConfirm = async (blob: Blob, actionOverride?: 'enviar' | 'aprobar') => {
     if (!solicitud || !id) return
-    const tipo = firmaAction === 'enviar' ? 'Firma_Usuario' : 'Firma_Aprobador'
+    const action = actionOverride ?? firmaAction
+    const tipo   = action === 'enviar' ? 'Firma_Usuario' : 'Firma_Aprobador'
     await uploadFirma(blob, solicitud.id, tipo)
     setFirmaOpen(false)
     setActioning(true)
     try {
-      if (firmaAction === 'enviar') {
+      if (action === 'enviar') {
         await enviarARevision(solicitud.id)
         toast.success('Enviada a revisión')
       } else {
@@ -227,6 +229,28 @@ export default function SolicitudDetallePage() {
       toast.error(err instanceof Error ? err.message : 'Error al ejecutar la acción')
     } finally {
       setActioning(false)
+    }
+  }
+
+  // ── Ejecutar acción usando firma pre-guardada o abrir FirmaModal ──
+  const executeWithFirma = async (action: 'enviar' | 'aprobar') => {
+    if (!solicitud) return
+    const firmaPath = usuarioProfile?.firma_path
+    if (firmaPath) {
+      try {
+        toast.loading('Usando tu firma guardada…', { id: 'firma-auto' })
+        const blob = await getUserFirmaBlob(firmaPath)
+        toast.dismiss('firma-auto')
+        await handleFirmaConfirm(blob, action)
+      } catch {
+        toast.dismiss('firma-auto')
+        // Fallback: abrir FirmaModal manualmente
+        setFirmaAction(action)
+        setFirmaOpen(true)
+      }
+    } else {
+      setFirmaAction(action)
+      setFirmaOpen(true)
     }
   }
 
@@ -280,8 +304,7 @@ export default function SolicitudDetallePage() {
   // ── Handlers de botones ───────────────────────────────────────
   const handleEnviar = () => {
     if (!solicitud) return
-    setFirmaAction('enviar')
-    setFirmaOpen(true)
+    executeWithFirma('enviar')
   }
 
   const handleCancelar = () => {
@@ -310,8 +333,7 @@ export default function SolicitudDetallePage() {
 
   const handleAprobar = () => {
     if (!solicitud) return
-    setFirmaAction('aprobar')
-    setFirmaOpen(true)
+    executeWithFirma('aprobar')
   }
 
   const handleDevolver = async (comentario: string) => {
