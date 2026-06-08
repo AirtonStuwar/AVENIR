@@ -243,14 +243,15 @@ export async function getSolicitudById(id: number): Promise<Solicitud> {
   if (error) throw error
 
   // fetch detalles
-  if (data && data.id) {
-    const { data: detalles, error: errD } = await supabase.from('solicitud_detalle').select('*').eq('solicitud_id', data.id)
+  const row = data as unknown as Solicitud
+  if (row?.id) {
+    const { data: detalles, error: errD } = await supabase.from('solicitud_detalle').select('*').eq('solicitud_id', row.id)
     if (errD) throw errD
-    ;(data as any).detalles = detalles as SolicitudDetalle[]
+    ;(row as any).detalles = detalles as SolicitudDetalle[]
   }
 
   // enriquecer con datos del usuario (nombre, email, cargo, área)
-  const [enriched] = await enrichSolicitudes([data as Solicitud])
+  const [enriched] = await enrichSolicitudes([row])
   return enriched
 }
 
@@ -260,7 +261,7 @@ export async function createSolicitud(payload: SolicitudInsert): Promise<Solicit
   const { data, error } = await supabase.from(TABLE).insert(rest).select(SOL_SEL).maybeSingle()
   if (error) throw error
 
-  const created = data as Solicitud
+  const created = data as unknown as Solicitud
 
   if (detalles && Array.isArray(detalles) && detalles.length > 0) {
     const rows = detalles.map((d: SolicitudDetalleInsert) => ({ ...d, solicitud_id: created.id }))
@@ -399,6 +400,7 @@ export async function duplicarSolicitud(id: number, userId: string): Promise<Sol
     motivo_factura:                 original.motivo_factura,
     fecha_emision_factura:          original.fecha_emision_factura,
     fecha_vencimiento_factura:      original.fecha_vencimiento_factura,
+    moneda:                         original.moneda,
     fecha_pedido:                   original.fecha_pedido,
     fecha_requerida:                original.fecha_requerida,
     usuario_creador:                userId,

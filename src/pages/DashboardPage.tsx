@@ -7,7 +7,7 @@ import {
 import {
   AlertCircle, ArrowRight, Clock, DollarSign,
   FolderOpen, TrendingUp, CheckCircle, XCircle,
-  FileText, Send, RotateCcw, ThumbsUp, Plus,
+  FileText, Send, ThumbsUp, Plus,
   Hourglass, Receipt, Star, Users, ThumbsDown,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'

@@ -23,7 +23,9 @@ No test framework is configured.
 
 > **Casing quirk:** `src/features/Solicitudes/` (capital S) is a near-empty folder — the actual solicitud feature code lives in `src/features/solicitud/` (lowercase).
 
-**Authentication & roles:** Supabase Auth (email/password). Auth is initialized in `App.tsx` via `supabase.auth.getSession()` + `onAuthStateChange` listener, which calls `authStore.setSession()`. The store exposes an `initialize()` method but it is not used — `App.tsx` owns the subscription and cleans it up on unmount. `authStore.ts` calls `fetchUserRole()` which queries the `usuario_rol` table to get a numeric role ID. The role gates sidebar items and dashboard panels. `ProtectedRoute` redirects unauthenticated users to `/login`.
+**Authentication & roles:** Supabase Auth (email/password). Auth is initialized in `App.tsx` via `supabase.auth.getSession()` + `onAuthStateChange` listener, which calls `authStore.setSession()`. The store exposes an `initialize()` method but it is not used — `App.tsx` owns the subscription and cleans it up on unmount. `authStore.ts` calls `fetchUserRole()` which simultaneously fetches the role from `usuario_rol` AND the full `Usuario` profile from `usuario`, storing both. The store exposes `userRole`, `usuarioProfile: Usuario | null`, and `refreshProfile()` (re-fetches from `usuario` table). The role gates sidebar items and dashboard panels. `ProtectedRoute` redirects unauthenticated users to `/login`.
+
+**UserProfileModal** (`src/components/layout/UserProfileModal.tsx`) — 3-tab modal accessible from `Topbar`. Tabs: **Datos** (nombres, apellidos, cargo — email is read-only), **Firma** (draw on canvas or upload an image; saved to `firmas-usuario` bucket via `saveUserFirma(userId, blob)`; deleted via `deleteUserFirma(userId)`), **Contraseña** (calls `supabase.auth.updateUser` via `changePassword`). All mutations call `refreshProfile()` after success to sync `authStore.usuarioProfile`.
 
 Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `ADMIN = 1` — full access
@@ -44,7 +46,7 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 
 El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no se usa ni se escribe. La columna puede seguir existiendo en la BD sin afectar nada.
 
-**`usuario`** — perfil extendido 1:1 con `auth.users`. Campos: `id` (UUID FK), `nombres`, `apellidos`, `nombre_completo` (GENERATED: nombres || apellidos), `correo`, `cargo`. Un trigger `on_auth_user_created` crea la fila automáticamente en cada signup. `enrichSolicitudes` consulta esta tabla para `creador_nombre`, `creador_email` y `creador_cargo`. La vista `vista_creadores` fue eliminada — ya no es necesaria.
+**`usuario`** — perfil extendido 1:1 con `auth.users`. Campos: `id` (UUID FK), `nombres`, `apellidos`, `nombre_completo` (GENERATED: nombres || apellidos), `correo`, `cargo`, `dni`, `firma_path` (path en bucket `firmas-usuario`). Un trigger `on_auth_user_created` crea la fila automáticamente en cada signup. `enrichSolicitudes` consulta esta tabla para `creador_nombre`, `creador_email` y `creador_cargo`. La vista `vista_creadores` fue eliminada — ya no es necesaria.
 
 `area_usuario` links users to areas; only rows with `estado = 1` are treated as active when enriching solicitudes with area names.
 
@@ -96,6 +98,10 @@ Step state is local to the page. The solicitud record is created at the end of S
 Order of cards in detail page: **Info general → Detalles → Documentos → Datos de la Factura → Plan Contable → Encuesta Proveedor**. The Plan Contable card shows all `plan_contable_brash` fields and only renders when `solicitud.plan_contable` is not null (i.e., after an EVALUADOR marks the solicitud as Evaluado).
 
 **SolicitudModal** (edit mode) includes all header fields plus `moneda`, `motivo_factura`, `fecha_emision_factura`, and `fecha_vencimiento_factura` — these duplicate the inline edit in the detail card but remain in the modal for completeness.
+
+**Line-item editing components (solicitud):** Two distinct components handle `solicitud_detalle` editing:
+- `SolicitudDetalleModal` — lightweight modal (cantidad, descripción, valor_unitario) used in `SolicitudNuevaPage` wizard Step 2 for add/edit inline.
+- `SolicitudDetalleEditor` — full slide-in panel used from `SolicitudDetallePage` to add/edit/delete line items after the solicitud is created. Fetches detalles independently via `getDetallesBySolicitud`.
 
 **Dashboard — moneda:** Todos los paneles (ADMIN, APROBADOR, EVALUADOR, VISUALIZADOR, USUARIO) muestran dos KPI separados: **"Aprobado S/"** (solicitudes con `moneda='PEN'`) y **"Aprobado $"** (solicitudes con `moneda='USD'`). Los helpers `fmtMoney(n, moneda)` y `fmtMoneyFull(n, moneda)` aceptan `'PEN'|'USD'` para formatear con el símbolo correcto. `montoSolicitudes(sols, detalles, moneda?)` acepta un tercer argumento opcional para filtrar por moneda antes de sumar.
 
