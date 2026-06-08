@@ -69,6 +69,7 @@ export interface Solicitud {
   comentario_gerencia: string | null
   numero_factura: string | null
   monto_total: number | null
+  moneda: string | null
   plan_contable_id: number | null
   usuario_evaluador: string | null
   proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null } | null

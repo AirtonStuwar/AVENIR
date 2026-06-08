@@ -35,6 +35,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
   const [numero_cuenta, setNumeroCuenta] = useState('')
   const [cuenta_detracciones, setCuentaDetracciones] = useState('')
   const [forma_pago_id, setFormaPagoId] = useState<number | null>(null)
+  const [moneda, setMoneda] = useState<'PEN' | 'USD'>('PEN')
   const [porcentaje_contrato, setPorcentajeContrato] = useState<number | null>(100)
   const [porcentaje_acumulado_contrato, setPorcentajeAcumuladoContrato] = useState<number | null>(0)
   const [porcentaje_pendiente_contrato, setPorcentajePendienteContrato] = useState<number | null>(100)
@@ -90,6 +91,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
     setFechaVencimientoFactura(solicitud.fecha_vencimiento_factura ?? '')
     setFechaPedido(solicitud.fecha_pedido ?? '')
     setFechaRequerida(solicitud.fecha_requerida ?? '')
+    setMoneda((solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')
   }, [open, solicitud])
 
   const resetForm = () => {
@@ -165,6 +167,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
         fecha_vencimiento_factura:     fecha_vencimiento_factura || null,
         fecha_pedido:                  fecha_pedido || null,
         fecha_requerida:               fecha_requerida || null,
+        moneda,
       }
       if (isEditMode) {
         await onUpdate!(fields)
@@ -399,6 +402,17 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
                   {formasPago.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
                 </select>
                 {errors.forma_pago_id && <p className="mt-1 text-sm text-red-600">{errors.forma_pago_id}</p>}
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-gray-700">Moneda <span className="text-red-500">*</span></label>
+                <select
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
+                  value={moneda}
+                  onChange={(e) => setMoneda(e.target.value as 'PEN' | 'USD')}
+                >
+                  <option value="PEN">S/ Soles (PEN)</option>
+                  <option value="USD">$ Dólares (USD)</option>
+                </select>
               </div>
             </div>
           </div>

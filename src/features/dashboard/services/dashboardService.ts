@@ -1,6 +1,6 @@
 import { supabase } from '../../../api/supabase'
 
-const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre)'
+const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, moneda, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre)'
 
 export interface SolicitudRow {
   id: number
@@ -11,6 +11,7 @@ export interface SolicitudRow {
   fecha_creacion: string | null
   fecha_pedido: string | null
   monto_total: number | null
+  moneda: string | null
   estado_soli: { id: number; nombre: string; tipo: string | null } | null
   proyecto: { id: number; nombre: string } | null
 }
@@ -92,20 +93,25 @@ export interface EvaluadorData {
   enRevision: SolicitudRow[]  // estado = En Revision
   evaluadas: SolicitudRow[]   // estado = Evaluado
   devueltas: SolicitudRow[]   // estado = Pendiente (devueltas)
+  aprobadas: SolicitudRow[]   // estado = Aprobado
+  detalles: DetalleRow[]
 }
 
 export async function getEvaluadorData(): Promise<EvaluadorData> {
-  const { data, error } = await supabase
-    .from('solicitud')
-    .select(SOL_SELECT)
-    .order('fecha_creacion', { ascending: true })
+  const [solRes, detRes] = await Promise.all([
+    supabase.from('solicitud').select(SOL_SELECT).order('fecha_creacion', { ascending: true }),
+    supabase.from('solicitud_detalle').select('solicitud_id, valor_total, cantidad, valor_unitario'),
+  ])
 
-  if (error) throw error
-  const all = (data ?? []) as unknown as SolicitudRow[]
+  if (solRes.error) throw solRes.error
+  if (detRes.error) throw detRes.error
+  const all = (solRes.data ?? []) as unknown as SolicitudRow[]
   return {
     enRevision: all.filter(s => s.estado_soli?.nombre === 'En Revision'),
     evaluadas:  all.filter(s => s.estado_soli?.nombre === 'Evaluado'),
     devueltas:  all.filter(s => s.estado_soli?.nombre === 'Pendiente'),
+    aprobadas:  all.filter(s => s.estado_soli?.nombre === 'Aprobado'),
+    detalles:   (detRes.data ?? []) as DetalleRow[],
   }
 }
 

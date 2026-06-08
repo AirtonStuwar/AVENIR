@@ -75,6 +75,7 @@ export default function SolicitudNuevaPage() {
   const [numero_cuenta,                setNumeroCuenta]                = useState('')
   const [cuenta_detracciones,          setCuentaDetracciones]          = useState('')
   const [forma_pago_id,                setFormaPagoId]                 = useState<number | null>(null)
+  const [moneda,                       setMoneda]                       = useState<'PEN' | 'USD'>('PEN')
   const [porcentaje_contrato]                                           = useState<number | null>(100)
   const [porcentaje_acumulado_contrato,setPorcentajeAcumulado]         = useState<number | null>(0)
   const [porcentaje_pendiente_contrato,setPorcentajePendiente]         = useState<number | null>(100)
@@ -165,6 +166,7 @@ export default function SolicitudNuevaPage() {
         porcentaje_pendiente_contrato,
         condiciones: condiciones || null,
         fecha_pedido, fecha_requerida,
+        moneda,
       }
 
       if (solicitudId) {
@@ -412,6 +414,13 @@ export default function SolicitudNuevaPage() {
                       {formasPago.map((f) => <option key={f.id} value={f.id}>{f.nombre}</option>)}
                     </select>
                     {errors.forma_pago_id && <p className="mt-1 text-xs text-red-500">{errors.forma_pago_id}</p>}
+                  </div>
+                  <div>
+                    <label className={LABEL}>Moneda *</label>
+                    <select className={inp('')} value={moneda} onChange={(e) => setMoneda(e.target.value as 'PEN' | 'USD')}>
+                      <option value="PEN">S/ Soles (PEN)</option>
+                      <option value="USD">$ Dólares (USD)</option>
+                    </select>
                   </div>
                 </div>
               </div>

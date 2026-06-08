@@ -19,8 +19,9 @@ function fmtDate(d: string | null | undefined) {
   return new Intl.DateTimeFormat('es-PE', { dateStyle: 'short' }).format(new Date(d + 'T00:00:00'))
 }
 
-function fmtMoney(n: number) {
-  return 'S/ ' + n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+function fmtMoney(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
+  const sym = moneda === 'USD' ? '$ ' : 'S/ '
+  return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function pct(v: number | null | undefined) {
@@ -379,6 +380,7 @@ export function OrdenCompraPDF({
   aprobadorEmail,
   aprobadorCargo,
 }: OrdenCompraPDFProps) {
+  const moneda      = (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN'
   const subtotal    = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
   const descuento   = 0
   const baseGravable = subtotal - descuento
@@ -481,9 +483,9 @@ export function OrdenCompraPDF({
               <Text style={[S.tableCell, S.colIdx]}>{i + 1}</Text>
               <Text style={[S.tableCell, S.colDesc]}>{d.descripcion}</Text>
               <Text style={[S.tableCell, S.colCant]}>{d.cantidad}</Text>
-              <Text style={[S.tableCell, S.colUnit]}>{fmtMoney(d.valor_unitario)}</Text>
+              <Text style={[S.tableCell, S.colUnit]}>{fmtMoney(d.valor_unitario, moneda)}</Text>
               <Text style={[S.tableCell, S.colTotal, S.tableCellBold]}>
-                {fmtMoney(d.valor_total ?? d.cantidad * d.valor_unitario)}
+                {fmtMoney(d.valor_total ?? d.cantidad * d.valor_unitario, moneda)}
               </Text>
             </View>
           ))}
@@ -501,23 +503,23 @@ export function OrdenCompraPDF({
           <View style={S.totalsInner}>
             <View style={[S.totalRow, S.totalRowFirst]}>
               <Text style={S.totalLabel}>Subtotal</Text>
-              <Text style={S.totalValue}>{fmtMoney(subtotal)}</Text>
+              <Text style={S.totalValue}>{fmtMoney(subtotal, moneda)}</Text>
             </View>
             <View style={S.totalRow}>
               <Text style={S.totalLabel}>Descuento</Text>
-              <Text style={S.totalValue}>{fmtMoney(descuento)}</Text>
+              <Text style={S.totalValue}>{fmtMoney(descuento, moneda)}</Text>
             </View>
             <View style={S.totalRow}>
               <Text style={S.totalLabel}>Base Gravable</Text>
-              <Text style={S.totalValue}>{fmtMoney(baseGravable)}</Text>
+              <Text style={S.totalValue}>{fmtMoney(baseGravable, moneda)}</Text>
             </View>
             <View style={S.totalRow}>
               <Text style={S.totalLabel}>IGV (18%)</Text>
-              <Text style={S.totalValue}>{fmtMoney(igv)}</Text>
+              <Text style={S.totalValue}>{fmtMoney(igv, moneda)}</Text>
             </View>
             <View style={S.totalFinal}>
               <Text style={S.totalFinalText}>TOTAL</Text>
-              <Text style={S.totalFinalText}>{fmtMoney(total)}</Text>
+              <Text style={S.totalFinalText}>{fmtMoney(total, moneda)}</Text>
             </View>
           </View>
         </View>

@@ -3,7 +3,22 @@ import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, Sol
 import { ROLES } from '../types/solicitud'
 
 const TABLE   = 'solicitud'
-const SOL_SEL = '*, proyecto:proyecto_id(id,nombre,ruc,direccion), solicitud_tipo:tipo_id(id,nombre), estado_soli:estado_id(id,nombre,tipo), solicitud_forma_pago:forma_pago_id(id,nombre), plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(id,tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)'
+const SOL_SEL = [
+  'id, codigo, tipo_id, proyecto_id, razon_social, direccion, ruc',
+  'contacto_nombre, contacto_telefono, contacto_correo',
+  'banco, numero_cuenta, cuenta_detracciones',
+  'forma_pago, forma_pago_id',
+  'porcentaje_contrato, porcentaje_acumulado_contrato, porcentaje_pendiente_contrato',
+  'condiciones, motivo_factura, fecha_emision_factura, fecha_vencimiento_factura',
+  'fecha_pedido, fecha_requerida, estado_id, fecha_creacion',
+  'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
+  'numero_factura, monto_total, plan_contable_id, usuario_evaluador, moneda',
+  'proyecto:proyecto_id(id,nombre,ruc,direccion)',
+  'solicitud_tipo:tipo_id(id,nombre)',
+  'estado_soli:estado_id(id,nombre,tipo)',
+  'solicitud_forma_pago:forma_pago_id(id,nombre)',
+  'plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(id,tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)',
+].join(', ')
 
 // ── Estado ID cache ───────────────────────────────────────────────
 let estadoCache: Record<string, number> = {}

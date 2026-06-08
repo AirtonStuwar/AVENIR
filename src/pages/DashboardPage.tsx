@@ -40,14 +40,16 @@ const ESTADO_BADGE: Record<string, string> = {
 }
 
 // ── helpers ──────────────────────────────────────────────────────
-function fmtMoney(n: number) {
-  if (n >= 1_000_000) return `S/ ${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000)     return `S/ ${(n / 1_000).toFixed(1)}K`
-  return 'S/ ' + n.toLocaleString('es-PE', { minimumFractionDigits: 0 })
+function fmtMoney(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
+  const sym = moneda === 'USD' ? '$ ' : 'S/ '
+  if (n >= 1_000_000) return `${sym}${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000)     return `${sym}${(n / 1_000).toFixed(1)}K`
+  return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 0 })
 }
 
-function fmtMoneyFull(n: number) {
-  return 'S/ ' + n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+function fmtMoneyFull(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
+  const sym = moneda === 'USD' ? '$ ' : 'S/ '
+  return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function getLast6Months(): { key: string; label: string }[] {
@@ -83,8 +85,9 @@ function daysBetween(dateStr: string) {
   return Math.floor(diff / (1000 * 60 * 60 * 24))
 }
 
-function montoSolicitudes(sols: SolicitudRow[], detalles: { solicitud_id: number; valor_total: number | null; cantidad: number; valor_unitario: number }[]) {
-  const ids = new Set(sols.map(s => s.id))
+function montoSolicitudes(sols: SolicitudRow[], detalles: { solicitud_id: number; valor_total: number | null; cantidad: number; valor_unitario: number }[], moneda?: 'PEN' | 'USD') {
+  const filtered = moneda ? sols.filter(s => (s.moneda ?? 'PEN') === moneda) : sols
+  const ids = new Set(filtered.map(s => s.id))
   return detalles.filter(d => ids.has(d.solicitud_id)).reduce((sum, d) => sum + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
 }
 
@@ -130,11 +133,10 @@ function AdminDashboard() {
 
   const pendientes  = porEstado['Pendiente'] ?? 0
   const proyActivos = proyectos.filter(p => p.estado === 'Activo').length
-  const montoAprobado = montoSolicitudes(
-    solicitudes.filter(s => s.estado_soli?.nombre === 'Aprobado'),
-    detalles,
-  )
-  const montoTotal = montoSolicitudes(solicitudes, detalles)
+  const aprobadas      = solicitudes.filter(s => s.estado_soli?.nombre === 'Aprobado')
+  const montoAprobPEN  = montoSolicitudes(aprobadas, detalles, 'PEN')
+  const montoAprobUSD  = montoSolicitudes(aprobadas, detalles, 'USD')
+  const montoTotal     = montoSolicitudes(solicitudes, detalles)
 
   const donutData = Object.entries(porEstado).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }))
 
@@ -167,11 +169,12 @@ function AdminDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <DashHeader title="Panel de Administración" subtitle={new Date().toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <KpiCard label="Pend. de aprobación" value={pendientes} sub={`de ${solicitudes.length} solicitudes`} icon={<Clock size={18} />} color="amber" alert={pendientes > 0} onClick={() => navigate('/solicitudes')} />
           <KpiCard label="Solicitudes este mes" value={barMensual[barMensual.length - 1]?.Nuevas ?? 0} sub="en el mes actual" icon={<TrendingUp size={18} />} color="blue" />
           <KpiCard label="Proyectos activos" value={proyActivos} sub={`${proyectos.length - proyActivos} inactivos`} icon={<FolderOpen size={18} />} color="green" onClick={() => navigate('/proyectos')} />
-          <KpiCard label="Monto aprobado" value={fmtMoney(montoAprobado)} sub={`${fmtMoney(montoTotal)} potencial`} icon={<DollarSign size={18} />} color="indigo" />
+          <KpiCard label="Aprobado S/" value={fmtMoney(montoAprobPEN, 'PEN')} sub={`${fmtMoney(montoTotal)} potencial`} icon={<DollarSign size={18} />} color="indigo" />
+          <KpiCard label="Aprobado $" value={fmtMoney(montoAprobUSD, 'USD')} sub="solicitudes en dólares" icon={<DollarSign size={18} />} color="green" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -285,7 +288,8 @@ function AprobadorDashboard() {
   const rechazadasFiltradas = applyFilter(rechazadas)
 
   const montoCola      = montoSolicitudes(colaFiltrada, detalles)
-  const montoAprobado  = montoSolicitudes(aprobadasFiltradas, detalles)
+  const montoAprobPEN  = montoSolicitudes(aprobadasFiltradas, detalles, 'PEN')
+  const montoAprobUSD  = montoSolicitudes(aprobadasFiltradas, detalles, 'USD')
   const cmk            = currentMonthKey()
   const pmk            = prevMonthKey()
   const aprobMes       = aprobadasFiltradas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
@@ -318,11 +322,12 @@ function AprobadorDashboard() {
           </select>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <KpiCard label="En cola de aprobación" value={colaFiltrada.length} sub="esperando tu decisión" icon={<Hourglass size={18} />} color="amber" alert={colaFiltrada.length > 0} onClick={() => navigate('/solicitudes')} />
           <KpiCard label="Monto en cola" value={fmtMoney(montoCola)} sub="pendiente de aprobación" icon={<DollarSign size={18} />} color="indigo" />
           <KpiCard label="Aprobadas este mes" value={aprobMes} sub={`${aprobMesAnterior} el mes anterior`} icon={<ThumbsUp size={18} />} color="green" />
-          <KpiCard label="Monto aprobado total" value={fmtMoney(montoAprobado)} sub={`${rechazadasFiltradas.length} rechazadas`} icon={<TrendingUp size={18} />} color="blue" />
+          <KpiCard label="Aprobado S/" value={fmtMoney(montoAprobPEN, 'PEN')} sub={`${rechazadasFiltradas.length} rechazadas`} icon={<TrendingUp size={18} />} color="blue" />
+          <KpiCard label="Aprobado $" value={fmtMoney(montoAprobUSD, 'USD')} sub="solicitudes en dólares" icon={<DollarSign size={18} />} color="green" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -387,11 +392,13 @@ function EvaluadorDashboard() {
   if (loading) return <Spinner />
   if (error || !data) return <ErrorState />
 
-  const { enRevision, evaluadas, devueltas } = data
+  const { enRevision, evaluadas, devueltas, aprobadas: evalAprobadas, detalles: evalDetalles } = data
 
   const cmk          = currentMonthKey()
   const evaluadasMes = evaluadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
   const enRevisionMes = enRevision.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
+  const montoEvalPEN  = montoSolicitudes(evalAprobadas, evalDetalles, 'PEN')
+  const montoEvalUSD  = montoSolicitudes(evalAprobadas, evalDetalles, 'USD')
 
   const masAntiguas = [...enRevision]
     .sort((a, b) => new Date(a.fecha_creacion ?? '').getTime() - new Date(b.fecha_creacion ?? '').getTime())
@@ -414,11 +421,12 @@ function EvaluadorDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <DashHeader title="Panel Evaluador" subtitle="Solicitudes en revisión pendientes de tu evaluación" />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <KpiCard label="En cola de revisión" value={enRevision.length} sub="esperando evaluación" icon={<FileText size={18} />} color="blue" alert={enRevision.length > 0} onClick={() => navigate('/solicitudes')} />
           <KpiCard label="Promedio de espera" value={`${avgDias}d`} sub="días en revisión" icon={<Clock size={18} />} color="amber" />
           <KpiCard label="Evaluadas este mes" value={evaluadasMes} sub={`${enRevisionMes} ingresaron este mes`} icon={<CheckCircle size={18} />} color="green" />
-          <KpiCard label="Devueltas (Pendiente)" value={devueltas.length} sub="requieren corrección" icon={<RotateCcw size={18} />} color="indigo" />
+          <KpiCard label="Aprobado S/" value={fmtMoney(montoEvalPEN, 'PEN')} sub="total aprobado soles" icon={<DollarSign size={18} />} color="indigo" />
+          <KpiCard label="Aprobado $" value={fmtMoney(montoEvalUSD, 'USD')} sub="total aprobado dólares" icon={<DollarSign size={18} />} color="green" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -489,7 +497,8 @@ function VisualizadorDashboard() {
   const pmk           = prevMonthKey()
   const aprobadasMes  = aprobadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
   const aprobadasMesAnt = aprobadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === pmk).length
-  const montoAprobado = montoSolicitudes(aprobadas, detalles)
+  const montoAprobPEN = montoSolicitudes(aprobadas, detalles, 'PEN')
+  const montoAprobUSD = montoSolicitudes(aprobadas, detalles, 'USD')
   const montoMes      = montoSolicitudes(aprobadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk), detalles)
 
   return (
@@ -497,9 +506,10 @@ function VisualizadorDashboard() {
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
         <DashHeader title="Panel Finanzas" subtitle="Seguimiento de solicitudes aprobadas" />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <KpiCard label="Total aprobadas" value={aprobadas.length} sub="solicitudes aprobadas" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/solicitudes')} />
-          <KpiCard label="Monto aprobado" value={fmtMoney(montoAprobado)} sub="total acumulado" icon={<DollarSign size={18} />} color="indigo" />
+          <KpiCard label="Aprobado S/" value={fmtMoney(montoAprobPEN, 'PEN')} sub="total acumulado soles" icon={<DollarSign size={18} />} color="indigo" />
+          <KpiCard label="Aprobado $" value={fmtMoney(montoAprobUSD, 'USD')} sub="total acumulado dólares" icon={<DollarSign size={18} />} color="green" />
           <KpiCard label="Aprobadas este mes" value={aprobadasMes} sub={`${aprobadasMesAnt} el mes anterior`} icon={<TrendingUp size={18} />} color="blue" />
           <KpiCard label="Monto este mes" value={fmtMoney(montoMes)} sub="solicitudes aprobadas este mes" icon={<Receipt size={18} />} color="amber" />
         </div>
@@ -541,10 +551,9 @@ function UsuarioDashboard() {
     porEstado[nombre] = (porEstado[nombre] ?? 0) + 1
   }
 
-  const montoAprobado = montoSolicitudes(
-    solicitudes.filter(s => s.estado_soli?.nombre === 'Aprobado'),
-    detalles,
-  )
+  const solAprobadas  = solicitudes.filter(s => s.estado_soli?.nombre === 'Aprobado')
+  const montoAprobPEN = montoSolicitudes(solAprobadas, detalles, 'PEN')
+  const montoAprobUSD = montoSolicitudes(solAprobadas, detalles, 'USD')
   const activas = solicitudes.filter(s => !['Cancelado', 'Rechazado', 'Aprobado'].includes(s.estado_soli?.nombre ?? ''))
 
   const estadoItems = [
@@ -568,9 +577,10 @@ function UsuarioDashboard() {
           </button>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="Solicitudes activas" value={activas.length} sub={`de ${solicitudes.length} en total`} icon={<FileText size={18} />} color="blue" onClick={() => navigate('/solicitudes')} />
-          <KpiCard label="Monto aprobado" value={fmtMoney(montoAprobado)} sub="en solicitudes aprobadas" icon={<DollarSign size={18} />} color="green" />
+          <KpiCard label="Aprobado S/" value={fmtMoney(montoAprobPEN, 'PEN')} sub="mis solicitudes en soles" icon={<DollarSign size={18} />} color="indigo" />
+          <KpiCard label="Aprobado $" value={fmtMoney(montoAprobUSD, 'USD')} sub="mis solicitudes en dólares" icon={<DollarSign size={18} />} color="green" />
           <KpiCard label="Pendientes de envío" value={porEstado['Pendiente'] ?? 0} sub="listas para enviar a revisión" icon={<Send size={18} />} color="amber" alert={(porEstado['Pendiente'] ?? 0) > 0} onClick={() => navigate('/solicitudes')} />
         </div>
 

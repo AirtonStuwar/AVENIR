@@ -21,7 +21,7 @@ import EncuestaProveedorForm from '../features/proveedor/components/EncuestaProv
 import { getEncuestaBySolicitud } from '../features/proveedor/services/proveedorService'
 import type { Encuesta } from '../features/proveedor/types/proveedor'
 import { useAuthStore } from '../store/authStore'
-import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
+import { getUserFirmaBlob, getUserFirmaUrl } from '../features/usuario/services/usuarioService'
 import type { Solicitud, SolicitudDetalle, SolicitudArchivo, SolicitudUpdate } from '../features/solicitud/types/solicitud'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import logoUrl from '../assets/avenir-logo.png'
@@ -55,8 +55,9 @@ function fmtDate(d: string | null) {
   return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d + 'T00:00:00'))
 }
 
-function fmtMoney(n: number) {
-  return 'S/ ' + n.toLocaleString('es-PE', { minimumFractionDigits: 2 })
+function fmtMoney(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
+  const sym = moneda === 'USD' ? '$ ' : 'S/ '
+  return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })
 }
 
 const ESTADO_COLOR: Record<string, string> = {
@@ -94,9 +95,12 @@ export default function SolicitudDetallePage() {
   // Encuesta
   const [encuesta,         setEncuesta]         = useState<Encuesta | null>(null)
 
-  // Número de factura
-  const [numeroFactura,    setNumeroFactura]    = useState('')
-  const [savingFactNum,    setSavingFactNum]    = useState(false)
+  // Datos de factura
+  const [numeroFactura,        setNumeroFactura]        = useState('')
+  const [motivoFactura,        setMotivoFactura]        = useState('')
+  const [fechaEmisionFactura,  setFechaEmisionFactura]  = useState('')
+  const [fechaVencimientoFactura, setFechaVencimientoFactura] = useState('')
+  const [savingFactura,        setSavingFactura]        = useState(false)
 
   // Modales
   const [rechazoOpen,    setRechazoOpen]    = useState(false)
@@ -141,10 +145,13 @@ export default function SolicitudDetallePage() {
       .finally(() => setLoadingSol(false))
   }, [id])
 
-  // Sync número de factura desde solicitud
+  // Sync datos de factura desde solicitud
   useEffect(() => {
     setNumeroFactura(solicitud?.numero_factura ?? '')
-  }, [solicitud?.numero_factura])
+    setMotivoFactura(solicitud?.motivo_factura ?? '')
+    setFechaEmisionFactura(solicitud?.fecha_emision_factura ?? '')
+    setFechaVencimientoFactura(solicitud?.fecha_vencimiento_factura ?? '')
+  }, [solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura])
 
   // ── Derived state ──────────────────────────────────────────────
   const nombre         = solicitud?.estado_soli?.nombre ?? ''
@@ -158,7 +165,7 @@ export default function SolicitudDetallePage() {
 
   const canEdit      = isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const canDuplicar  = userRole === ROLES.USUARIO && isOwnSolicitud && (isAprobado || isCancelado || isRechazado)
-  const canShowPDF   = !isPendiente && !isRechazado && !isCancelado
+  const canShowPDF   = !isRechazado && !isCancelado
   const sustentoObligatorio   = (solicitud?.porcentaje_acumulado_contrato ?? 0) > 9
   const DOCS_OBLIGATORIOS     = sustentoObligatorio
     ? ['Contrato', 'Cotizacion', 'Sustento']
@@ -173,9 +180,8 @@ export default function SolicitudDetallePage() {
   const canAprobar   = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canRechazar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canEncuestar      = isAprobado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const hasFacturaDoc     = archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF')
-  const showNumFactura    = hasFacturaDoc || !!solicitud?.numero_factura
-  const canEditNumFactura = (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canEditFactura    = (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const showFacturaCard   = canEdit || !!solicitud?.numero_factura || !!solicitud?.motivo_factura || !!solicitud?.fecha_emision_factura || archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF')
 
   const estadoColor = ESTADO_COLOR[nombre] ?? 'bg-gray-100 text-gray-600'
 
@@ -271,9 +277,16 @@ export default function SolicitudDetallePage() {
         ? getUsuarioById(solicitud.usuario_aprobador)
         : Promise.resolve(null)
 
+      // Firma usuario: usa la del registro de solicitud; si no existe, cae al perfil del usuario actual
+      const firmaUPromise: Promise<string | null> = firmaU?.archivo_path
+        ? getArchivoUrl(firmaU.archivo_path).then(fetchAsBase64)
+        : usuarioProfile?.firma_path
+          ? getUserFirmaUrl(usuarioProfile.firma_path).then(fetchAsBase64)
+          : Promise.resolve(null)
+
       const [logoB64, firmaUB64, firmaAB64, aprobador] = await Promise.all([
         fetchAsBase64(logoUrl),
-        firmaU?.archivo_path ? getArchivoUrl(firmaU.archivo_path).then(fetchAsBase64) : Promise.resolve(null),
+        firmaUPromise,
         firmaA?.archivo_path ? getArchivoUrl(firmaA.archivo_path).then(fetchAsBase64) : Promise.resolve(null),
         aprobadorPromise,
       ])
@@ -363,20 +376,31 @@ export default function SolicitudDetallePage() {
     }
   }
 
-  // ── Número de factura ────────────────────────────────────────────
-  const handleGuardarNumFactura = async () => {
+  // ── Datos de factura ─────────────────────────────────────────────
+  const handleGuardarFactura = async () => {
     if (!solicitud || !id) return
-    setSavingFactNum(true)
+    setSavingFactura(true)
     try {
-      await updateSolicitud(solicitud.id, { numero_factura: numeroFactura.trim() || null })
-      toast.success('N° de factura guardado')
+      await updateSolicitud(solicitud.id, {
+        numero_factura:           numeroFactura.trim() || null,
+        motivo_factura:           motivoFactura.trim() || null,
+        fecha_emision_factura:    fechaEmisionFactura || null,
+        fecha_vencimiento_factura: fechaVencimientoFactura || null,
+      })
+      toast.success('Datos de factura guardados')
       await reload(id)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al guardar')
     } finally {
-      setSavingFactNum(false)
+      setSavingFactura(false)
     }
   }
+
+  const facturaHasChanges =
+    numeroFactura !== (solicitud?.numero_factura ?? '') ||
+    motivoFactura !== (solicitud?.motivo_factura ?? '') ||
+    fechaEmisionFactura !== (solicitud?.fecha_emision_factura ?? '') ||
+    fechaVencimientoFactura !== (solicitud?.fecha_vencimiento_factura ?? '')
 
   // ── Edit info general ────────────────────────────────────────────
   const handleUpdateInfo = async (payload: SolicitudUpdate) => {
@@ -542,6 +566,7 @@ export default function SolicitudDetallePage() {
             <InfoField label="Fecha pedido"    value={fmtDate(solicitud.fecha_pedido)} />
             <InfoField label="Fecha requerida" value={fmtDate(solicitud.fecha_requerida)} />
             <InfoField label="Forma de pago"   value={solicitud.solicitud_forma_pago?.nombre ?? solicitud.forma_pago} />
+            <InfoField label="Moneda"          value={solicitud.moneda === 'USD' ? '$ Dólares (USD)' : 'S/ Soles (PEN)'} />
           </div>
 
           <div className="px-6 pb-5 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-gray-50 pt-4">
@@ -600,7 +625,7 @@ export default function SolicitudDetallePage() {
               Bien o Servicio <span className="ml-1 text-gray-400 font-normal normal-case">({detalles.length} ítems)</span>
             </h2>
             <div className="flex items-center gap-3">
-              {subtotal > 0 && <span className="text-sm font-bold text-[#003D7D]">{fmtMoney(totalConIgv)}</span>}
+              {subtotal > 0 && <span className="text-sm font-bold text-[#003D7D]">{fmtMoney(totalConIgv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</span>}
               {canEdit && (
                 <button onClick={openAdd}
                   className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#003D7D] text-white text-xs font-medium hover:bg-[#002D5C] transition-all">
@@ -635,9 +660,9 @@ export default function SolicitudDetallePage() {
                       <td className="px-5 py-3 text-gray-400 text-xs">{i + 1}</td>
                       <td className="px-5 py-3 text-gray-900">{d.descripcion}</td>
                       <td className="px-5 py-3 text-right text-gray-700">{d.cantidad}</td>
-                      <td className="px-5 py-3 text-right text-gray-700">{fmtMoney(d.valor_unitario)}</td>
+                      <td className="px-5 py-3 text-right text-gray-700">{fmtMoney(d.valor_unitario, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                       <td className="px-5 py-3 text-right font-semibold text-[#003D7D]">
-                        {fmtMoney(d.valor_total ?? d.cantidad * d.valor_unitario)}
+                        {fmtMoney(d.valor_total ?? d.cantidad * d.valor_unitario, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}
                       </td>
                       {canEdit && (
                         <td className="px-5 py-3">
@@ -653,17 +678,17 @@ export default function SolicitudDetallePage() {
                 <tfoot className="bg-gray-50 border-t border-gray-100">
                   <tr>
                     <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">Subtotal</td>
-                    <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(subtotal)}</td>
+                    <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(subtotal, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                     {canEdit && <td />}
                   </tr>
                   <tr>
                     <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV (18%)</td>
-                    <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(igv)}</td>
+                    <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(igv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                     {canEdit && <td />}
                   </tr>
                   <tr className="border-t border-gray-200">
                     <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">Total general:</td>
-                    <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">{fmtMoney(totalConIgv)}</td>
+                    <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">{fmtMoney(totalConIgv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                     {canEdit && <td />}
                   </tr>
                 </tfoot>
@@ -686,8 +711,8 @@ export default function SolicitudDetallePage() {
           </div>
         )}
 
-        {/* ── N° DE FACTURA ── */}
-        {showNumFactura && (
+        {/* ── DATOS DE FACTURA ── */}
+        {showFacturaCard && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
               <CheckCircle size={15} className="text-[#003D7D]" />
@@ -697,57 +722,66 @@ export default function SolicitudDetallePage() {
               )}
             </div>
             <div className="px-6 py-5 space-y-4">
-              {/* N° Factura editable */}
-              {canEditNumFactura ? (
-                <div className="flex items-end gap-3">
-                  <div className="flex-1 max-w-xs">
-                    <label className={LABEL}>N° de Factura</label>
-                    <input
-                      type="text"
-                      value={numeroFactura}
-                      onChange={e => setNumeroFactura(e.target.value)}
-                      placeholder="Ej: F001-00123"
-                      className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
-                    />
+              {canEditFactura ? (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={LABEL}>N° de Factura</label>
+                      <input
+                        type="text"
+                        value={numeroFactura}
+                        onChange={e => setNumeroFactura(e.target.value)}
+                        placeholder="Ej: F001-00123"
+                        className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
+                      />
+                    </div>
+                    <div>
+                      <label className={LABEL}>Motivo de la factura</label>
+                      <input
+                        type="text"
+                        value={motivoFactura}
+                        onChange={e => setMotivoFactura(e.target.value)}
+                        placeholder="Ej: Compra de materiales"
+                        className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
+                      />
+                    </div>
+                    <div>
+                      <label className={LABEL}>Fecha de emisión</label>
+                      <input
+                        type="date"
+                        value={fechaEmisionFactura}
+                        onChange={e => setFechaEmisionFactura(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
+                      />
+                    </div>
+                    <div>
+                      <label className={LABEL}>Fecha de vencimiento</label>
+                      <input
+                        type="date"
+                        value={fechaVencimientoFactura}
+                        onChange={e => setFechaVencimientoFactura(e.target.value)}
+                        className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
+                      />
+                    </div>
                   </div>
-                  <button
-                    onClick={handleGuardarNumFactura}
-                    disabled={savingFactNum || numeroFactura.trim() === (solicitud.numero_factura ?? '')}
-                    className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-40 transition-colors"
-                  >
-                    {savingFactNum
-                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                      : 'Guardar'}
-                  </button>
-                </div>
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={handleGuardarFactura}
+                      disabled={savingFactura || !facturaHasChanges}
+                      className="flex items-center gap-1.5 h-9 px-5 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-40 transition-colors"
+                    >
+                      {savingFactura
+                        ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        : 'Guardar'}
+                    </button>
+                  </div>
+                </>
               ) : (
-                <div>
-                  <p className={LABEL}>N° de Factura</p>
-                  <p className="text-sm font-semibold text-gray-900 mt-0.5">{solicitud.numero_factura ?? '—'}</p>
-                </div>
-              )}
-
-              {/* Campos de sólo lectura: motivo, fechas */}
-              {(solicitud.motivo_factura || solicitud.fecha_emision_factura || solicitud.fecha_vencimiento_factura) && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-gray-50">
-                  {solicitud.motivo_factura && (
-                    <div className="md:col-span-3">
-                      <p className={LABEL}>Motivo de la factura</p>
-                      <p className="text-sm text-gray-700 mt-0.5">{solicitud.motivo_factura}</p>
-                    </div>
-                  )}
-                  {solicitud.fecha_emision_factura && (
-                    <div>
-                      <p className={LABEL}>Fecha de emisión</p>
-                      <p className="text-sm text-gray-700 mt-0.5">{fmtDate(solicitud.fecha_emision_factura)}</p>
-                    </div>
-                  )}
-                  {solicitud.fecha_vencimiento_factura && (
-                    <div>
-                      <p className={LABEL}>Fecha de vencimiento</p>
-                      <p className="text-sm text-gray-700 mt-0.5">{fmtDate(solicitud.fecha_vencimiento_factura)}</p>
-                    </div>
-                  )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <InfoField label="N° de Factura"        value={solicitud.numero_factura} />
+                  <InfoField label="Motivo de la factura" value={solicitud.motivo_factura} />
+                  <InfoField label="Fecha de emisión"     value={fmtDate(solicitud.fecha_emision_factura)} />
+                  <InfoField label="Fecha de vencimiento" value={fmtDate(solicitud.fecha_vencimiento_factura)} />
                 </div>
               )}
             </div>
