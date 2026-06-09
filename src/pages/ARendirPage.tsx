@@ -1,15 +1,19 @@
 import { useNavigate } from 'react-router-dom'
-import { Plus, Eye, Loader2, Receipt } from 'lucide-react'
+import { Plus, Eye, Loader2, Receipt, Download } from 'lucide-react'
+import ExcelJS from 'exceljs'
+import toast from 'react-hot-toast'
+import { useState } from 'react'
 import { useARendir } from '../features/arendir/hooks/useArendir'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import type { SolicitudARendir } from '../features/arendir/types/arendir'
 
-// ── Badge de estado ───────────────────────────────────────────
+// ── Badge de estado ────────────────────────────────────────────
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   const map: Record<string, string> = {
     'Pendiente':   'bg-yellow-100 text-yellow-800',
     'En Revision': 'bg-blue-100 text-blue-800',
+    'Evaluado':    'bg-purple-100 text-purple-800',
     'Autorizado':  'bg-green-100 text-green-800',
     'Rechazado':   'bg-red-100 text-red-800',
     'Devuelto':    'bg-orange-100 text-orange-800',
@@ -21,9 +25,11 @@ function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   )
 }
 
-// ── Formatters ────────────────────────────────────────────────
-function fmtMoney(val: number) {
-  return `S/ ${val.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
+// ── Formatters ─────────────────────────────────────────────────
+function fmtMoney(val: number, moneda = 'PEN') {
+  const sym = moneda === 'USD' ? '$ ' : 'S/ '
+  const loc = moneda === 'USD' ? 'en-US' : 'es-PE'
+  return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2 })}`
 }
 
 function fmtDate(val: string | null) {
@@ -31,13 +37,75 @@ function fmtDate(val: string | null) {
   return new Date(val.includes('T') ? val : val + 'T00:00:00').toLocaleDateString('es-PE')
 }
 
-// ── Page ──────────────────────────────────────────────────────
+// ── Page ───────────────────────────────────────────────────────
 export default function ARendirPage() {
-  const navigate  = useNavigate()
+  const navigate   = useNavigate()
   const { userRole } = useAuthStore()
   const { data, total, page, pageSize, totalPages, loading, setPage, refresh } = useARendir()
 
-  const canCreate = userRole === ROLES.USUARIO || userRole === ROLES.ADMIN
+  const canCreate      = userRole === ROLES.USUARIO || userRole === ROLES.ADMIN
+  const isVisualizador = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
+
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (selectedIds.size === data.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(data.map(d => d.id)))
+    }
+  }
+
+  async function handleExport() {
+    const selected = data.filter(s => selectedIds.has(s.id))
+    if (selected.length === 0) return
+
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Pagos A Rendir')
+
+    ws.addRow([
+      'DOI tipo', 'DOI Numero', 'Tipo abono', 'Cuenta', 'Nombre del beneficiario',
+      'Importe abonar', 'Tipo recibo', 'Numero documento', 'Abono Agrupado', 'Referencia',
+      'Indicador de Aviso', 'Medio de aviso', 'Persona Contacto', 'Validacion',
+    ])
+
+    selected.forEach((s, idx) => {
+      ws.addRow([
+        'L',
+        s.beneficiario_dni ?? '',
+        s.banco === 'BBVA' ? 'P' : 'I',
+        s.numero_cuenta ?? '',
+        s.beneficiario_nombre ?? '',
+        s.total_reembolso ?? 0,
+        'B',
+        String(idx + 1).padStart(3, '0'),
+        'N',
+        'A Rendir',
+        'E',
+        s.beneficiario_email ?? '',
+        '',
+        '',
+      ])
+    })
+
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url    = URL.createObjectURL(blob)
+    const a      = document.createElement('a')
+    a.href       = url
+    a.download   = `arendir_pagos_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`Excel generado con ${selected.length} registro${selected.length > 1 ? 's' : ''}`)
+  }
 
   return (
     <div className="p-6 space-y-4">
@@ -53,15 +121,26 @@ export default function ARendirPage() {
             <p className="text-sm text-gray-500">{total} registro{total !== 1 ? 's' : ''}</p>
           </div>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => navigate('/arendir/nueva')}
-            className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-sm font-semibold hover:bg-[#002D5C] transition-colors"
-          >
-            <Plus size={16} />
-            Nueva solicitud
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {isVisualizador && selectedIds.size > 0 && (
+            <button
+              onClick={handleExport}
+              className="flex items-center gap-2 h-9 px-4 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 transition-colors"
+            >
+              <Download size={15} />
+              Excel ({selectedIds.size})
+            </button>
+          )}
+          {canCreate && (
+            <button
+              onClick={() => navigate('/arendir/nueva')}
+              className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-sm font-semibold hover:bg-[#002D5C] transition-colors"
+            >
+              <Plus size={16} />
+              Nueva solicitud
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Table card */}
@@ -89,6 +168,16 @@ export default function ARendirPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50">
+                  {isVisualizador && (
+                    <th className="px-4 py-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === data.length && data.length > 0}
+                        onChange={toggleAll}
+                        className="rounded"
+                      />
+                    </th>
+                  )}
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Código</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Beneficiario</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Proyecto</th>
@@ -102,6 +191,16 @@ export default function ARendirPage() {
               <tbody className="divide-y divide-gray-50">
                 {data.map(item => (
                   <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                    {isVisualizador && (
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(item.id)}
+                          onChange={() => toggleSelect(item.id)}
+                          className="rounded"
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-3 font-mono text-xs text-[#003D7D] font-semibold">
                       {item.codigo ?? `#${item.id}`}
                     </td>
@@ -112,10 +211,10 @@ export default function ARendirPage() {
                       {item.proyecto?.nombre ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                      {fmtMoney(item.importe)}
+                      {fmtMoney(item.importe, item.moneda)}
                     </td>
                     <td className="px-4 py-3 text-right text-gray-600">
-                      {fmtMoney(item.total_reembolso)}
+                      {fmtMoney(item.total_reembolso, item.moneda)}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <EstadoBadge estado={item.estado} />

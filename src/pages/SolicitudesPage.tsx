@@ -94,7 +94,7 @@ export default function SolicitudesPage() {
       ws.addRow([
         s.ruc?.length === 11 ? 'R' : 'L',
         s.ruc ?? '',
-        s.numero_cuenta?.length === 20 ? 'I' : 'P',
+        s.banco === 'BBVA' ? 'P' : 'I',
         s.numero_cuenta ?? '',
         s.razon_social ?? '',
         s.monto_total ?? 0,

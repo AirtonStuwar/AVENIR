@@ -6,13 +6,14 @@ import type {
 import { ROLES } from '../../solicitud/types/solicitud'
 
 const BUCKET = 'arendir-documentos'
-const SEL = '*, proyecto:proyecto_id(id,nombre)'
+const SEL = '*, proyecto:proyecto_id(id,nombre), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)'
 
 // ── Enrich helper ──────────────────────────────────────────────
 async function enrichARendir(items: SolicitudARendir[]): Promise<SolicitudARendir[]> {
   const uids = [...new Set([
     ...items.map(i => i.beneficiario_id).filter(Boolean),
     ...items.map(i => i.usuario_aprobador).filter(Boolean),
+    ...items.map(i => i.usuario_evaluador).filter(Boolean),
   ])] as string[]
   if (uids.length === 0) return items
   const { data: users } = await supabase
@@ -27,6 +28,7 @@ async function enrichARendir(items: SolicitudARendir[]): Promise<SolicitudARendi
     beneficiario_dni:    map[i.beneficiario_id ?? '']?.dni ?? null,
     beneficiario_cargo:  map[i.beneficiario_id ?? '']?.cargo ?? null,
     aprobador_nombre:    map[i.usuario_aprobador ?? '']?.nombre_completo ?? null,
+    evaluador_nombre:    map[i.usuario_evaluador ?? '']?.nombre_completo ?? null,
   }))
 }
 
@@ -35,6 +37,10 @@ export async function getARendir(filtros: ARendirFiltros = {}): Promise<ARendirP
   const { page = 1, pageSize = 10, role, userId, estado } = filtros
   let q = supabase.from('solicitud_arendir').select(SEL, { count: 'exact' })
   if (role === ROLES.USUARIO && userId) q = q.eq('beneficiario_id', userId)
+  if (role === ROLES.EVALUADOR && userId) {
+    q = q.or(`estado.eq.En Revision,usuario_evaluador.eq.${userId}`)
+  }
+  if (role === ROLES.VISUALIZADOR) q = q.eq('estado', 'Autorizado')
   if (estado) q = q.eq('estado', estado)
   q = q.order('fecha_creacion', { ascending: false })
        .range((page - 1) * pageSize, page * pageSize - 1)
@@ -68,13 +74,33 @@ export async function updateARendir(id: number, payload: Partial<SolicitudARendi
   if (error) throw error
 }
 
-// ── Estado helpers ────────────────────────────────────────────
+// ── Estado helpers ─────────────────────────────────────────────
 export async function enviarARendir(id: number): Promise<void> {
   const { error } = await supabase.from('solicitud_arendir')
     .update({ estado: 'En Revision' }).eq('id', id)
   if (error) throw error
 }
 
+/** EVALUADOR asigna plan contable → Evaluado */
+export async function marcarEvaluadoARendir(
+  id: number,
+  planContableId: number,
+  evaluadorId: string,
+): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Evaluado', plan_contable_id: planContableId, usuario_evaluador: evaluadorId })
+    .eq('id', id)
+  if (error) throw error
+}
+
+/** EVALUADOR devuelve desde En Revision */
+export async function devolverDesdeRevision(id: number, comentario: string): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Devuelto', comentario }).eq('id', id)
+  if (error) throw error
+}
+
+/** APROBADOR autoriza → Autorizado (requiere firma cargada antes) */
 export async function autorizarARendir(id: number, aprobadorId: string): Promise<void> {
   const { error } = await supabase.from('solicitud_arendir')
     .update({ estado: 'Autorizado', usuario_aprobador: aprobadorId, fecha_aprobacion: new Date().toISOString() })
@@ -94,7 +120,7 @@ export async function devolverARendir(id: number, comentario: string): Promise<v
   if (error) throw error
 }
 
-// ── Detalle ───────────────────────────────────────────────────
+// ── Detalle ────────────────────────────────────────────────────
 export async function addDetalle(payload: ARendirDetalleInsert): Promise<ARendirDetalle> {
   const { data, error } = await supabase
     .from('solicitud_arendir_detalle').insert(payload).select().single()
@@ -126,7 +152,7 @@ export async function recalcTotal(solicitudId: number): Promise<void> {
   await supabase.from('solicitud_arendir').update({ total_reembolso: total }).eq('id', solicitudId)
 }
 
-// ── Storage ───────────────────────────────────────────────────
+// ── Storage ────────────────────────────────────────────────────
 export async function uploadSustento(file: File, solicitudId: number): Promise<string> {
   const ext  = file.name.split('.').pop()
   const path = `${solicitudId}/sustento/${Date.now()}.${ext}`
@@ -159,4 +185,23 @@ export async function uploadFirmaARendir(
     .upload(path, blob, { contentType: 'image/png', upsert: true })
   if (error) throw error
   return path
+}
+
+// ── Dashboard helpers ──────────────────────────────────────────
+export interface ARendirRow {
+  id: number
+  importe: number
+  moneda: string
+  total_reembolso: number
+  estado: string
+}
+
+/** Devuelve todos los A Rendir autorizados para KPIs del dashboard */
+export async function getARendirAutorizados(): Promise<ARendirRow[]> {
+  const { data, error } = await supabase
+    .from('solicitud_arendir')
+    .select('id, importe, moneda, total_reembolso, estado')
+    .in('estado', ['Evaluado', 'Autorizado'])
+  if (error) throw error
+  return (data ?? []) as ARendirRow[]
 }

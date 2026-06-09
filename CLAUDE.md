@@ -42,13 +42,15 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `/arendir`, `/arendir/nueva`, `/arendir/:id` — A Rendir module, also behind `ProtectedRoute`
 - Catch-all redirects to `/dashboard`
 
-**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `usuario`, `proveedor`, `encuesta_proveedor`, `plan_contable_brash`.
+**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `usuario`, `proveedor`, `encuesta_proveedor`, `plan_contable_brash`, `solicitud_arendir`, `solicitud_arendir_detalle`.
 
 El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no se usa ni se escribe. La columna puede seguir existiendo en la BD sin afectar nada.
 
 **`usuario`** — perfil extendido 1:1 con `auth.users`. Campos: `id` (UUID FK), `nombres`, `apellidos`, `nombre_completo` (GENERATED: nombres || apellidos), `correo`, `cargo`, `dni`, `firma_path` (path en bucket `firmas-usuario`). Un trigger `on_auth_user_created` crea la fila automáticamente en cada signup. `enrichSolicitudes` consulta esta tabla para `creador_nombre`, `creador_email` y `creador_cargo`. La vista `vista_creadores` fue eliminada — ya no es necesaria.
 
 `area_usuario` links users to areas; only rows with `estado = 1` are treated as active when enriching solicitudes with area names.
+
+**`usuarioService.ts`** (`src/features/usuario/services/usuarioService.ts`) — standalone service with no types or hooks of its own; imports `Usuario` from `src/features/solicitud/types/solicitud.ts`. Exports: `updateUsuarioPerfil` (nombres/apellidos/cargo), `changePassword`, `saveUserFirma`, `deleteUserFirma`, `getUserFirmaUrl`, `getUserFirmaBlob`. Note: `usuario.dni` is saved directly via inline Supabase call in `ARendirNuevaPage` (Step 1), not through this service.
 
 **Supabase Storage:** Dos buckets relevantes:
 - `solicitud-archivos` — documentos y firmas por solicitud. Signed URLs con 1 hora de expiración. Storage path: `{solicitudId}/{tipoArchivo}/{timestamp}.{ext}`. Tipos de firma: `Firma_Usuario`, `Firma_Aprobador` (se suben al ejecutar `enviarARevision` / `aprobarSolicitud`).
@@ -187,12 +189,17 @@ Gestión de **rendición de gastos con adelantos**. Un empleado solicita un adel
 ```
 Pendiente
   ↓ USUARIO/ADMIN → enviarARendir
-En Revision
-  ├─ APROBADOR/ADMIN → autorizarARendir → Autorizado (final ✅)
-  ├─ APROBADOR/ADMIN → rechazarARendir  → Rechazado  (final ❌)
+En Revision (EVALUADOR/ADMIN asigna plan_contable_id)
+  ├─ EVALUADOR/ADMIN → marcarEvaluadoARendir(planId, userId) → Evaluado
+  └─ EVALUADOR/ADMIN → devolverDesdeRevision → Devuelto
+Evaluado (APROBADOR/ADMIN aprueba/devuelve/rechaza)
+  ├─ APROBADOR/ADMIN → autorizarARendir (requiere firma) → Autorizado ✅ (monto cuenta en dashboard)
+  ├─ APROBADOR/ADMIN → rechazarARendir  → Rechazado ❌
   └─ APROBADOR/ADMIN → devolverARendir  → Devuelto
                                                ↓ USUARIO/ADMIN → enviarARendir
                                             En Revision
+Autorizado
+  └─ VISUALIZADOR/ADMIN → registrarContabilidad → Contabilidad (final ✅)
 ```
 
 **Wizard de creación (2 pasos):**
@@ -210,12 +217,14 @@ En Revision
 **Enriquecimiento:** `enrichARendir()` consulta tabla `usuario` para obtener `beneficiario_nombre`, `beneficiario_email`, `beneficiario_cargo` y `aprobador_nombre`.
 
 **Diferencias clave vs. módulo Solicitud (OC):**
-- Sin moneda — solo S/ (PEN)
+- Con moneda PEN/USD (campo `moneda`, DEFAULT 'PEN') — se elige en Step 1 del wizard
 - Sin IGV
-- Sin plan contable ni evaluador
+- Plan contable asignado por EVALUADOR (rol 8 = Administración) igual que en Solicitud
 - Sin encuesta de proveedor
 - Solo 2 pasos en el wizard (vs 4)
-- Estados propios: Autorizado en lugar de Aprobado; sin estado Evaluado
+- Estados propios: `Autorizado` (en lugar de Aprobado) + `Contabilidad` (estado final, VISUALIZADOR/10)
+- El monto cuenta en el dashboard cuando `estado = 'Autorizado'` o `'Contabilidad'`
+- Excel BBVA en `ARendirPage` disponible para VISUALIZADOR (selección múltiple + botón "Excel")
 
 **`useArendir` hook:** estado local (data, total, page, totalPages, loading), pageSize fijo de 10, filtra por rol/userId automáticamente, expone `setPage` y `refresh`.
 

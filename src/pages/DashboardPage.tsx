@@ -16,7 +16,7 @@ import {
   getProveedorMetricas,
   type DashboardData, type AprobadorData, type EvaluadorData,
   type VisualizadorData, type UsuarioData, type SolicitudRow,
-  type ProveedorMetricasData,
+  type ProveedorMetricasData, type ARendirRow,
 } from '../features/dashboard/services/dashboardService'
 import { ROLES } from '../features/solicitud/types/solicitud'
 
@@ -91,6 +91,12 @@ function montoSolicitudes(sols: SolicitudRow[], detalles: { solicitud_id: number
   return detalles.filter(d => ids.has(d.solicitud_id)).reduce((sum, d) => sum + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
 }
 
+function montoARendir(rows: ARendirRow[], moneda: 'PEN' | 'USD') {
+  return rows
+    .filter(r => (r.moneda ?? 'PEN') === moneda)
+    .reduce((sum, r) => sum + (r.total_reembolso ?? r.importe ?? 0), 0)
+}
+
 // ── main component ───────────────────────────────────────────────
 export function DashboardPage() {
   const { userRole } = useAuthStore()
@@ -123,7 +129,7 @@ function AdminDashboard() {
   if (loading) return <Spinner />
   if (error || !data) return <ErrorState />
 
-  const { solicitudes, proyectos, detalles } = data
+  const { solicitudes, proyectos, detalles, arendir } = data
 
   const porEstado = solicitudes.reduce<Record<string, number>>((acc, s) => {
     const t = s.estado_soli?.nombre ?? 'Sin estado'
@@ -137,6 +143,8 @@ function AdminDashboard() {
   const montoAprobPEN  = montoSolicitudes(aprobadas, detalles, 'PEN')
   const montoAprobUSD  = montoSolicitudes(aprobadas, detalles, 'USD')
   const montoTotal     = montoSolicitudes(solicitudes, detalles)
+  const arendirPEN     = montoARendir(arendir, 'PEN')
+  const arendirUSD     = montoARendir(arendir, 'USD')
 
   const donutData = Object.entries(porEstado).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }))
 
@@ -175,6 +183,14 @@ function AdminDashboard() {
           <KpiCard label="Proyectos activos" value={proyActivos} sub={`${proyectos.length - proyActivos} inactivos`} icon={<FolderOpen size={18} />} color="green" onClick={() => navigate('/proyectos')} />
           <KpiCard label="Aprobado S/" value={fmtMoney(montoAprobPEN, 'PEN')} sub={`${fmtMoney(montoTotal)} potencial`} icon={<DollarSign size={18} />} color="indigo" />
           <KpiCard label="Aprobado $" value={fmtMoney(montoAprobUSD, 'USD')} sub="solicitudes en dólares" icon={<DollarSign size={18} />} color="green" />
+        </div>
+
+        {/* KPIs A Rendir */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard label="A Rendir autorizado S/" value={fmtMoney(arendirPEN, 'PEN')} sub={`${arendir.filter(a => (a.moneda ?? 'PEN') === 'PEN').length} registros soles`} icon={<Receipt size={18} />} color="teal" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir autorizado $" value={fmtMoney(arendirUSD, 'USD')} sub={`${arendir.filter(a => (a.moneda ?? 'PEN') === 'USD').length} registros dólares`} icon={<Receipt size={18} />} color="blue" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir autorizados" value={arendir.length} sub="total autorizados" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir evaluados" value={arendir.filter(a => a.estado === 'Evaluado').length} sub="esperando autorización" icon={<FileText size={18} />} color="amber" alert={arendir.filter(a => a.estado === 'Evaluado').length > 0} onClick={() => navigate('/arendir')} />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -278,7 +294,7 @@ function AprobadorDashboard() {
   if (loading) return <Spinner />
   if (error || !data) return <ErrorState />
 
-  const { enCola, aprobadas, rechazadas, proyectos, detalles } = data
+  const { enCola, aprobadas, rechazadas, proyectos, detalles, arendir } = data
 
   const applyFilter = <T extends SolicitudRow>(list: T[]) =>
     proyectoFilter ? list.filter(s => s.proyecto_id === proyectoFilter) : list
@@ -286,6 +302,8 @@ function AprobadorDashboard() {
   const colaFiltrada      = applyFilter(enCola)
   const aprobadasFiltradas = applyFilter(aprobadas)
   const rechazadasFiltradas = applyFilter(rechazadas)
+  const arendirPEN         = montoARendir(arendir, 'PEN')
+  const arendirUSD         = montoARendir(arendir, 'USD')
 
   const montoCola      = montoSolicitudes(colaFiltrada, detalles)
   const montoAprobPEN  = montoSolicitudes(aprobadasFiltradas, detalles, 'PEN')
@@ -328,6 +346,14 @@ function AprobadorDashboard() {
           <KpiCard label="Aprobadas este mes" value={aprobMes} sub={`${aprobMesAnterior} el mes anterior`} icon={<ThumbsUp size={18} />} color="green" />
           <KpiCard label="Aprobado S/" value={fmtMoney(montoAprobPEN, 'PEN')} sub={`${rechazadasFiltradas.length} rechazadas`} icon={<TrendingUp size={18} />} color="blue" />
           <KpiCard label="Aprobado $" value={fmtMoney(montoAprobUSD, 'USD')} sub="solicitudes en dólares" icon={<DollarSign size={18} />} color="green" />
+        </div>
+
+        {/* KPIs A Rendir */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard label="A Rendir S/" value={fmtMoney(arendirPEN, 'PEN')} sub="total autorizado soles" icon={<Receipt size={18} />} color="teal" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir $" value={fmtMoney(arendirUSD, 'USD')} sub="total autorizado dólares" icon={<Receipt size={18} />} color="blue" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir pend. aprob." value={arendir.filter(a => a.estado === 'Evaluado').length} sub="evaluados, esperan tu firma" icon={<Hourglass size={18} />} color="amber" alert={arendir.filter(a => a.estado === 'Evaluado').length > 0} onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir autorizados" value={arendir.filter(a => a.estado === 'Autorizado').length} sub="finalizados" icon={<CheckCircle size={18} />} color="green" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -491,7 +517,7 @@ function VisualizadorDashboard() {
   if (loading) return <Spinner />
   if (error || !data) return <ErrorState />
 
-  const { aprobadas, detalles } = data
+  const { aprobadas, detalles, arendir } = data
 
   const cmk           = currentMonthKey()
   const pmk           = prevMonthKey()
@@ -500,18 +526,29 @@ function VisualizadorDashboard() {
   const montoAprobPEN = montoSolicitudes(aprobadas, detalles, 'PEN')
   const montoAprobUSD = montoSolicitudes(aprobadas, detalles, 'USD')
   const montoMes      = montoSolicitudes(aprobadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk), detalles)
+  const arendirPEN    = montoARendir(arendir, 'PEN')
+  const arendirUSD    = montoARendir(arendir, 'USD')
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
-        <DashHeader title="Panel Finanzas" subtitle="Seguimiento de solicitudes aprobadas" />
+        <DashHeader title="Panel Finanzas / Contabilidad" subtitle="Seguimiento de solicitudes aprobadas y A Rendir" />
 
+        {/* KPIs Solicitudes */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <KpiCard label="Total aprobadas" value={aprobadas.length} sub="solicitudes aprobadas" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/solicitudes')} />
           <KpiCard label="Aprobado S/" value={fmtMoney(montoAprobPEN, 'PEN')} sub="total acumulado soles" icon={<DollarSign size={18} />} color="indigo" />
           <KpiCard label="Aprobado $" value={fmtMoney(montoAprobUSD, 'USD')} sub="total acumulado dólares" icon={<DollarSign size={18} />} color="green" />
           <KpiCard label="Aprobadas este mes" value={aprobadasMes} sub={`${aprobadasMesAnt} el mes anterior`} icon={<TrendingUp size={18} />} color="blue" />
           <KpiCard label="Monto este mes" value={fmtMoney(montoMes)} sub="solicitudes aprobadas este mes" icon={<Receipt size={18} />} color="amber" />
+        </div>
+
+        {/* KPIs A Rendir */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard label="A Rendir S/" value={fmtMoney(arendirPEN, 'PEN')} sub="total autorizado soles" icon={<Receipt size={18} />} color="teal" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir $" value={fmtMoney(arendirUSD, 'USD')} sub="total autorizado dólares" icon={<Receipt size={18} />} color="blue" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir autorizados" value={arendir.filter(a => a.estado === 'Autorizado').length} sub="total autorizados" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir en evaluación" value={arendir.filter(a => a.estado === 'Evaluado').length} sub="esperando autorización gerencia" icon={<Hourglass size={18} />} color="amber" onClick={() => navigate('/arendir')} />
         </div>
 
         <SolicitudTable
@@ -727,13 +764,14 @@ function DashHeader({ title, subtitle }: { title: string; subtitle?: string }) {
   )
 }
 
-type KpiColor = 'amber' | 'blue' | 'green' | 'indigo'
+type KpiColor = 'amber' | 'blue' | 'green' | 'indigo' | 'teal'
 
 const KPI_STYLES: Record<KpiColor, { icon: string; val: string; border: string }> = {
   amber:  { icon: 'bg-amber-100 text-amber-600',   val: 'text-amber-700',   border: 'border-amber-100'  },
   blue:   { icon: 'bg-blue-100 text-blue-600',     val: 'text-[#003D7D]',   border: 'border-blue-100'   },
   green:  { icon: 'bg-green-100 text-green-600',   val: 'text-green-700',   border: 'border-green-100'  },
   indigo: { icon: 'bg-indigo-100 text-indigo-600', val: 'text-indigo-700',  border: 'border-indigo-100' },
+  teal:   { icon: 'bg-teal-100 text-teal-600',     val: 'text-teal-700',    border: 'border-teal-100'   },
 }
 
 function KpiCard({ label, value, sub, icon, color, alert, onClick }: {

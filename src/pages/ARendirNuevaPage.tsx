@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
+import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import {
   createARendir,
@@ -72,8 +73,11 @@ export default function ARendirNuevaPage() {
   // Step 1 form
   const [dniEdit, setDniEdit] = useState(usuarioProfile?.dni ?? '')
   const [proyectoId, setProyectoId] = useState<string>('')
+  const [moneda, setMoneda] = useState<'PEN' | 'USD'>('PEN')
   const [importe, setImporte] = useState('')
   const [fechaRendicion, setFechaRendicion] = useState('')
+  const [banco, setBanco] = useState('')
+  const [numeroCuenta, setNumeroCuenta] = useState('')
   const [sustentoFile, setSustentoFile] = useState<File | null>(null)
 
   // Step 2
@@ -108,8 +112,11 @@ export default function ARendirNuevaPage() {
         beneficiario_id: user.id,
         proyecto_id: proyectoId ? Number(proyectoId) : null,
         importe: Number(importe),
+        moneda,
         fecha_rendicion: fechaRendicion || null,
         estado: 'Pendiente',
+        banco: banco || null,
+        numero_cuenta: numeroCuenta || null,
         documento_sustento_path: null,
       })
 
@@ -328,9 +335,24 @@ export default function ARendirNuevaPage() {
               </select>
             </div>
 
+            {/* Moneda */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Moneda</label>
+              <select
+                value={moneda}
+                onChange={e => setMoneda(e.target.value as 'PEN' | 'USD')}
+                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] bg-white"
+              >
+                <option value="PEN">S/ Soles (PEN)</option>
+                <option value="USD">$ Dólares (USD)</option>
+              </select>
+            </div>
+
             {/* Importe */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Importe adelanto (S/)</label>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                Importe adelanto ({moneda === 'USD' ? '$' : 'S/'})
+              </label>
               <input
                 type="number"
                 value={importe}
@@ -350,6 +372,35 @@ export default function ARendirNuevaPage() {
                 value={fechaRendicion}
                 onChange={e => setFechaRendicion(e.target.value)}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D]"
+              />
+            </div>
+
+            {/* Banco */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Banco</label>
+              <select
+                value={banco}
+                onChange={e => { setBanco(e.target.value); setNumeroCuenta('') }}
+                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] bg-white"
+              >
+                <option value="">— Seleccionar banco —</option>
+                {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+
+            {/* Número de cuenta / CCI */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                {banco ? labelNumeroCuenta(banco) : 'Número de cuenta / CCI'}
+              </label>
+              <input
+                type="text"
+                value={numeroCuenta}
+                onChange={e => setNumeroCuenta(e.target.value)}
+                maxLength={banco ? maxLengthNumeroCuenta(banco) : 20}
+                placeholder={banco ? placeholderNumeroCuenta(banco) : '—'}
+                disabled={!banco}
+                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] disabled:bg-gray-50 disabled:text-gray-400"
               />
             </div>
 
@@ -390,7 +441,7 @@ export default function ARendirNuevaPage() {
           {/* Info card */}
           <div className="bg-[#003D7D]/[0.04] border border-[#003D7D]/20 rounded-2xl px-5 py-3 flex items-center gap-4 text-sm">
             <span className="font-mono font-bold text-[#003D7D]">{solicitudCreada.codigo}</span>
-            <span className="text-gray-600">Importe adelanto: <strong>S/ {Number(importe).toLocaleString('es-PE', { minimumFractionDigits: 2 })}</strong></span>
+            <span className="text-gray-600">Importe adelanto: <strong>{moneda === 'USD' ? '$' : 'S/'} {Number(importe).toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })}</strong></span>
           </div>
 
           {/* Detail table */}
@@ -512,7 +563,7 @@ export default function ARendirNuevaPage() {
                       Total a reembolsar:
                     </td>
                     <td className="px-3 py-2.5 text-right font-bold text-[#003D7D] text-sm">
-                      S/ {totalDetalle.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                      {moneda === 'USD' ? '$' : 'S/'} {totalDetalle.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })}
                     </td>
                     <td colSpan={2} />
                   </tr>
@@ -524,10 +575,14 @@ export default function ARendirNuevaPage() {
           {/* Saldo info */}
           {importe && (
             <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 text-sm text-amber-800">
-              {Number(importe) - totalDetalle >= 0
-                ? `El usuario debe devolver: S/ ${(Number(importe) - totalDetalle).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-                : `La empresa reembolsa al usuario: S/ ${(totalDetalle - Number(importe)).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-              }
+              {(() => {
+              const sym = moneda === 'USD' ? '$' : 'S/'
+              const loc = moneda === 'USD' ? 'en-US' : 'es-PE'
+              const diff = Number(importe) - totalDetalle
+              return diff >= 0
+                ? `El usuario debe devolver: ${sym} ${diff.toLocaleString(loc, { minimumFractionDigits: 2 })}`
+                : `La empresa reembolsa al usuario: ${sym} ${Math.abs(diff).toLocaleString(loc, { minimumFractionDigits: 2 })}`
+            })()}
             </div>
           )}
 

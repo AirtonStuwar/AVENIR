@@ -1,4 +1,7 @@
 import { supabase } from '../../../api/supabase'
+import { getARendirAutorizados, type ARendirRow } from '../../arendir/services/arendirService'
+
+export type { ARendirRow }
 
 const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, moneda, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre)'
 
@@ -36,14 +39,16 @@ export interface DashboardData {
   solicitudes: SolicitudRow[]
   proyectos: ProyectoRow[]
   detalles: DetalleRow[]
+  arendir: ARendirRow[]
 }
 
 // ── Admin ────────────────────────────────────────────────────────
 export async function getDashboardData(): Promise<DashboardData> {
-  const [solRes, proyRes, detRes] = await Promise.all([
+  const [solRes, proyRes, detRes, arendir] = await Promise.all([
     supabase.from('solicitud').select(SOL_SELECT).order('fecha_creacion', { ascending: false }),
     supabase.from('proyecto').select('id, nombre, estado, presupuesto, fecha_inicio, fecha_fin'),
     supabase.from('solicitud_detalle').select('solicitud_id, valor_total, cantidad, valor_unitario'),
+    getARendirAutorizados(),
   ])
   if (solRes.error) throw solRes.error
   if (proyRes.error) throw proyRes.error
@@ -52,6 +57,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     solicitudes: (solRes.data ?? []) as unknown as SolicitudRow[],
     proyectos:   (proyRes.data ?? []) as ProyectoRow[],
     detalles:    (detRes.data ?? []) as DetalleRow[],
+    arendir,
   }
 }
 
@@ -62,10 +68,11 @@ export interface AprobadorData {
   rechazadas: SolicitudRow[] // estado = Rechazado
   proyectos: ProyectoRow[]
   detalles: DetalleRow[]
+  arendir: ARendirRow[]
 }
 
 export async function getAprobadorData(): Promise<AprobadorData> {
-  const [solRes, proyRes, detRes] = await Promise.all([
+  const [solRes, proyRes, detRes, arendir] = await Promise.all([
     supabase
       .from('solicitud')
       .select(SOL_SELECT)
@@ -73,6 +80,7 @@ export async function getAprobadorData(): Promise<AprobadorData> {
       .order('fecha_creacion', { ascending: false }),
     supabase.from('proyecto').select('id, nombre, estado, presupuesto'),
     supabase.from('solicitud_detalle').select('solicitud_id, valor_total, cantidad, valor_unitario'),
+    getARendirAutorizados(),
   ])
   if (solRes.error) throw solRes.error
   if (proyRes.error) throw proyRes.error
@@ -85,6 +93,7 @@ export async function getAprobadorData(): Promise<AprobadorData> {
     rechazadas: all.filter(s => s.estado_soli?.nombre === 'Rechazado'),
     proyectos: (proyRes.data ?? []) as ProyectoRow[],
     detalles:  (detRes.data ?? []) as DetalleRow[],
+    arendir,
   }
 }
 
@@ -119,15 +128,17 @@ export async function getEvaluadorData(): Promise<EvaluadorData> {
 export interface VisualizadorData {
   aprobadas: SolicitudRow[]
   detalles: DetalleRow[]
+  arendir: ARendirRow[]
 }
 
 export async function getVisualizadorData(): Promise<VisualizadorData> {
-  const [solRes, detRes] = await Promise.all([
+  const [solRes, detRes, arendir] = await Promise.all([
     supabase
       .from('solicitud')
       .select(SOL_SELECT)
       .order('fecha_creacion', { ascending: false }),
     supabase.from('solicitud_detalle').select('solicitud_id, valor_total, cantidad, valor_unitario'),
+    getARendirAutorizados(),
   ])
   if (solRes.error) throw solRes.error
   if (detRes.error) throw detRes.error
@@ -136,6 +147,7 @@ export async function getVisualizadorData(): Promise<VisualizadorData> {
   return {
     aprobadas: all.filter(s => s.estado_soli?.nombre === 'Aprobado'),
     detalles:  (detRes.data ?? []) as DetalleRow[],
+    arendir,
   }
 }
 
