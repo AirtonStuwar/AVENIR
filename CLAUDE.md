@@ -109,9 +109,9 @@ Order of cards in detail page: **Info general → Detalles → Documentos → Da
 
 **Dashboard** renders a dedicated panel per role via `DashboardPage.tsx` which branches on `userRole`:
 - `ADMIN` — KPIs globales, dona por estado, barras mensual/proyectos, tabla de pendientes, panel de métricas de proveedores. Usa `getDashboardData()` + `getProveedorMetricas()`.
-- `APROBADOR` — cola de aprobación, montos, dona Aprobadas/Rechazadas/en cola, filtro por proyecto (client-side), panel de métricas de proveedores. Usa `getAprobadorData()` + `getProveedorMetricas()`.
+- `APROBADOR` — cola de aprobación, montos, dona Aprobadas/Rechazadas/en cola, filtro por proyecto (client-side), KPIs de A Rendir, **tarjetas de totales consolidados** ("Total comprometido S/" y "Total comprometido $" = OC Aprobadas + A Rendir Autorizados con desglose), panel de métricas de proveedores. Usa `getAprobadorData()` + `getProveedorMetricas()`.
 - `EVALUADOR` — cola En Revision, promedio de días de espera, lista de más antiguas con alerta ≥3 días. Usa `getEvaluadorData()`.
-- `VISUALIZADOR` — solicitudes aprobadas, montos totales, tabla de aprobadas. Usa `getVisualizadorData()`.
+- `VISUALIZADOR` — solicitudes aprobadas, montos totales, KPIs de A Rendir (Evaluado + Autorizado), tabla de aprobadas. Usa `getVisualizadorData()`.
 - `USUARIO` — mis solicitudes, breakdown por estado, monto aprobado (estado Aprobado), acceso rápido a nueva solicitud. Usa `getUsuarioData(userId)`.
 
 Cada función de servicio en `dashboardService.ts` hace sus propias queries optimizadas y devuelve solo los datos relevantes al rol.
@@ -164,11 +164,16 @@ Gestión de **rendición de gastos con adelantos**. Un empleado solicita un adel
 - `id`, `codigo` (auto-generado por trigger), `beneficiario_id` (UUID FK auth.users)
 - `proyecto_id` (FK → proyecto, nullable)
 - `importe` (numeric) — monto del adelanto solicitado
+- `moneda` (text) — `'PEN'` | `'USD'`, elegido en Step 1 del wizard
+- `banco` (text, nullable) — banco del beneficiario (lista de `bancos.ts`)
+- `numero_cuenta` (text, nullable) — número de cuenta (BBVA, 18 dígitos) o CCI (otros bancos, 20 dígitos)
+- `numero_pago` (integer, nullable) — correlativo mensual asignado automáticamente por trigger `trg_assign_numero_pago` al crear el registro; reinicia cada mes (`MAX(numero_pago del mes) + 1`). No se usa en el PDF; se usa como fallback si se necesita referencia interna.
 - `fecha_rendicion` (date, nullable) — fecha límite de rendición
 - `total_reembolso` (numeric) — suma de los detalles, recalculada automáticamente
 - `documento_sustento_path` (text, nullable) — path en storage del sustento general
-- `estado` (text): `'Pendiente'` | `'En Revision'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'`
+- `estado` (text): `'Pendiente'` | `'En Revision'` | `'Evaluado'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'`
 - `usuario_aprobador` (uuid, nullable), `fecha_aprobacion` (timestamp, nullable)
+- `usuario_evaluador` (uuid, nullable), `plan_contable_id` (FK → `plan_contable_brash`, nullable)
 - `comentario` (text, nullable) — motivo de rechazo o devolución
 - `fecha_creacion` (timestamp)
 
@@ -189,44 +194,78 @@ Gestión de **rendición de gastos con adelantos**. Un empleado solicita un adel
 ```
 Pendiente
   ↓ USUARIO/ADMIN → enviarARendir
-En Revision (EVALUADOR/ADMIN asigna plan_contable_id)
+En Revision
   ├─ EVALUADOR/ADMIN → marcarEvaluadoARendir(planId, userId) → Evaluado
-  └─ EVALUADOR/ADMIN → devolverDesdeRevision → Devuelto
-Evaluado (APROBADOR/ADMIN aprueba/devuelve/rechaza)
-  ├─ APROBADOR/ADMIN → autorizarARendir (requiere firma) → Autorizado ✅ (monto cuenta en dashboard)
-  ├─ APROBADOR/ADMIN → rechazarARendir  → Rechazado ❌
-  └─ APROBADOR/ADMIN → devolverARendir  → Devuelto
-                                               ↓ USUARIO/ADMIN → enviarARendir
-                                            En Revision
-Autorizado
-  └─ VISUALIZADOR/ADMIN → registrarContabilidad → Contabilidad (final ✅)
+  └─ EVALUADOR/ADMIN → devolverDesdeRevision(comentario)    → Devuelto
+Evaluado
+  ├─ APROBADOR/ADMIN → autorizarARendir (requiere firma) → Autorizado ✅
+  ├─ APROBADOR/ADMIN → rechazarARendir(comentario)       → Rechazado ❌
+  └─ APROBADOR/ADMIN → devolverARendir(comentario)       → Devuelto
+                                             ↓ USUARIO/ADMIN → enviarARendir
+                                          En Revision
 ```
 
 **Wizard de creación (2 pasos):**
-1. **Datos generales** — beneficiario (read-only, usuario logueado), DNI (editable, guardado en `usuario`), proyecto (opcional), importe adelanto, fecha de rendición, documento sustento (opcional). Al completar: crea registro en `Pendiente`.
+1. **Datos generales** — beneficiario (read-only, usuario logueado), DNI (editable, guardado en `usuario`), proyecto (opcional), moneda (PEN/USD), importe adelanto, fecha de rendición, banco (select de `bancos.ts`), número de cuenta/CCI (label y maxLength según banco, se limpia al cambiar banco), documento sustento (opcional). Al completar: crea registro en `Pendiente`. `banco` y `numero_cuenta` se guardan en `solicitud_arendir` pero **no aparecen en el PDF** — solo se usan en la descarga Excel BBVA.
 2. **Detalle de gastos** — tabla editable de líneas (fecha, proveedor, tipo doc, N° doc, concepto, importe, archivo adjunto). Muestra balance: si adelanto > total → "usuario devuelve diferencia"; si adelanto < total → "empresa reembolsa diferencia". Permite subir firma del beneficiario, generar PDF y enviar a revisión.
 
 **ARendirDetallePage — acciones por rol y estado:**
 - USUARIO/ADMIN en Pendiente o Devuelto: "Enviar a revisión"
-- APROBADOR/ADMIN en En Revision: "Autorizar" (requiere firma, sube `firma_aprobador`), "Devolver" (modal comentario), "Rechazar" (modal comentario)
-- Todos en cualquier estado no-Pendiente: "Descargar PDF"
+- EVALUADOR/ADMIN en En Revision: "Evaluar" (abre `EvaluarARendirModal` para asignar plan contable → Evaluado), "Devolver" (modal comentario → Devuelto)
+- APROBADOR/ADMIN en Evaluado: "Autorizar" (abre `FirmaModal`, sube `firma_aprobador`, genera PDF → Autorizado), "Devolver" (modal comentario), "Rechazar" (modal comentario)
+- Todos desde En Revision en adelante: "Descargar PDF"
 - Si estado es Rechazado o Devuelto: alerta visible con el motivo (`comentario`)
 
-**ARendirPDF** (`@react-pdf/renderer`, formato landscape A4): header con título y logo, grilla de datos generales, tabla de líneas de gasto, fila de balance (amarillo), fila de total a reembolsar (azul), sección de dos firmas (beneficiario + aprobador).
+**ARendirPDF** (`@react-pdf/renderer`, formato landscape A4): header con título y logo, grilla de datos generales (código, beneficiario, DNI, cargo, proyecto, importe adelanto, fecha rendición — **sin banco ni número de cuenta**), tabla de líneas de gasto, fila de balance (amarillo), fila de total a reembolsar (azul), sección de dos firmas (beneficiario + aprobador).
 
-**Enriquecimiento:** `enrichARendir()` consulta tabla `usuario` para obtener `beneficiario_nombre`, `beneficiario_email`, `beneficiario_cargo` y `aprobador_nombre`.
+**Enriquecimiento:** `enrichARendir()` consulta tabla `usuario` para obtener `beneficiario_nombre`, `beneficiario_email`, `beneficiario_dni`, `beneficiario_cargo` y `aprobador_nombre`.
+
+**Excel BBVA — descarga masiva de pagos (`ARendirPage`):**
+- Disponible para VISUALIZADOR y ADMIN mediante selección múltiple + botón "Excel"
+- Formato de 14 columnas compatible con BBVA Pagos Masivos:
+
+| Col | Campo | Valor |
+|---|---|---|
+| DOI tipo | Siempre `'L'` (DNI persona natural) |
+| DOI Numero | `beneficiario_dni` |
+| Tipo abono | `'P'` si `banco === 'BBVA'`, `'I'` (interbancario) para el resto |
+| Cuenta | `numero_cuenta` registrado en Step 1 |
+| Nombre del beneficiario | `beneficiario_nombre` |
+| Importe abonar | `total_reembolso` |
+| Tipo recibo | Siempre `'B'` (boleta/rendición) |
+| Numero documento | Correlativo `001`, `002`… según posición en la exportación (reinicia en cada descarga) |
+| Abono Agrupado | `'N'` |
+| Referencia | `'A Rendir'` |
+| Indicador de Aviso | `'E'` |
+| Medio de aviso | `beneficiario_email` |
+| Persona Contacto | vacío |
+| Validacion | vacío |
+
+**Excel BBVA — solicitudes OC (`SolicitudesPage`):**
+- `Tipo abono`: `'P'` si `banco === 'BBVA'`, `'I'` para el resto (antes usaba la longitud del número)
+- `Tipo recibo`: `'F'` (factura)
+- `Numero documento`: `numero_factura`
+
+**`ARendirPage` — filtros:**
+- Dropdown **Estado** con opciones según rol:
+  - EVALUADOR: En Revision · Pendiente · Evaluado
+  - APROBADOR: Evaluado · Autorizado · Rechazado · Devuelto
+  - VISUALIZADOR: Evaluado · Autorizado
+  - ADMIN / USUARIO: los 6 estados completos
+- Dropdown **Proyecto** — todos los proyectos
+- Botón "Limpiar" visible cuando hay algún filtro activo
+- VISUALIZADOR ve por defecto `estado IN ('Evaluado', 'Autorizado')`; si selecciona un estado específico del filtro, se aplica ese
+
+**`useArendir` hook:** estado local (data, total, page, totalPages, loading), pageSize fijo de 10, filtra por rol/userId automáticamente. Expone `setPage`, `setEstadoFilter`, `setProyectoFilter`, `refresh`. Al cambiar cualquier filtro, la página vuelve a 1.
 
 **Diferencias clave vs. módulo Solicitud (OC):**
-- Con moneda PEN/USD (campo `moneda`, DEFAULT 'PEN') — se elige en Step 1 del wizard
+- Con moneda PEN/USD (campo `moneda`, DEFAULT 'PEN') — se elige en Step 1
 - Sin IGV
-- Plan contable asignado por EVALUADOR (rol 8 = Administración) igual que en Solicitud
+- Tiene plan contable asignado por EVALUADOR igual que en Solicitud
 - Sin encuesta de proveedor
 - Solo 2 pasos en el wizard (vs 4)
-- Estados propios: `Autorizado` (en lugar de Aprobado) + `Contabilidad` (estado final, VISUALIZADOR/10)
-- El monto cuenta en el dashboard cuando `estado = 'Autorizado'` o `'Contabilidad'`
-- Excel BBVA en `ARendirPage` disponible para VISUALIZADOR (selección múltiple + botón "Excel")
-
-**`useArendir` hook:** estado local (data, total, page, totalPages, loading), pageSize fijo de 10, filtra por rol/userId automáticamente, expone `setPage` y `refresh`.
+- Estado terminal positivo: `Autorizado` (en lugar de Aprobado)
+- El monto cuenta en el dashboard cuando `estado = 'Autorizado'`
 
 ---
 
