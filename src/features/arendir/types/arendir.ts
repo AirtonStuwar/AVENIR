@@ -66,6 +66,7 @@ export interface ARendirFiltros {
   role?: number | null
   userId?: string | null
   estado?: string | null
+  proyectoId?: number | null
 }
 
 export interface ARendirPaginado {

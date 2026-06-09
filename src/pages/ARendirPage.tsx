@@ -1,12 +1,14 @@
 import { useNavigate } from 'react-router-dom'
-import { Plus, Eye, Loader2, Receipt, Download } from 'lucide-react'
+import { Plus, Eye, Loader2, Receipt, Download, Filter } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import toast from 'react-hot-toast'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useARendir } from '../features/arendir/hooks/useArendir'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import type { SolicitudARendir } from '../features/arendir/types/arendir'
+import { getProyectos } from '../features/proyecto/services/proyectoService'
+import type { Proyecto } from '../features/proyecto/types/proyecto'
 
 // ── Badge de estado ────────────────────────────────────────────
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
@@ -38,15 +40,33 @@ function fmtDate(val: string | null) {
 }
 
 // ── Page ───────────────────────────────────────────────────────
+const ESTADOS_ARENDIR: Record<string, string[]> = {
+  default:      ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado', 'Rechazado', 'Devuelto'],
+  evaluador:    ['En Revision', 'Pendiente', 'Evaluado'],
+  aprobador:    ['Evaluado', 'Autorizado', 'Rechazado', 'Devuelto'],
+  visualizador: ['Evaluado', 'Autorizado'],
+}
+
 export default function ARendirPage() {
   const navigate   = useNavigate()
   const { userRole } = useAuthStore()
-  const { data, total, page, pageSize, totalPages, loading, setPage, refresh } = useARendir()
+  const {
+    data, total, page, pageSize, totalPages, loading,
+    estadoFilter, proyectoFilter,
+    setPage, setEstadoFilter, setProyectoFilter, refresh,
+  } = useARendir()
 
   const canCreate      = userRole === ROLES.USUARIO || userRole === ROLES.ADMIN
   const isVisualizador = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [proyectos,   setProyectos]   = useState<Proyecto[]>([])
+
+  useEffect(() => {
+    getProyectos({ pageSize: 100 })
+      .then(r => setProyectos(r.data))
+      .catch(() => {/* silencioso */})
+  }, [])
 
   function toggleSelect(id: number) {
     setSelectedIds(prev => {
@@ -141,6 +161,52 @@ export default function ARendirPage() {
             </button>
           )}
         </div>
+      </div>
+
+      {/* Filtros */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+          <Filter size={13} /> Filtrar
+        </div>
+
+        {/* Estado */}
+        <select
+          value={estadoFilter ?? ''}
+          onChange={e => setEstadoFilter(e.target.value || null)}
+          className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+        >
+          <option value="">Todos los estados</option>
+          {(
+            userRole === ROLES.EVALUADOR    ? ESTADOS_ARENDIR.evaluador    :
+            userRole === ROLES.APROBADOR    ? ESTADOS_ARENDIR.aprobador    :
+            userRole === ROLES.VISUALIZADOR ? ESTADOS_ARENDIR.visualizador :
+            ESTADOS_ARENDIR.default
+          ).map(e => (
+            <option key={e} value={e}>{e}</option>
+          ))}
+        </select>
+
+        {/* Proyecto */}
+        <select
+          value={proyectoFilter ?? ''}
+          onChange={e => setProyectoFilter(e.target.value ? Number(e.target.value) : null)}
+          className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+        >
+          <option value="">Todos los proyectos</option>
+          {proyectos.map(p => (
+            <option key={p.id} value={p.id}>{p.nombre}</option>
+          ))}
+        </select>
+
+        {/* Limpiar */}
+        {(estadoFilter || proyectoFilter) && (
+          <button
+            onClick={() => { setEstadoFilter(null); setProyectoFilter(null) }}
+            className="h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            Limpiar
+          </button>
+        )}
       </div>
 
       {/* Table card */}

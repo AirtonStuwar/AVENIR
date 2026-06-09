@@ -356,6 +356,49 @@ function AprobadorDashboard() {
           <KpiCard label="A Rendir autorizados" value={arendir.filter(a => a.estado === 'Autorizado').length} sub="finalizados" icon={<CheckCircle size={18} />} color="green" />
         </div>
 
+        {/* Totales consolidados OC + A Rendir */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="bg-gradient-to-br from-[#003D7D] to-[#00529F] rounded-2xl shadow-sm p-6 text-white">
+            <div className="flex items-center gap-2 mb-1">
+              <DollarSign size={16} className="opacity-70" />
+              <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Total comprometido S/</p>
+            </div>
+            <p className="text-3xl font-bold tracking-tight mb-4">
+              {fmtMoneyFull(montoAprobPEN + arendirPEN, 'PEN')}
+            </p>
+            <div className="space-y-1.5 border-t border-white/20 pt-3">
+              <div className="flex justify-between text-sm">
+                <span className="opacity-75">OC Aprobadas</span>
+                <span className="font-semibold">{fmtMoney(montoAprobPEN, 'PEN')}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="opacity-75">A Rendir Autorizados</span>
+                <span className="font-semibold">{fmtMoney(arendirPEN, 'PEN')}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-teal-600 to-teal-700 rounded-2xl shadow-sm p-6 text-white">
+            <div className="flex items-center gap-2 mb-1">
+              <DollarSign size={16} className="opacity-70" />
+              <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Total comprometido $</p>
+            </div>
+            <p className="text-3xl font-bold tracking-tight mb-4">
+              {fmtMoneyFull(montoAprobUSD + arendirUSD, 'USD')}
+            </p>
+            <div className="space-y-1.5 border-t border-white/20 pt-3">
+              <div className="flex justify-between text-sm">
+                <span className="opacity-75">OC Aprobadas</span>
+                <span className="font-semibold">{fmtMoney(montoAprobUSD, 'USD')}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="opacity-75">A Rendir Autorizados</span>
+                <span className="font-semibold">{fmtMoney(arendirUSD, 'USD')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ChartCard title="Distribución de solicitudes" subtitle="Aprobadas vs rechazadas vs en cola">
             {donutData.length === 0 ? <EmptyChart /> : (
