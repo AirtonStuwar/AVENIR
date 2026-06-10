@@ -18,6 +18,9 @@ import ProveedoresPage from './pages/ProveedoresPage';
 import ARendirPage from './pages/ARendirPage';
 import ARendirNuevaPage from './pages/ARendirNuevaPage';
 import ARendirDetallePage from './pages/ARendirDetallePage';
+import ReembolsoPage from './pages/ReembolsoPage';
+import ReembolsoNuevaPage from './pages/ReembolsoNuevaPage';
+import ReembolsoDetallePage from './pages/ReembolsoDetallePage';
 
 function App() {
   const setSession = useAuthStore((state) => state.setSession);
@@ -67,9 +70,12 @@ function App() {
             <Route path="/solicitudes/:id" element={<SolicitudDetallePage />} />
             <Route path="/proveedores" element={<ProveedoresPage />} />
             <Route path="/proyectos" element={<ProyectosPage/>} />
-            <Route path="/arendir"        element={<ARendirPage />} />
-            <Route path="/arendir/nueva"  element={<ARendirNuevaPage />} />
-            <Route path="/arendir/:id"    element={<ARendirDetallePage />} />
+            <Route path="/arendir"           element={<ARendirPage />} />
+            <Route path="/arendir/nueva"   element={<ARendirNuevaPage />} />
+            <Route path="/arendir/:id"     element={<ARendirDetallePage />} />
+            <Route path="/reembolso"       element={<ReembolsoPage />} />
+            <Route path="/reembolso/nueva" element={<ReembolsoNuevaPage />} />
+            <Route path="/reembolso/:id"   element={<ReembolsoDetallePage />} />
           </Route>
         </Route>
 

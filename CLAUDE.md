@@ -152,7 +152,7 @@ Gestión de **rendición de gastos con adelantos**. Un empleado solicita un adel
 - `/arendir/nueva` — wizard de creación (`ARendirNuevaPage`)
 - `/arendir/:id` — detalle y acciones (`ARendirDetallePage`)
 
-**Sidebar:** visible para ADMIN (1), APROBADOR (9), VISUALIZADOR (10), USUARIO (11). Solo USUARIO y ADMIN pueden crear.
+**Sidebar:** visible para ADMIN (1), EVALUADOR (8), APROBADOR (9), VISUALIZADOR (10), USUARIO (11). Solo USUARIO y ADMIN pueden crear.
 
 **Feature folder:** `src/features/arendir/` — contiene `types/arendir.ts`, `services/arendirService.ts`, `components/ARendirPDF.tsx`, `hooks/useArendir.ts`.
 
@@ -218,7 +218,7 @@ Evaluado
 
 **ARendirPDF** (`@react-pdf/renderer`, formato landscape A4): header con título y logo, grilla de datos generales (código, beneficiario, DNI, cargo, proyecto, importe adelanto, fecha rendición — **sin banco ni número de cuenta**), tabla de líneas de gasto, fila de balance (amarillo), fila de total a reembolsar (azul), sección de dos firmas (beneficiario + aprobador).
 
-**Enriquecimiento:** `enrichARendir()` consulta tabla `usuario` para obtener `beneficiario_nombre`, `beneficiario_email`, `beneficiario_dni`, `beneficiario_cargo` y `aprobador_nombre`.
+**Enriquecimiento:** `enrichARendir()` consulta tabla `usuario` para obtener `beneficiario_nombre`, `beneficiario_email`, `beneficiario_dni`, `beneficiario_cargo`, `aprobador_nombre` y `evaluador_nombre`. Los tres UUIDs (`beneficiario_id`, `usuario_aprobador`, `usuario_evaluador`) se resuelven en una sola query con `.in('id', uids)`.
 
 **Excel BBVA — descarga masiva de pagos (`ARendirPage`):**
 - Disponible para VISUALIZADOR y ADMIN mediante selección múltiple + botón "Excel"

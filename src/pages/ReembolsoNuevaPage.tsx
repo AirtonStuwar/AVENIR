@@ -10,24 +10,23 @@ import { getProyectos } from '../features/proyecto/services/proyectoService'
 import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import {
-  createARendir,
-  enviarARendir,
-  addDetalle,
-  uploadSustento,
-  uploadDetalleArchivo,
-  uploadFirmaARendir,
-  getArchivoUrl,
-  recalcTotal,
-  updateARendir,
-} from '../features/arendir/services/arendirService'
-import type { SolicitudARendir, ARendirDetalle } from '../features/arendir/types/arendir'
-import { ARendirPDF } from '../features/arendir/components/ARendirPDF'
+  createReembolso,
+  enviarReembolso,
+  addDetalleReembolso,
+  uploadSustentoReembolso,
+  uploadDetalleArchivoReembolso,
+  uploadFirmaReembolso,
+  getArchivoUrlReembolso,
+  recalcTotalReembolso,
+  updateReembolso,
+} from '../features/reembolso/services/reembolsoService'
+import type { SolicitudReembolso, ReembolsoDetalle } from '../features/reembolso/types/reembolso'
+import { ReembolsoPDF } from '../features/reembolso/components/ReembolsoPDF'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
 import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import { supabase } from '../api/supabase'
 import logoUrl from '../assets/avenir-logo.png'
 
-// ── Tipos locales ─────────────────────────────────────────────
 interface DetalleRow {
   tempId: number
   fecha_documento: string
@@ -42,88 +41,71 @@ interface DetalleRow {
 }
 
 const TIPOS_DOC = ['RECIBO', 'FACTURA', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
-
 let nextTempId = 1
 
 function newRow(): DetalleRow {
   return {
     tempId: nextTempId++,
-    fecha_documento: '',
-    proveedor: '',
-    tipo_documento: '',
-    numero_documento: '',
-    concepto: '',
-    importe: '',
-    file: null,
-    savedId: null,
-    archivo_path: null,
+    fecha_documento: '', proveedor: '', tipo_documento: '',
+    numero_documento: '', concepto: '', importe: '',
+    file: null, savedId: null, archivo_path: null,
   }
 }
 
-// ── Component ─────────────────────────────────────────────────
-export default function ARendirNuevaPage() {
+export default function ReembolsoNuevaPage() {
   const navigate = useNavigate()
   const { user, usuarioProfile } = useAuthStore()
 
   const [step, setStep] = useState<1 | 2>(1)
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
   const [saving, setSaving] = useState(false)
-  const [solicitudCreada, setSolicitudCreada] = useState<SolicitudARendir | null>(null)
+  const [solicitudCreada, setSolicitudCreada] = useState<SolicitudReembolso | null>(null)
 
-  // Step 1 form
-  const [dniEdit, setDniEdit] = useState(usuarioProfile?.dni ?? '')
-  const [proyectoId, setProyectoId] = useState<string>('')
-  const [moneda, setMoneda] = useState<'PEN' | 'USD'>('PEN')
-  const [importe, setImporte] = useState('')
-  const [fechaRendicion, setFechaRendicion] = useState('')
-  const [banco, setBanco] = useState('')
-  const [numeroCuenta, setNumeroCuenta] = useState('')
-  const [sustentoFile, setSustentoFile] = useState<File | null>(null)
+  // Step 1
+  const [dniEdit,       setDniEdit]       = useState(usuarioProfile?.dni ?? '')
+  const [proyectoId,    setProyectoId]    = useState<string>('')
+  const [moneda,        setMoneda]        = useState<'PEN' | 'USD'>('PEN')
+  const [fechaRequerida, setFechaRequerida] = useState('')
+  const [banco,         setBanco]         = useState('')
+  const [numeroCuenta,  setNumeroCuenta]  = useState('')
+  const [sustentoFile,  setSustentoFile]  = useState<File | null>(null)
 
   // Step 2
   const [rows, setRows] = useState<DetalleRow[]>([newRow()])
 
-  // Firma modal
+  // Firma
   const [firmaOpen, setFirmaOpen] = useState(false)
   const [firmaBlob, setFirmaBlob] = useState<Blob | null>(null)
 
-  // Load proyectos
   useEffect(() => {
     getProyectos({ pageSize: 100 })
       .then(r => setProyectos(r.data))
       .catch(() => toast.error('No se pudieron cargar los proyectos'))
   }, [])
 
-  // ── Step 1: Guardar ──────────────────────────────────────────
+  // ── Step 1 ────────────────────────────────────────────────────
   async function handleStep1() {
     if (!user?.id) return
-    if (!importe || isNaN(Number(importe))) {
-      toast.error('Ingresa un importe válido')
-      return
-    }
     setSaving(true)
     try {
-      // Actualizar DNI si cambió
       if (dniEdit !== (usuarioProfile?.dni ?? '')) {
         await supabase.from('usuario').update({ dni: dniEdit || null }).eq('id', user.id)
       }
 
-      const sol = await createARendir({
+      const sol = await createReembolso({
         beneficiario_id: user.id,
         proyecto_id: proyectoId ? Number(proyectoId) : null,
-        importe: Number(importe),
         moneda,
-        fecha_rendicion: fechaRendicion || null,
+        fecha_requerida: fechaRequerida || null,
         estado: 'Pendiente',
         banco: banco || null,
         numero_cuenta: numeroCuenta || null,
         documento_sustento_path: null,
       })
 
-      // Upload sustento
       if (sustentoFile) {
-        const path = await uploadSustento(sustentoFile, sol.id)
-        await updateARendir(sol.id, { documento_sustento_path: path })
+        const path = await uploadSustentoReembolso(sustentoFile, sol.id)
+        await updateReembolso(sol.id, { documento_sustento_path: path })
         sol.documento_sustento_path = path
       }
 
@@ -139,40 +121,25 @@ export default function ARendirNuevaPage() {
     }
   }
 
-  // ── Step 2: Modificar filas ──────────────────────────────────
+  // ── Step 2 ────────────────────────────────────────────────────
   function updateRow(tempId: number, field: keyof DetalleRow, value: string | File | null) {
     setRows(prev => prev.map(r => r.tempId === tempId ? { ...r, [field]: value } : r))
   }
-
-  function addRow() {
-    setRows(prev => [...prev, newRow()])
-  }
-
+  function addRow() { setRows(prev => [...prev, newRow()]) }
   function removeRow(tempId: number) {
     setRows(prev => prev.length > 1 ? prev.filter(r => r.tempId !== tempId) : prev)
   }
 
   const totalDetalle = rows.reduce((acc, r) => acc + (parseFloat(r.importe) || 0), 0)
 
-  // ── Step 2: Guardar detalles y enviar ────────────────────────
   async function handleEnviar() {
     if (!solicitudCreada || !user?.id) return
 
-    // Intentar obtener firma del usuario
     let blob: Blob | null = firmaBlob
     if (!blob && usuarioProfile?.firma_path) {
-      try {
-        blob = await getUserFirmaBlob(usuarioProfile.firma_path)
-      } catch {
-        // no hay firma previa
-      }
+      try { blob = await getUserFirmaBlob(usuarioProfile.firma_path) } catch { /* sin firma previa */ }
     }
-
-    if (!blob) {
-      setFirmaOpen(true)
-      return
-    }
-
+    if (!blob) { setFirmaOpen(true); return }
     await doEnviar(blob)
   }
 
@@ -180,12 +147,11 @@ export default function ARendirNuevaPage() {
     if (!solicitudCreada || !user?.id) return
     setSaving(true)
     try {
-      // Guardar detalles
-      const savedDetalles: ARendirDetalle[] = []
+      const savedDetalles: ReembolsoDetalle[] = []
       for (const row of rows) {
         if (!row.concepto && !row.importe) continue
-        const det = await addDetalle({
-          solicitud_arendir_id: solicitudCreada.id,
+        const det = await addDetalleReembolso({
+          solicitud_reembolso_id: solicitudCreada.id,
           fecha_documento: row.fecha_documento || null,
           proveedor: row.proveedor || null,
           tipo_documento: row.tipo_documento || null,
@@ -194,29 +160,21 @@ export default function ARendirNuevaPage() {
           importe: parseFloat(row.importe) || 0,
           archivo_path: null,
         })
-
-        // Upload archivo de detalle
         if (row.file) {
-          const path = await uploadDetalleArchivo(row.file, solicitudCreada.id, det.id)
-          await supabase.from('solicitud_arendir_detalle').update({ archivo_path: path }).eq('id', det.id)
+          const path = await uploadDetalleArchivoReembolso(row.file, solicitudCreada.id, det.id)
+          await supabase.from('solicitud_reembolso_detalle').update({ archivo_path: path }).eq('id', det.id)
           det.archivo_path = path
         }
         savedDetalles.push(det)
       }
 
-      // Recalc total
-      await recalcTotal(solicitudCreada.id)
+      await recalcTotalReembolso(solicitudCreada.id)
 
-      // Subir firma usuario
-      const firmaPath = await uploadFirmaARendir(blob, solicitudCreada.id, 'firma_usuario')
-
-      // Generar PDF
+      const firmaPath = await uploadFirmaReembolso(blob, solicitudCreada.id, 'firma_usuario')
       let firmaUsuarioSrc: string | null = null
-      try {
-        firmaUsuarioSrc = await getArchivoUrl(firmaPath)
-      } catch { /* sin firma */ }
+      try { firmaUsuarioSrc = await getArchivoUrlReembolso(firmaPath) } catch { /* noop */ }
 
-      const enrichedSol: SolicitudARendir = {
+      const enrichedSol: SolicitudReembolso = {
         ...solicitudCreada,
         total_reembolso: totalDetalle,
         beneficiario_nombre: usuarioProfile?.nombre_completo ?? null,
@@ -225,7 +183,7 @@ export default function ARendirNuevaPage() {
       }
 
       const pdfBlob = await pdf(
-        <ARendirPDF
+        <ReembolsoPDF
           solicitud={enrichedSol}
           detalles={savedDetalles}
           logoSrc={logoUrl}
@@ -234,19 +192,17 @@ export default function ARendirNuevaPage() {
         />
       ).toBlob()
 
-      // Descargar PDF
       const url = URL.createObjectURL(pdfBlob)
       const a   = document.createElement('a')
       a.href    = url
-      a.download = `${solicitudCreada.codigo ?? `AR-${solicitudCreada.id}`}.pdf`
+      a.download = `${solicitudCreada.codigo ?? `RMB-${solicitudCreada.id}`}.pdf`
       a.click()
       URL.revokeObjectURL(url)
 
-      // Enviar a revisión
-      await enviarARendir(solicitudCreada.id)
+      await enviarReembolso(solicitudCreada.id)
 
       toast.success('Solicitud enviada a revisión')
-      navigate('/arendir')
+      navigate('/reembolso')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al enviar')
     } finally {
@@ -254,20 +210,22 @@ export default function ARendirNuevaPage() {
     }
   }
 
-  // ── Render ───────────────────────────────────────────────────
+  const sym = moneda === 'USD' ? '$' : 'S/'
+  const loc = moneda === 'USD' ? 'en-US' : 'es-PE'
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
 
       {/* Header */}
       <div className="flex items-center gap-3">
         <button
-          onClick={() => step === 1 ? navigate('/arendir') : setStep(1)}
+          onClick={() => step === 1 ? navigate('/reembolso') : setStep(1)}
           className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
         >
           <ChevronLeft size={20} className="text-gray-600" />
         </button>
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Nueva solicitud A Rendir</h1>
+          <h1 className="text-xl font-bold text-gray-900">Nueva solicitud de Reembolso</h1>
           <p className="text-sm text-gray-500">Paso {step} de 2</p>
         </div>
       </div>
@@ -280,9 +238,7 @@ export default function ARendirNuevaPage() {
               step === n ? 'bg-[#003D7D] text-white' :
               step > n   ? 'bg-green-500 text-white' :
                            'bg-gray-200 text-gray-500'
-            }`}>
-              {n}
-            </div>
+            }`}>{n}</div>
             {n < 2 && <div className="w-12 h-0.5 bg-gray-200" />}
           </div>
         ))}
@@ -297,7 +253,7 @@ export default function ARendirNuevaPage() {
           <h2 className="text-base font-semibold text-gray-900">Datos generales</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Beneficiario read-only */}
+            {/* Beneficiario */}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Beneficiario</label>
               <input
@@ -307,7 +263,7 @@ export default function ARendirNuevaPage() {
               />
             </div>
 
-            {/* DNI editable */}
+            {/* DNI */}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">DNI</label>
               <input
@@ -329,9 +285,7 @@ export default function ARendirNuevaPage() {
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] bg-white"
               >
                 <option value="">— Sin proyecto —</option>
-                {proyectos.map(p => (
-                  <option key={p.id} value={p.id}>{p.nombre}</option>
-                ))}
+                {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
             </div>
 
@@ -348,29 +302,13 @@ export default function ARendirNuevaPage() {
               </select>
             </div>
 
-            {/* Importe */}
-            <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                Importe adelanto ({moneda === 'USD' ? '$' : 'S/'})
-              </label>
-              <input
-                type="number"
-                value={importe}
-                onChange={e => setImporte(e.target.value)}
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D]"
-              />
-            </div>
-
             {/* Fecha requerida */}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Fecha requerida</label>
               <input
                 type="date"
-                value={fechaRendicion}
-                onChange={e => setFechaRendicion(e.target.value)}
+                value={fechaRequerida}
+                onChange={e => setFechaRequerida(e.target.value)}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D]"
               />
             </div>
@@ -388,7 +326,7 @@ export default function ARendirNuevaPage() {
               </select>
             </div>
 
-            {/* Número de cuenta / CCI */}
+            {/* Número cuenta */}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
                 {banco ? labelNumeroCuenta(banco) : 'Número de cuenta / CCI'}
@@ -441,7 +379,7 @@ export default function ARendirNuevaPage() {
           {/* Info card */}
           <div className="bg-[#003D7D]/[0.04] border border-[#003D7D]/20 rounded-2xl px-5 py-3 flex items-center gap-4 text-sm">
             <span className="font-mono font-bold text-[#003D7D]">{solicitudCreada.codigo}</span>
-            <span className="text-gray-600">Importe adelanto: <strong>{moneda === 'USD' ? '$' : 'S/'} {Number(importe).toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })}</strong></span>
+            <span className="text-gray-600">Reembolso en <strong>{moneda}</strong></span>
           </div>
 
           {/* Detail table */}
@@ -474,28 +412,20 @@ export default function ARendirNuevaPage() {
                   {rows.map(row => (
                     <tr key={row.tempId} className="hover:bg-gray-50">
                       <td className="px-2 py-1.5">
-                        <input
-                          type="date"
-                          value={row.fecha_documento}
+                        <input type="date" value={row.fecha_documento}
                           onChange={e => updateRow(row.tempId, 'fecha_documento', e.target.value)}
                           className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-[#003D7D]/40"
                         />
                       </td>
                       <td className="px-2 py-1.5">
-                        <input
-                          type="text"
-                          value={row.proveedor}
+                        <input type="text" value={row.proveedor} placeholder="Proveedor"
                           onChange={e => updateRow(row.tempId, 'proveedor', e.target.value)}
-                          placeholder="Proveedor"
                           className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-[#003D7D]/40"
                         />
                       </td>
                       <td className="px-2 py-1.5">
-                        <input
-                          list={`tipos-${row.tempId}`}
-                          value={row.tipo_documento}
+                        <input list={`tipos-${row.tempId}`} value={row.tipo_documento} placeholder="Tipo"
                           onChange={e => updateRow(row.tempId, 'tipo_documento', e.target.value)}
-                          placeholder="Tipo"
                           className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-[#003D7D]/40"
                         />
                         <datalist id={`tipos-${row.tempId}`}>
@@ -503,31 +433,20 @@ export default function ARendirNuevaPage() {
                         </datalist>
                       </td>
                       <td className="px-2 py-1.5">
-                        <input
-                          type="text"
-                          value={row.numero_documento}
+                        <input type="text" value={row.numero_documento} placeholder="N° doc"
                           onChange={e => updateRow(row.tempId, 'numero_documento', e.target.value)}
-                          placeholder="N° doc"
                           className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-[#003D7D]/40"
                         />
                       </td>
                       <td className="px-2 py-1.5">
-                        <input
-                          type="text"
-                          value={row.concepto}
+                        <input type="text" value={row.concepto} placeholder="Concepto / descripción"
                           onChange={e => updateRow(row.tempId, 'concepto', e.target.value)}
-                          placeholder="Concepto / descripción"
                           className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-[#003D7D]/40"
                         />
                       </td>
                       <td className="px-2 py-1.5">
-                        <input
-                          type="number"
-                          value={row.importe}
+                        <input type="number" value={row.importe} placeholder="0.00" min="0" step="0.01"
                           onChange={e => updateRow(row.tempId, 'importe', e.target.value)}
-                          placeholder="0.00"
-                          min="0"
-                          step="0.01"
                           className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs text-right focus:outline-none focus:ring-1 focus:ring-[#003D7D]/40"
                         />
                       </td>
@@ -537,18 +456,13 @@ export default function ARendirNuevaPage() {
                           <span className="truncate text-gray-500 max-w-[60px]">
                             {row.file ? row.file.name.slice(0, 8) + '…' : 'Adjuntar'}
                           </span>
-                          <input
-                            type="file"
-                            accept="application/pdf,image/*"
-                            className="hidden"
+                          <input type="file" accept="application/pdf,image/*" className="hidden"
                             onChange={e => updateRow(row.tempId, 'file', e.target.files?.[0] ?? null)}
                           />
                         </label>
                       </td>
                       <td className="px-2 py-1.5">
-                        <button
-                          onClick={() => removeRow(row.tempId)}
-                          disabled={rows.length <= 1}
+                        <button onClick={() => removeRow(row.tempId)} disabled={rows.length <= 1}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 transition-colors"
                         >
                           <Trash2 size={13} />
@@ -563,7 +477,7 @@ export default function ARendirNuevaPage() {
                       Total a reembolsar:
                     </td>
                     <td className="px-3 py-2.5 text-right font-bold text-[#003D7D] text-sm">
-                      {moneda === 'USD' ? '$' : 'S/'} {totalDetalle.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })}
+                      {sym} {totalDetalle.toLocaleString(loc, { minimumFractionDigits: 2 })}
                     </td>
                     <td colSpan={2} />
                   </tr>
@@ -571,20 +485,6 @@ export default function ARendirNuevaPage() {
               </table>
             </div>
           </div>
-
-          {/* Saldo info */}
-          {importe && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3 text-sm text-amber-800">
-              {(() => {
-              const sym = moneda === 'USD' ? '$' : 'S/'
-              const loc = moneda === 'USD' ? 'en-US' : 'es-PE'
-              const diff = Number(importe) - totalDetalle
-              return diff >= 0
-                ? `El usuario debe devolver: ${sym} ${diff.toLocaleString(loc, { minimumFractionDigits: 2 })}`
-                : `La empresa reembolsa al usuario: ${sym} ${Math.abs(diff).toLocaleString(loc, { minimumFractionDigits: 2 })}`
-            })()}
-            </div>
-          )}
 
           {/* Actions */}
           <div className="flex items-center justify-between">
@@ -607,10 +507,9 @@ export default function ARendirNuevaPage() {
         </div>
       )}
 
-      {/* Firma modal */}
       <FirmaModal
         open={firmaOpen}
-        title="Firma del rendidor"
+        title="Firma del solicitante"
         onClose={() => setFirmaOpen(false)}
         onConfirm={async (blob) => {
           setFirmaBlob(blob)

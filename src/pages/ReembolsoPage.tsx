@@ -1,17 +1,16 @@
 import { useNavigate } from 'react-router-dom'
-import { Plus, Eye, Loader2, Receipt, Download, Filter } from 'lucide-react'
+import { Plus, Eye, Loader2, RefreshCw, Download, Filter } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import toast from 'react-hot-toast'
 import { useState, useEffect } from 'react'
-import { useARendir } from '../features/arendir/hooks/useArendir'
+import { useReembolso } from '../features/reembolso/hooks/useReembolso'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
-import type { SolicitudARendir } from '../features/arendir/types/arendir'
+import type { SolicitudReembolso } from '../features/reembolso/types/reembolso'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 
-// ── Badge de estado ────────────────────────────────────────────
-function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
+function EstadoBadge({ estado }: { estado: SolicitudReembolso['estado'] }) {
   const map: Record<string, string> = {
     'Pendiente':   'bg-yellow-100 text-yellow-800',
     'En Revision': 'bg-blue-100 text-blue-800',
@@ -27,7 +26,6 @@ function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   )
 }
 
-// ── Formatters ─────────────────────────────────────────────────
 function fmtMoney(val: number, moneda = 'PEN') {
   const sym = moneda === 'USD' ? '$ ' : 'S/ '
   const loc = moneda === 'USD' ? 'en-US' : 'es-PE'
@@ -39,22 +37,21 @@ function fmtDate(val: string | null) {
   return new Date(val.includes('T') ? val : val + 'T00:00:00').toLocaleDateString('es-PE')
 }
 
-// ── Page ───────────────────────────────────────────────────────
-const ESTADOS_ARENDIR: Record<string, string[]> = {
+const ESTADOS_REEMBOLSO: Record<string, string[]> = {
   default:      ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado', 'Rechazado', 'Devuelto'],
   evaluador:    ['En Revision', 'Pendiente', 'Evaluado'],
   aprobador:    ['Evaluado', 'Autorizado', 'Rechazado', 'Devuelto'],
   visualizador: ['Evaluado', 'Autorizado'],
 }
 
-export default function ARendirPage() {
-  const navigate   = useNavigate()
+export default function ReembolsoPage() {
+  const navigate    = useNavigate()
   const { userRole } = useAuthStore()
   const {
     data, total, page, pageSize, totalPages, loading,
     estadoFilter, proyectoFilter,
     setPage, setEstadoFilter, setProyectoFilter, refresh,
-  } = useARendir()
+  } = useReembolso()
 
   const canCreate      = userRole === ROLES.USUARIO || userRole === ROLES.ADMIN
   const isVisualizador = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
@@ -89,7 +86,7 @@ export default function ARendirPage() {
     if (selected.length === 0) return
 
     const wb = new ExcelJS.Workbook()
-    const ws = wb.addWorksheet('Pagos A Rendir')
+    const ws = wb.addWorksheet('Pagos Reembolso')
 
     ws.addRow([
       'DOI tipo', 'DOI Numero', 'Tipo abono', 'Cuenta', 'Nombre del beneficiario',
@@ -108,7 +105,7 @@ export default function ARendirPage() {
         'B',
         String(idx + 1).padStart(3, '0'),
         'N',
-        'A Rendir',
+        'Reembolso',
         'E',
         s.beneficiario_email ?? '',
         '',
@@ -121,7 +118,7 @@ export default function ARendirPage() {
     const url    = URL.createObjectURL(blob)
     const a      = document.createElement('a')
     a.href       = url
-    a.download   = `arendir_pagos_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.download   = `reembolso_pagos_${new Date().toISOString().slice(0, 10)}.xlsx`
     a.click()
     URL.revokeObjectURL(url)
     toast.success(`Excel generado con ${selected.length} registro${selected.length > 1 ? 's' : ''}`)
@@ -133,11 +130,11 @@ export default function ARendirPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-[#003D7D]/10 flex items-center justify-center">
-            <Receipt size={20} className="text-[#003D7D]" />
+          <div className="w-10 h-10 rounded-2xl bg-emerald-100 flex items-center justify-center">
+            <RefreshCw size={20} className="text-emerald-700" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">A Rendir</h1>
+            <h1 className="text-xl font-bold text-gray-900">Reembolso</h1>
             <p className="text-sm text-gray-500">{total} registro{total !== 1 ? 's' : ''}</p>
           </div>
         </div>
@@ -153,7 +150,7 @@ export default function ARendirPage() {
           )}
           {canCreate && (
             <button
-              onClick={() => navigate('/arendir/nueva')}
+              onClick={() => navigate('/reembolso/nueva')}
               className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-sm font-semibold hover:bg-[#002D5C] transition-colors"
             >
               <Plus size={16} />
@@ -169,7 +166,6 @@ export default function ARendirPage() {
           <Filter size={13} /> Filtrar
         </div>
 
-        {/* Estado */}
         <select
           value={estadoFilter ?? ''}
           onChange={e => setEstadoFilter(e.target.value || null)}
@@ -177,16 +173,15 @@ export default function ARendirPage() {
         >
           <option value="">Todos los estados</option>
           {(
-            userRole === ROLES.EVALUADOR    ? ESTADOS_ARENDIR.evaluador    :
-            userRole === ROLES.APROBADOR    ? ESTADOS_ARENDIR.aprobador    :
-            userRole === ROLES.VISUALIZADOR ? ESTADOS_ARENDIR.visualizador :
-            ESTADOS_ARENDIR.default
+            userRole === ROLES.EVALUADOR    ? ESTADOS_REEMBOLSO.evaluador    :
+            userRole === ROLES.APROBADOR    ? ESTADOS_REEMBOLSO.aprobador    :
+            userRole === ROLES.VISUALIZADOR ? ESTADOS_REEMBOLSO.visualizador :
+            ESTADOS_REEMBOLSO.default
           ).map(e => (
             <option key={e} value={e}>{e}</option>
           ))}
         </select>
 
-        {/* Proyecto */}
         <select
           value={proyectoFilter ?? ''}
           onChange={e => setProyectoFilter(e.target.value ? Number(e.target.value) : null)}
@@ -198,7 +193,6 @@ export default function ARendirPage() {
           ))}
         </select>
 
-        {/* Limpiar */}
         {(estadoFilter || proyectoFilter) && (
           <button
             onClick={() => { setEstadoFilter(null); setProyectoFilter(null) }}
@@ -218,11 +212,11 @@ export default function ARendirPage() {
           </div>
         ) : data.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
-            <Receipt size={36} className="text-gray-300" />
-            <p className="text-sm">No hay solicitudes A Rendir</p>
+            <RefreshCw size={36} className="text-gray-300" />
+            <p className="text-sm">No hay solicitudes de reembolso</p>
             {canCreate && (
               <button
-                onClick={() => navigate('/arendir/nueva')}
+                onClick={() => navigate('/reembolso/nueva')}
                 className="mt-2 text-sm text-[#003D7D] font-semibold hover:underline"
               >
                 Crear la primera
@@ -247,7 +241,6 @@ export default function ARendirPage() {
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Código</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Beneficiario</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Proyecto</th>
-                  <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Importe</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Reembolso</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Fecha solicitud</th>
@@ -283,9 +276,6 @@ export default function ARendirPage() {
                       {item.proyecto?.nombre ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                      {fmtMoney(item.importe, item.moneda)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-600">
                       {fmtMoney(item.total_reembolso, item.moneda)}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -297,7 +287,7 @@ export default function ARendirPage() {
                     {isVisualizador && (
                       <>
                         <td className="px-4 py-3 text-gray-500 text-xs">
-                          {fmtDate(item.fecha_rendicion)}
+                          {fmtDate(item.fecha_requerida)}
                         </td>
                         <td className="px-4 py-3 text-gray-500 text-xs">
                           {fmtDate(item.fecha_aprobacion)}
@@ -306,7 +296,7 @@ export default function ARendirPage() {
                     )}
                     <td className="px-4 py-3">
                       <button
-                        onClick={() => navigate(`/arendir/${item.id}`)}
+                        onClick={() => navigate(`/reembolso/${item.id}`)}
                         className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-100 hover:border-gray-300 transition-colors"
                       >
                         <Eye size={13} />
@@ -320,7 +310,6 @@ export default function ARendirPage() {
           </div>
         )}
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
             <p className="text-xs text-gray-500">
@@ -346,7 +335,6 @@ export default function ARendirPage() {
         )}
       </div>
 
-      {/* Unused refresh workaround */}
       <span className="hidden" onClick={refresh} />
     </div>
   )
