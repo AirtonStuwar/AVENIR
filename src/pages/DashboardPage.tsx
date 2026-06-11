@@ -318,8 +318,6 @@ function AprobadorDashboard() {
   const colaFiltrada      = applyFilter(enCola)
   const aprobadasFiltradas = applyFilter(aprobadas)
   const rechazadasFiltradas = applyFilter(rechazadas)
-  const arendirPEN         = montoARendir(arendir, 'PEN')
-  const arendirUSD         = montoARendir(arendir, 'USD')
   const reembolsoPEN       = montoReembolso(reembolso, 'PEN')
   const reembolsoUSD       = montoReembolso(reembolso, 'USD')
 
