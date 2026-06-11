@@ -109,7 +109,9 @@ Order of cards in detail page: **Info general → Detalles → Documentos → Da
 
 **Dashboard** renders a dedicated panel per role via `DashboardPage.tsx` which branches on `userRole`:
 - `ADMIN` — KPIs globales, dona por estado, barras mensual/proyectos, tabla de pendientes, panel de métricas de proveedores. Usa `getDashboardData()` + `getProveedorMetricas()`.
-- `APROBADOR` — cola de aprobación, montos, dona Aprobadas/Rechazadas/en cola, filtro por proyecto (client-side), KPIs de A Rendir, **tarjetas de totales consolidados** ("Total comprometido S/" y "Total comprometido $" = OC Aprobadas + A Rendir Autorizados con desglose), panel de métricas de proveedores. Usa `getAprobadorData()` + `getProveedorMetricas()`.
+- `APROBADOR` — cola de aprobación, montos, dona Aprobadas/Rechazadas/en cola, filtro por proyecto (client-side), KPIs de A Rendir (montos y conteos filtrados por proyecto seleccionado), KPIs de Reembolso, **tarjetas de totales consolidados** ("Total comprometido S/" y "Total comprometido $" = OC Aprobadas + A Rendir Autorizados + Reembolso Autorizado, todos filtrados por proyecto con desglose), panel de métricas de proveedores. Usa `getAprobadorData()` + `getProveedorMetricas()`.
+  - Filtro de proyecto aplica a: OC (via `applyFilter`), KPIs A Rendir (`arendirKpi`), totales A Rendir (`arendirAuthFil` — solo `Autorizado`), totales Reembolso (`reembolsoAuthFil` — solo `Autorizado`).
+  - `ARendirRow` y `ReembolsoRow` incluyen `proyecto_id: number | null` (seleccionado en `getARendirAutorizados` / `getReembolsoAutorizados`) para permitir el filtrado client-side por proyecto.
 - `EVALUADOR` — cola En Revision, promedio de días de espera, lista de más antiguas con alerta ≥3 días. Usa `getEvaluadorData()`.
 - `VISUALIZADOR` — solicitudes aprobadas, montos totales, KPIs de A Rendir (Evaluado + Autorizado), tabla de aprobadas. Usa `getVisualizadorData()`.
 - `USUARIO` — mis solicitudes, breakdown por estado, monto aprobado (estado Aprobado), acceso rápido a nueva solicitud. Usa `getUsuarioData(userId)`.

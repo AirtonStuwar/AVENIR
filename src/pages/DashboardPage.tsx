@@ -323,6 +323,20 @@ function AprobadorDashboard() {
   const reembolsoPEN       = montoReembolso(reembolso, 'PEN')
   const reembolsoUSD       = montoReembolso(reembolso, 'USD')
 
+  const arendirKpi     = proyectoFilter ? arendir.filter(a => a.proyecto_id === proyectoFilter) : arendir
+  const arendirKpiPEN  = montoARendir(arendirKpi, 'PEN')
+  const arendirKpiUSD  = montoARendir(arendirKpi, 'USD')
+
+  const arendirAuth    = arendir.filter(a => a.estado === 'Autorizado')
+  const arendirAuthFil = proyectoFilter ? arendirAuth.filter(a => a.proyecto_id === proyectoFilter) : arendirAuth
+  const arendirFilPEN  = montoARendir(arendirAuthFil, 'PEN')
+  const arendirFilUSD  = montoARendir(arendirAuthFil, 'USD')
+
+  const reembolsoAuth    = reembolso.filter(r => r.estado === 'Autorizado')
+  const reembolsoAuthFil = proyectoFilter ? reembolsoAuth.filter(r => r.proyecto_id === proyectoFilter) : reembolsoAuth
+  const reembolsoFilPEN  = montoReembolso(reembolsoAuthFil, 'PEN')
+  const reembolsoFilUSD  = montoReembolso(reembolsoAuthFil, 'USD')
+
   const montoCola      = montoSolicitudes(colaFiltrada, detalles)
   const montoAprobPEN  = montoSolicitudes(aprobadasFiltradas, detalles, 'PEN')
   const montoAprobUSD  = montoSolicitudes(aprobadasFiltradas, detalles, 'USD')
@@ -368,10 +382,10 @@ function AprobadorDashboard() {
 
         {/* KPIs A Rendir */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="A Rendir S/" value={fmtMoney(arendirPEN, 'PEN')} sub="total autorizado soles" icon={<Receipt size={18} />} color="teal" onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir $" value={fmtMoney(arendirUSD, 'USD')} sub="total autorizado dólares" icon={<Receipt size={18} />} color="blue" onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir pend. aprob." value={arendir.filter(a => a.estado === 'Evaluado').length} sub="evaluados, esperan tu firma" icon={<Hourglass size={18} />} color="amber" alert={arendir.filter(a => a.estado === 'Evaluado').length > 0} onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir autorizados" value={arendir.filter(a => a.estado === 'Autorizado').length} sub="finalizados" icon={<CheckCircle size={18} />} color="green" />
+          <KpiCard label="A Rendir S/" value={fmtMoney(arendirKpiPEN, 'PEN')} sub="total autorizado soles" icon={<Receipt size={18} />} color="teal" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir $" value={fmtMoney(arendirKpiUSD, 'USD')} sub="total autorizado dólares" icon={<Receipt size={18} />} color="blue" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir pend. aprob." value={arendirKpi.filter(a => a.estado === 'Evaluado').length} sub="evaluados, esperan tu firma" icon={<Hourglass size={18} />} color="amber" alert={arendirKpi.filter(a => a.estado === 'Evaluado').length > 0} onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir autorizados" value={arendirKpi.filter(a => a.estado === 'Autorizado').length} sub="finalizados" icon={<CheckCircle size={18} />} color="green" />
         </div>
 
         {/* KPIs Reembolso */}
@@ -390,7 +404,7 @@ function AprobadorDashboard() {
               <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Total comprometido S/</p>
             </div>
             <p className="text-3xl font-bold tracking-tight mb-4">
-              {fmtMoneyFull(montoAprobPEN + arendirPEN, 'PEN')}
+              {fmtMoneyFull(montoAprobPEN + arendirFilPEN + reembolsoFilPEN, 'PEN')}
             </p>
             <div className="space-y-1.5 border-t border-white/20 pt-3">
               <div className="flex justify-between text-sm">
@@ -399,7 +413,11 @@ function AprobadorDashboard() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="opacity-75">A Rendir Autorizados</span>
-                <span className="font-semibold">{fmtMoney(arendirPEN, 'PEN')}</span>
+                <span className="font-semibold">{fmtMoney(arendirFilPEN, 'PEN')}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="opacity-75">Reembolso Autorizado</span>
+                <span className="font-semibold">{fmtMoney(reembolsoFilPEN, 'PEN')}</span>
               </div>
             </div>
           </div>
@@ -410,7 +428,7 @@ function AprobadorDashboard() {
               <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Total comprometido $</p>
             </div>
             <p className="text-3xl font-bold tracking-tight mb-4">
-              {fmtMoneyFull(montoAprobUSD + arendirUSD, 'USD')}
+              {fmtMoneyFull(montoAprobUSD + arendirFilUSD + reembolsoFilUSD, 'USD')}
             </p>
             <div className="space-y-1.5 border-t border-white/20 pt-3">
               <div className="flex justify-between text-sm">
@@ -419,7 +437,11 @@ function AprobadorDashboard() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="opacity-75">A Rendir Autorizados</span>
-                <span className="font-semibold">{fmtMoney(arendirUSD, 'USD')}</span>
+                <span className="font-semibold">{fmtMoney(arendirFilUSD, 'USD')}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="opacity-75">Reembolso Autorizado</span>
+                <span className="font-semibold">{fmtMoney(reembolsoFilUSD, 'USD')}</span>
               </div>
             </div>
           </div>
