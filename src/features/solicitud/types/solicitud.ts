@@ -72,6 +72,11 @@ export interface Solicitud {
   moneda: string | null
   plan_contable_id: number | null
   usuario_evaluador: string | null
+  numero_rxh: string | null
+  periodo_servicio: string | null
+  porcentaje_retencion: number | null
+  monto_retencion: number | null
+  aplica_suspension: boolean | null
   proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null } | null
   solicitud_tipo?: { id: number; nombre: string } | null
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
@@ -110,10 +115,20 @@ export type SolicitudInsert = Omit<
   | 'usuario_aprobador'    // se completa al aprobar
   | 'numero_factura'       // se registra al completar el proceso
   | 'monto_total'          // calculado al enviar a revisión
-  | 'plan_contable_id'     // lo asigna el evaluador al marcar Evaluado
-  | 'usuario_evaluador'    // se registra al marcar Evaluado
-  | 'detalles'             // se reemplaza por SolicitudDetalleInsert[]
-> & { detalles?: SolicitudDetalleInsert[] }
+  | 'plan_contable_id'       // lo asigna el evaluador al marcar Evaluado
+  | 'usuario_evaluador'      // se registra al marcar Evaluado
+  | 'numero_rxh'             // sólo aplica a Recibo por Honorarios
+  | 'periodo_servicio'       // sólo aplica a Recibo por Honorarios
+  | 'porcentaje_retencion'   // lo asigna el evaluador para RxH
+  | 'monto_retencion'        // calculado al marcar Evaluado en RxH
+  | 'aplica_suspension'      // se guarda al finalizar Step 3 en RxH
+  | 'detalles'               // se reemplaza por SolicitudDetalleInsert[]
+> & {
+    detalles?: SolicitudDetalleInsert[]
+    numero_rxh?: string | null
+    periodo_servicio?: string | null
+    aplica_suspension?: boolean | null
+  }
 
 export type SolicitudUpdate = Partial<Omit<Solicitud, 'id' | 'fecha_creacion'>>
 

@@ -7,17 +7,25 @@ import type { PlanContable } from '../types/solicitud'
 interface Props {
   open: boolean
   codigoSolicitud: string
-  onConfirm: (planContableId: number) => Promise<void>
+  isRxH?: boolean
+  onConfirm: (planContableId: number, porcentajeRetencion?: number) => Promise<void>
   onCancel: () => void
 }
 
-export default function EvaluarModal({ open, codigoSolicitud, onConfirm, onCancel }: Props) {
+const OPCIONES_RETENCION = [
+  { label: '0% — Exonerado', value: 0 },
+  { label: '3%', value: 3 },
+  { label: '8%', value: 8 },
+]
+
+export default function EvaluarModal({ open, codigoSolicitud, isRxH, onConfirm, onCancel }: Props) {
   const [opciones,   setOpciones]   = useState<PlanContable[]>([])
   const [loading,    setLoading]    = useState(false)
   const [saving,     setSaving]     = useState(false)
   const [search,     setSearch]     = useState('')
   const [selected,   setSelected]   = useState<PlanContable | null>(null)
   const [dropOpen,   setDropOpen]   = useState(false)
+  const [retencion,  setRetencion]  = useState<number | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const searchRef    = useRef<HTMLInputElement>(null)
 
@@ -27,6 +35,7 @@ export default function EvaluarModal({ open, codigoSolicitud, onConfirm, onCance
     setSelected(null)
     setSearch('')
     setDropOpen(false)
+    setRetencion(null)
     setLoading(true)
     getPlanContable()
       .then(setOpciones)
@@ -63,9 +72,10 @@ export default function EvaluarModal({ open, codigoSolicitud, onConfirm, onCance
 
   const handleConfirm = async () => {
     if (!selected) return
+    if (isRxH && retencion === null) return
     setSaving(true)
     try {
-      await onConfirm(selected.id)
+      await onConfirm(selected.id, isRxH ? (retencion ?? 0) : undefined)
     } finally {
       setSaving(false)
     }
@@ -159,6 +169,38 @@ export default function EvaluarModal({ open, codigoSolicitud, onConfirm, onCance
               </div>
             )}
           </div>
+
+          {/* Retención — solo para Recibo por Honorarios */}
+          {isRxH && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Retención IR (Renta 4ta Cat.) <span className="text-red-500">*</span>
+              </label>
+              <div className="flex gap-2">
+                {OPCIONES_RETENCION.map(op => (
+                  <button
+                    key={op.value}
+                    type="button"
+                    onClick={() => setRetencion(op.value)}
+                    className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-all ${
+                      retencion === op.value
+                        ? 'bg-[#003D7D] text-white border-[#003D7D]'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#003D7D]/40'
+                    }`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
+              </div>
+              {retencion !== null && (
+                <p className="mt-1.5 text-xs text-gray-500">
+                  {retencion === 0
+                    ? 'Sin retención — honorario exonerado.'
+                    : `Se retendrá el ${retencion}% del monto bruto (Renta 4ta categoría).`}
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -173,7 +215,7 @@ export default function EvaluarModal({ open, codigoSolicitud, onConfirm, onCance
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!selected || saving}
+            disabled={!selected || saving || (isRxH && retencion === null)}
             className="px-4 py-2 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2
               hover:bg-[#002D5C] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >

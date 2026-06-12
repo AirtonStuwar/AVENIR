@@ -19,7 +19,7 @@ import type { SolicitudArchivo } from '../features/solicitud/types/solicitud'
 import { useAuthStore } from '../store/authStore'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import type { SolicitudDetalle, SolicitudFormaPago } from '../features/solicitud/types/solicitud'
-import { buscarRuc } from '../features/solicitud/services/rucService'
+import { buscarRuc, getTipoCambioUSD } from '../features/solicitud/services/rucService'
 import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
 
 const INPUT =
@@ -82,8 +82,15 @@ export default function SolicitudNuevaPage() {
   const [condiciones,                  setCondiciones]                 = useState(
     'Se penalizará el retraso o incumplimiento de algún acuerdo en la fecha de entrega acordada'
   )
-  const [fecha_pedido,   setFechaPedido]   = useState('')
-  const [fecha_requerida,setFechaRequerida]= useState('')
+  const [fecha_pedido,    setFechaPedido]    = useState('')
+  const [fecha_requerida, setFechaRequerida] = useState('')
+  const [numero_rxh,       setNumeroRxh]       = useState('')
+  const [periodo_servicio, setPeriodoServicio]  = useState('')
+  const [aplica_suspension, setAplicaSuspension] = useState<boolean | null>(null)
+  const [tipoCambio,        setTipoCambio]       = useState<number | null>(null)
+
+  const tipoNombreSeleccionado = tipos.find(t => t.id === tipo_id)?.nombre ?? ''
+  const isRxH = tipoNombreSeleccionado === 'Recibo por Honorarios'
 
   // Detalles state
   const [detalles,   setDetalles]   = useState<SolicitudDetalle[]>([])
@@ -144,9 +151,12 @@ export default function SolicitudNuevaPage() {
     if (!forma_pago_id)          e.forma_pago_id  = 'Obligatorio'
     if (!fecha_pedido)           e.fecha_pedido   = 'Obligatorio'
     if (!fecha_requerida)        e.fecha_requerida= 'Obligatorio'
-    if (porcentaje_contrato === null)   e.porcentaje_contrato = 'Obligatorio'
-    if (porcentaje_acumulado_contrato === null) e.porcentaje_acumulado = 'Obligatorio'
-    if (porcentaje_pendiente_contrato === null) e.porcentaje_pendiente = 'Obligatorio'
+    if (!isRxH) {
+      if (porcentaje_acumulado_contrato === null) e.porcentaje_acumulado = 'Obligatorio'
+      if (porcentaje_pendiente_contrato === null) e.porcentaje_pendiente = 'Obligatorio'
+    }
+    if (isRxH && !numero_rxh.trim()) e.numero_rxh        = 'Obligatorio'
+    if (isRxH && !periodo_servicio)  e.periodo_servicio  = 'Obligatorio'
 
     if (Object.keys(e).length > 0) { setErrors(e); return }
 
@@ -161,12 +171,14 @@ export default function SolicitudNuevaPage() {
         cuenta_detracciones: cuenta_detracciones || null,
         forma_pago: formasPago.find(f => f.id === forma_pago_id)?.nombre ?? null,
         forma_pago_id,
-        porcentaje_contrato,
-        porcentaje_acumulado_contrato,
-        porcentaje_pendiente_contrato,
-        condiciones: condiciones || null,
+        porcentaje_contrato: isRxH ? null : porcentaje_contrato,
+        porcentaje_acumulado_contrato: isRxH ? null : porcentaje_acumulado_contrato,
+        porcentaje_pendiente_contrato: isRxH ? null : porcentaje_pendiente_contrato,
+        condiciones: isRxH ? null : (condiciones || null),
         fecha_pedido, fecha_requerida,
         moneda,
+        numero_rxh: isRxH ? (numero_rxh || null) : null,
+        periodo_servicio: isRxH && periodo_servicio ? periodo_servicio + '-01' : null,
       }
 
       if (solicitudId) {
@@ -203,6 +215,11 @@ export default function SolicitudNuevaPage() {
   useEffect(() => {
     if (step === 'detalles' && solicitudId) fetchDetalles(solicitudId)
   }, [step, solicitudId])
+
+  useEffect(() => {
+    if (step !== 'archivos' || !isRxH || moneda !== 'USD') return
+    getTipoCambioUSD().then(setTipoCambio).catch(() => setTipoCambio(null))
+  }, [step, isRxH, moneda])
 
   const openAdd  = () => { setEditingDet(null); setModalOpen(true) }
   const openEdit = (d: SolicitudDetalle) => { setEditingDet(d); setModalOpen(true) }
@@ -255,8 +272,8 @@ export default function SolicitudNuevaPage() {
             { key: 'form',     label: 'Datos generales' },
             { key: 'detalles', label: 'Bien o Servicio'  },
             { key: 'archivos', label: 'Documentos'      },
-            { key: 'factura',  label: 'Factura'         },
-          ] as const).map((s, i, arr) => {
+            ...(!isRxH ? [{ key: 'factura' as const, label: 'Factura' }] : []),
+          ] as { key: 'form' | 'detalles' | 'archivos' | 'factura'; label: string }[]).map((s, i, arr) => {
             const steps = arr.map(x => x.key)
             const idx      = steps.indexOf(step)
             const sIdx     = steps.indexOf(s.key)
@@ -425,8 +442,31 @@ export default function SolicitudNuevaPage() {
                 </div>
               </div>
 
-              {/* Porcentajes */}
-              <div>
+              {/* Campos específicos Recibo por Honorarios */}
+              {isRxH && (
+                <div>
+                  <SectionTitle>Datos del Recibo por Honorarios</SectionTitle>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={LABEL}>N° de Recibo (RxH) *</label>
+                      <input className={inp(errors.numero_rxh)} placeholder="Ej: E001-00123"
+                        value={numero_rxh}
+                        onChange={(e) => { setNumeroRxh(e.target.value); setErrors((x) => ({ ...x, numero_rxh: '' })) }} />
+                      {errors.numero_rxh && <p className="mt-1 text-xs text-red-500">{errors.numero_rxh}</p>}
+                    </div>
+                    <div>
+                      <label className={LABEL}>Período del servicio *</label>
+                      <input className={inp(errors.periodo_servicio)} type="month"
+                        value={periodo_servicio}
+                        onChange={(e) => { setPeriodoServicio(e.target.value); setErrors((x) => ({ ...x, periodo_servicio: '' })) }} />
+                      {errors.periodo_servicio && <p className="mt-1 text-xs text-red-500">{errors.periodo_servicio}</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Porcentajes (solo OC, no RxH) */}
+              {!isRxH && <div>
                 <SectionTitle>Porcentajes del contrato</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -459,7 +499,7 @@ export default function SolicitudNuevaPage() {
                     {errors.porcentaje_pendiente && <p className="mt-1 text-xs text-red-500">{errors.porcentaje_pendiente}</p>}
                   </div>
                 </div>
-              </div>
+              </div>}
 
               {/* Fechas */}
               <div>
@@ -480,17 +520,19 @@ export default function SolicitudNuevaPage() {
                 </div>
               </div>
 
-              {/* Condiciones */}
-              <div>
-                <SectionTitle>Condiciones y observaciones</SectionTitle>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <label className={LABEL}>Condiciones</label>
-                    <textarea className={INPUT + ' resize-none'} rows={2} value={condiciones}
-                      onChange={(e) => setCondiciones(e.target.value)} />
+              {/* Condiciones (solo OC) */}
+              {!isRxH && (
+                <div>
+                  <SectionTitle>Condiciones y observaciones</SectionTitle>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className={LABEL}>Condiciones</label>
+                      <textarea className={INPUT + ' resize-none'} rows={2} value={condiciones}
+                        onChange={(e) => setCondiciones(e.target.value)} />
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Footer */}
@@ -537,10 +579,12 @@ export default function SolicitudNuevaPage() {
                   )}
                   {loadingDet
                     ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#003D7D] border-t-transparent" />
-                    : <button onClick={openAdd}
-                        className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#003D7D] text-white text-xs font-medium hover:bg-[#002D5C] transition-all">
-                        <Plus size={13} /> Agregar
-                      </button>
+                    : (!isRxH || detalles.length === 0) && (
+                        <button onClick={openAdd}
+                          className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#003D7D] text-white text-xs font-medium hover:bg-[#002D5C] transition-all">
+                          <Plus size={13} /> Agregar
+                        </button>
+                      )
                   }
                 </div>
               </div>
@@ -626,13 +670,45 @@ export default function SolicitudNuevaPage() {
 
         {/* ── STEP 3: ARCHIVOS ── */}
         {step === 'archivos' && solicitudId && (() => {
-          const sustentoObligatorio = (porcentaje_acumulado_contrato ?? 0) > 9
-          const docsRequeridos      = sustentoObligatorio
-            ? ['Contrato', 'Cotizacion', 'Sustento']
-            : ['Contrato', 'Cotizacion']
-          const docsCompletos = docsRequeridos.every(tipo =>
+          const sustentoObligatorio = !isRxH && (porcentaje_acumulado_contrato ?? 0) > 9
+
+          // Umbral suspensión: S/ 1,500. Para USD se convierte usando tipo de cambio.
+          const subtotal = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+          const subtotalEnSoles = moneda === 'USD' && tipoCambio ? subtotal * tipoCambio : subtotal
+          const superaUmbral = isRxH && subtotalEnSoles >= 1500
+
+          const tiposVisiblesRxH = aplica_suspension === true
+            ? ['Sustento', 'Recibo Honorario', 'Suspension']
+            : ['Sustento', 'Recibo Honorario']
+
+          const docsRequeridos = isRxH
+            ? tiposVisiblesRxH // Suspension es opcional, pero se incluye si aplica
+            : sustentoObligatorio
+              ? ['Contrato', 'Cotizacion', 'Sustento']
+              : ['Contrato', 'Cotizacion']
+
+          // Docs obligatorios reales (Suspension nunca es obligatorio)
+          const docsObligatorios = isRxH
+            ? ['Sustento', 'Recibo Honorario']
+            : docsRequeridos
+
+          const docsCompletos = docsObligatorios.every(tipo =>
             archivos.some(a => a.tipo_archivo === tipo)
           )
+          // Para RxH que supera umbral: requiere seleccionar aplica/no aplica antes de continuar
+          const puedeAvanzar = docsCompletos && (!superaUmbral || aplica_suspension !== null)
+
+          const handleFinalizar = async () => {
+            if (isRxH && solicitudId) {
+              try {
+                await updateSolicitud(solicitudId, {
+                  aplica_suspension: superaUmbral ? (aplica_suspension ?? false) : null,
+                })
+              } catch { /* no bloqueante */ }
+            }
+            navigate(`/solicitudes/${solicitudId}`)
+          }
+
           return (
           <>
             <div className="flex items-center gap-3 px-5 py-4 bg-blue-50 border border-blue-200 rounded-2xl">
@@ -640,21 +716,67 @@ export default function SolicitudNuevaPage() {
               <div>
                 <p className="text-sm font-semibold text-blue-800">Adjunta los documentos requeridos</p>
                 <p className="text-xs text-blue-600">
-                  Contrato y Cotización son siempre obligatorios.
-                  {sustentoObligatorio
-                    ? ' Sustento también es obligatorio (% acumulado > 9%).'
-                    : ' Sustento y Cuadro Comparativo son opcionales.'
+                  {isRxH
+                    ? 'Sustento y PDF del Recibo por Honorarios son obligatorios.'
+                    : <>
+                        Contrato y Cotización son siempre obligatorios.
+                        {sustentoObligatorio
+                          ? ' Sustento también es obligatorio (% acumulado > 9%).'
+                          : ' Sustento y Cuadro Comparativo son opcionales.'
+                        }
+                      </>
                   }
                 </p>
               </div>
             </div>
 
+            {/* Suspensión de retención — solo para RxH que superan S/ 1,500 */}
+            {superaUmbral && (
+              <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-amber-100 bg-amber-50">
+                  <p className="text-sm font-semibold text-amber-800">Suspensión de retenciones de 4.ª categoría</p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    El monto supera S/ 1,500. ¿El proveedor cuenta con constancia de suspensión emitida por SUNAT?
+                  </p>
+                </div>
+                <div className="px-5 py-4 flex items-center gap-3">
+                  <button
+                    onClick={() => setAplicaSuspension(true)}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${
+                      aplica_suspension === true
+                        ? 'bg-green-600 text-white border-green-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-700'
+                    }`}
+                  >
+                    Sí aplica — subiré la constancia
+                  </button>
+                  <button
+                    onClick={() => setAplicaSuspension(false)}
+                    className={`flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all ${
+                      aplica_suspension === false
+                        ? 'bg-gray-700 text-white border-gray-700'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                    }`}
+                  >
+                    No aplica
+                  </button>
+                </div>
+                {aplica_suspension === null && (
+                  <p className="px-5 pb-3 text-xs text-amber-600">Selecciona una opción para continuar.</p>
+                )}
+              </div>
+            )}
+
             <SolicitudArchivos
               solicitudId={solicitudId}
               editable={true}
               onChange={setArchivos}
-              tiposVisibles={['Contrato', 'Cotizacion', 'Sustento', 'Cuadro Comparativo']}
-              tiposOpcionales={sustentoObligatorio ? [] : ['Sustento']}
+              tiposVisibles={isRxH
+                ? tiposVisiblesRxH
+                : ['Contrato', 'Cotizacion', 'Sustento', 'Cuadro Comparativo']}
+              tiposOpcionales={isRxH
+                ? (aplica_suspension === true ? ['Suspension'] : [])
+                : sustentoObligatorio ? [] : ['Sustento']}
             />
 
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
@@ -666,20 +788,22 @@ export default function SolicitudNuevaPage() {
                 <span className="text-sm text-gray-500">
                   {!docsCompletos
                     ? <span className="text-amber-600 font-medium">
-                        Faltan: {docsRequeridos.filter(t => !archivos.some(a => a.tipo_archivo === t)).join(', ')}
+                        Faltan: {docsObligatorios.filter(t => !archivos.some(a => a.tipo_archivo === t)).join(', ')}
                       </span>
-                    : <span className="text-green-600 font-medium flex items-center gap-1.5">
-                        <CheckCircle size={14} /> Documentos obligatorios completos
-                      </span>
+                    : superaUmbral && aplica_suspension === null
+                      ? <span className="text-amber-600 font-medium">Indica si aplica suspensión</span>
+                      : <span className="text-green-600 font-medium flex items-center gap-1.5">
+                          <CheckCircle size={14} /> Documentos obligatorios completos
+                        </span>
                   }
                 </span>
               </div>
               <button
-                onClick={() => setStep('factura')}
-                disabled={!docsCompletos}
+                onClick={() => isRxH ? handleFinalizar() : setStep('factura')}
+                disabled={!puedeAvanzar}
                 className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
-                Continuar →
+                {isRxH ? 'Finalizar →' : 'Continuar →'}
               </button>
             </div>
           </>
@@ -803,6 +927,7 @@ export default function SolicitudNuevaPage() {
       <SolicitudDetalleModal
         open={modalOpen}
         detalle={editingDet}
+        moneda={moneda}
         onClose={() => setModalOpen(false)}
         onSubmit={handleModalSubmit}
       />

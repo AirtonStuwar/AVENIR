@@ -380,12 +380,13 @@ export function OrdenCompraPDF({
   aprobadorEmail,
   aprobadorCargo,
 }: OrdenCompraPDFProps) {
-  const moneda      = (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN'
-  const subtotal    = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-  const descuento   = 0
-  const baseGravable = subtotal - descuento
-  const igv         = baseGravable * 0.18
-  const total       = baseGravable + igv
+  const moneda       = (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN'
+  const isRxH        = solicitud.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+  const subtotal     = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+  const retencionPct = isRxH ? (solicitud.porcentaje_retencion ?? 0) : 0
+  const retencion    = isRxH ? (solicitud.monto_retencion ?? subtotal * retencionPct / 100) : 0
+  const igv          = isRxH ? 0 : subtotal * 0.18
+  const total        = isRxH ? subtotal - retencion : subtotal + igv
 
   const proyecto    = solicitud.proyecto
   const hoy         = new Intl.DateTimeFormat('es-PE', { dateStyle: 'short' }).format(new Date())
@@ -401,8 +402,8 @@ export function OrdenCompraPDF({
             : <View style={S.logoPlaceholder} />
           }
           <View style={S.headerCenter}>
-            <Text style={S.headerTitle}>ORDEN DE COMPRA O SERVICIO</Text>
-            <Text style={S.headerSub}>Documento de solicitud de adquisición</Text>
+            <Text style={S.headerTitle}>{isRxH ? 'RECIBO POR HONORARIOS' : 'ORDEN DE COMPRA O SERVICIO'}</Text>
+            <Text style={S.headerSub}>{isRxH ? 'Documento de pago por servicios profesionales' : 'Documento de solicitud de adquisición'}</Text>
           </View>
           <View style={S.headerRight}>
             <Text style={S.headerRightLabel}>N° {solicitud.codigo ?? `#${solicitud.id}`}</Text>
@@ -502,23 +503,26 @@ export function OrdenCompraPDF({
         <View style={S.totalsWrap}>
           <View style={S.totalsInner}>
             <View style={[S.totalRow, S.totalRowFirst]}>
-              <Text style={S.totalLabel}>Subtotal</Text>
+              <Text style={S.totalLabel}>Monto bruto</Text>
               <Text style={S.totalValue}>{fmtMoney(subtotal, moneda)}</Text>
             </View>
-            <View style={S.totalRow}>
-              <Text style={S.totalLabel}>Descuento</Text>
-              <Text style={S.totalValue}>{fmtMoney(descuento, moneda)}</Text>
-            </View>
-            <View style={S.totalRow}>
-              <Text style={S.totalLabel}>Base Gravable</Text>
-              <Text style={S.totalValue}>{fmtMoney(baseGravable, moneda)}</Text>
-            </View>
-            <View style={S.totalRow}>
-              <Text style={S.totalLabel}>IGV (18%)</Text>
-              <Text style={S.totalValue}>{fmtMoney(igv, moneda)}</Text>
-            </View>
+            {isRxH ? (
+              <View style={S.totalRow}>
+                <Text style={S.totalLabel}>
+                  Retención IR {retencionPct > 0 ? `(${retencionPct}%)` : '(Exonerado)'}
+                </Text>
+                <Text style={S.totalValue}>- {fmtMoney(retencion, moneda)}</Text>
+              </View>
+            ) : (
+              <>
+                <View style={S.totalRow}>
+                  <Text style={S.totalLabel}>IGV (18%)</Text>
+                  <Text style={S.totalValue}>{fmtMoney(igv, moneda)}</Text>
+                </View>
+              </>
+            )}
             <View style={S.totalFinal}>
-              <Text style={S.totalFinalText}>TOTAL</Text>
+              <Text style={S.totalFinalText}>{isRxH ? 'MONTO NETO A PAGAR' : 'TOTAL'}</Text>
               <Text style={S.totalFinalText}>{fmtMoney(total, moneda)}</Text>
             </View>
           </View>

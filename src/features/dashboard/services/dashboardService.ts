@@ -4,7 +4,7 @@ import { getReembolsoAutorizados, type ReembolsoRow } from '../../reembolso/serv
 
 export type { ARendirRow, ReembolsoRow }
 
-const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, moneda, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre)'
+const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, moneda, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre)'
 
 export interface SolicitudRow {
   id: number
@@ -18,6 +18,7 @@ export interface SolicitudRow {
   moneda: string | null
   estado_soli: { id: number; nombre: string; tipo: string | null } | null
   proyecto: { id: number; nombre: string } | null
+  solicitud_tipo: { id: number; nombre: string } | null
 }
 
 export interface ProyectoRow {

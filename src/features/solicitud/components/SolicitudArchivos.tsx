@@ -102,9 +102,7 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
     }
   }
 
-  const tiposAMostrar = tiposVisibles
-    ? TIPOS.filter(t => tiposVisibles.includes(t))
-    : TIPOS
+  const tiposAMostrar: string[] = tiposVisibles ?? [...TIPOS]
 
   // Un tipo es opcional si está en TIPOS_OPCIONALES O si el caller lo marcó como opcional
   const esOpcionalFn = (tipo: string) =>

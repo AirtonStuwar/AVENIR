@@ -5,6 +5,7 @@ import type { SolicitudDetalle } from '../types/solicitud'
 interface Props {
   open: boolean
   detalle?: SolicitudDetalle | null  // null = nuevo, value = editar
+  moneda?: 'PEN' | 'USD'
   onClose: () => void
   onSubmit: (data: { cantidad: number; descripcion: string; valor_unitario: number }) => Promise<void>
 }
@@ -12,7 +13,7 @@ interface Props {
 const INPUT = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all'
 const LABEL = 'block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5'
 
-export default function SolicitudDetalleModal({ open, detalle, onClose, onSubmit }: Props) {
+export default function SolicitudDetalleModal({ open, detalle, moneda = 'PEN', onClose, onSubmit }: Props) {
   const [cantidad,       setCantidad]      = useState(1)
   const [descripcion,    setDescripcion]   = useState('')
   const [valor_unitario, setValorUnitario] = useState(0)
@@ -98,7 +99,7 @@ export default function SolicitudDetalleModal({ open, detalle, onClose, onSubmit
               {errors.cantidad && <p className="mt-1 text-xs text-red-500">{errors.cantidad}</p>}
             </div>
             <div>
-              <label className={LABEL}>Valor unitario (S/) *</label>
+              <label className={LABEL}>Valor unitario ({moneda === 'USD' ? '$' : 'S/'}) *</label>
               <input
                 className={INPUT + (errors.valor ? ' border-red-300 bg-red-50' : '')}
                 type="number" min="0" step="0.01"
@@ -113,7 +114,9 @@ export default function SolicitudDetalleModal({ open, detalle, onClose, onSubmit
           <div className="flex items-center justify-between rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
             <span className="text-sm text-gray-500">Total</span>
             <span className="text-base font-bold text-[#003D7D]">
-              S/ {total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+              {moneda === 'USD'
+                ? `$ ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                : `S/ ${total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
             </span>
           </div>
         </div>

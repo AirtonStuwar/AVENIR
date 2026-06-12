@@ -13,6 +13,7 @@ const SOL_SEL = [
   'fecha_pedido, fecha_requerida, estado_id, fecha_creacion',
   'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
   'numero_factura, monto_total, plan_contable_id, usuario_evaluador, moneda',
+  'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
   'proyecto:proyecto_id(id,nombre,ruc,direccion)',
   'solicitud_tipo:tipo_id(id,nombre)',
   'estado_soli:estado_id(id,nombre,tipo)',
@@ -186,10 +187,21 @@ export async function cancelarSolicitud(id: number): Promise<Solicitud> {
   return updateSolicitud(id, { estado_id: estadoId })
 }
 
-export async function marcarEvaluado(id: number, planContableId: number, userId: string | null): Promise<Solicitud> {
+export async function marcarEvaluado(
+  id: number,
+  planContableId: number,
+  userId: string | null,
+  porcentajeRetencion?: number,
+  montoRetencion?: number,
+): Promise<Solicitud> {
   const [estadoId] = await resolveEstadoIds(['Evaluado'])
   if (!estadoId) throw new Error('Estado "Evaluado" no encontrado en BD')
-  return updateSolicitud(id, { estado_id: estadoId, plan_contable_id: planContableId, usuario_evaluador: userId })
+  return updateSolicitud(id, {
+    estado_id: estadoId,
+    plan_contable_id: planContableId,
+    usuario_evaluador: userId,
+    ...(porcentajeRetencion !== undefined && { porcentaje_retencion: porcentajeRetencion, monto_retencion: montoRetencion ?? null }),
+  })
 }
 
 export async function getPlanContable(): Promise<PlanContable[]> {

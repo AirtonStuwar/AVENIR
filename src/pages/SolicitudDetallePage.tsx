@@ -163,13 +163,16 @@ export default function SolicitudDetallePage() {
   const isRechazado    = nombre === 'Rechazado'
   const isOwnSolicitud = solicitud?.usuario_creador === user?.id
 
+  const isRxH        = solicitud?.solicitud_tipo?.nombre === 'Recibo por Honorarios'
   const canEdit      = isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const canDuplicar  = userRole === ROLES.USUARIO && isOwnSolicitud && (isAprobado || isCancelado || isRechazado)
   const canShowPDF   = !isRechazado && !isCancelado
-  const sustentoObligatorio   = (solicitud?.porcentaje_acumulado_contrato ?? 0) > 9
-  const DOCS_OBLIGATORIOS     = sustentoObligatorio
-    ? ['Contrato', 'Cotizacion', 'Sustento']
-    : ['Contrato', 'Cotizacion']
+  const sustentoObligatorio   = !isRxH && (solicitud?.porcentaje_acumulado_contrato ?? 0) > 9
+  const DOCS_OBLIGATORIOS     = isRxH
+    ? ['Sustento', 'Recibo Honorario']
+    : sustentoObligatorio
+      ? ['Contrato', 'Cotizacion', 'Sustento']
+      : ['Contrato', 'Cotizacion']
   const tieneDocsObligatorios = DOCS_OBLIGATORIOS.every(doc =>
     archivosSubidos.some(a => a.tipo_archivo === doc)
   )
@@ -179,9 +182,9 @@ export default function SolicitudDetallePage() {
   const canDevolver  = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canAprobar   = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canRechazar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
-  const canEncuestar      = isAprobado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const canEditFactura    = (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const showFacturaCard   = canEdit || !!solicitud?.numero_factura || !!solicitud?.motivo_factura || !!solicitud?.fecha_emision_factura || archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF')
+  const canEncuestar    = isAprobado && !isRxH && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canEditFactura  = !isRxH && (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const showFacturaCard = !isRxH && (canEdit || !!solicitud?.numero_factura || !!solicitud?.motivo_factura || !!solicitud?.fecha_emision_factura || archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF'))
 
   const estadoColor = ESTADO_COLOR[nombre] ?? 'bg-gray-100 text-gray-600'
 
@@ -338,9 +341,16 @@ export default function SolicitudDetallePage() {
     setEvaluarOpen(true)
   }
 
-  const handleConfirmEvaluar = async (planContableId: number) => {
+  const handleConfirmEvaluar = async (planContableId: number, porcentajeRetencion?: number) => {
     if (!solicitud?.id || !id) return
-    await marcarEvaluado(solicitud.id, planContableId, user?.id ?? null)
+    const isRxHSol = solicitud.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+    const subtotalSol = (solicitud.detalles ?? detalles).reduce(
+      (s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0
+    )
+    const montoRetencion = isRxHSol && porcentajeRetencion !== undefined
+      ? subtotalSol * porcentajeRetencion / 100
+      : undefined
+    await marcarEvaluado(solicitud.id, planContableId, user?.id ?? null, porcentajeRetencion, montoRetencion)
     toast.success('Marcada como Evaluada')
     setEvaluarOpen(false)
     await reload(id)
@@ -450,9 +460,11 @@ export default function SolicitudDetallePage() {
     })
   }
 
-  const subtotal    = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-  const igv         = subtotal * 0.18
-  const totalConIgv = subtotal + igv
+  const subtotal       = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+  const retencionPct   = solicitud?.porcentaje_retencion ?? 0
+  const retencion      = isRxH ? (solicitud?.monto_retencion ?? subtotal * retencionPct / 100) : 0
+  const igv            = isRxH ? 0 : subtotal * 0.18
+  const totalConIgv    = isRxH ? subtotal - retencion : subtotal + igv
 
   // ── Loading / not found ───────────────────────────────────────
   if (loadingSol) {
@@ -567,6 +579,14 @@ export default function SolicitudDetallePage() {
             <InfoField label="Fecha requerida" value={fmtDate(solicitud.fecha_requerida)} />
             <InfoField label="Forma de pago"   value={solicitud.solicitud_forma_pago?.nombre ?? solicitud.forma_pago} />
             <InfoField label="Moneda"          value={solicitud.moneda === 'USD' ? '$ Dólares (USD)' : 'S/ Soles (PEN)'} />
+            {isRxH && <InfoField label="N° Recibo (RxH)" value={solicitud.numero_rxh} />}
+            {isRxH && <InfoField label="Período de servicio" value={solicitud.periodo_servicio ? new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' }).format(new Date(solicitud.periodo_servicio + 'T00:00:00')) : null} />}
+            {isRxH && solicitud.aplica_suspension !== null && (
+              <InfoField
+                label="Suspensión retención"
+                value={solicitud.aplica_suspension ? 'Sí aplica — constancia adjunta' : 'No aplica'}
+              />
+            )}
           </div>
 
           <div className="px-6 pb-5 grid grid-cols-1 md:grid-cols-2 gap-5 border-t border-gray-50 pt-4">
@@ -677,17 +697,31 @@ export default function SolicitudDetallePage() {
                 </tbody>
                 <tfoot className="bg-gray-50 border-t border-gray-100">
                   <tr>
-                    <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">Subtotal</td>
+                    <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">Monto bruto</td>
                     <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(subtotal, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                     {canEdit && <td />}
                   </tr>
-                  <tr>
-                    <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV (18%)</td>
-                    <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(igv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
-                    {canEdit && <td />}
-                  </tr>
+                  {isRxH ? (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">
+                        Retención IR {retencionPct > 0 ? `(${retencionPct}%)` : solicitud?.porcentaje_retencion !== null ? '(Exonerado)' : '(pendiente evaluación)'}
+                      </td>
+                      <td className="px-5 py-2 text-right text-sm text-gray-600">
+                        {solicitud?.porcentaje_retencion !== null ? `- ${fmtMoney(retencion, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}` : '—'}
+                      </td>
+                      {canEdit && <td />}
+                    </tr>
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV (18%)</td>
+                      <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(igv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
+                      {canEdit && <td />}
+                    </tr>
+                  )}
                   <tr className="border-t border-gray-200">
-                    <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">Total general:</td>
+                    <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">
+                      {isRxH ? 'Monto neto a pagar:' : 'Total general:'}
+                    </td>
                     <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">{fmtMoney(totalConIgv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                     {canEdit && <td />}
                   </tr>
@@ -702,12 +736,19 @@ export default function SolicitudDetallePage() {
           solicitudId={solicitud.id}
           editable={canEdit}
           onChange={setArchivosSubidos}
-          tiposOpcionales={(solicitud.porcentaje_acumulado_contrato ?? 0) <= 9 ? ['Sustento'] : []}
+          tiposVisibles={isRxH
+            ? ['Sustento', 'Recibo Honorario', ...(solicitud.aplica_suspension ? ['Suspension'] : [])]
+            : undefined}
+          tiposOpcionales={isRxH
+            ? (solicitud.aplica_suspension ? ['Suspension'] : [])
+            : (solicitud.porcentaje_acumulado_contrato ?? 0) <= 9 ? ['Sustento'] : []}
         />
         {isPendiente && !tieneDocsObligatorios && (
           <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             <AlertCircle size={15} className="shrink-0" />
-            Para enviar a revisión debes adjuntar los documentos obligatorios: Contrato, Cotización y Sustento.
+            {isRxH
+              ? 'Para enviar a revisión debes adjuntar el Sustento y el PDF del Recibo por Honorarios.'
+              : 'Para enviar a revisión debes adjuntar los documentos obligatorios: Contrato, Cotización y Sustento.'}
           </div>
         )}
 
@@ -859,6 +900,7 @@ export default function SolicitudDetallePage() {
       <SolicitudDetalleModal
         open={modalOpen}
         detalle={editingDet}
+        moneda={(solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN'}
         onClose={() => setModalOpen(false)}
         onSubmit={handleModalSubmit}
       />
@@ -884,6 +926,7 @@ export default function SolicitudDetallePage() {
       <EvaluarModal
         open={evaluarOpen}
         codigoSolicitud={solicitud?.codigo ?? `#${solicitud?.id}`}
+        isRxH={isRxH}
         onConfirm={handleConfirmEvaluar}
         onCancel={() => setEvaluarOpen(false)}
       />

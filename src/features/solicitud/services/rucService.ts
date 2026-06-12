@@ -1,5 +1,15 @@
 import { getProveedorByRuc, upsertProveedor } from '../../proveedor/services/proveedorService'
 
+export async function getTipoCambioUSD(): Promise<number> {
+  const res = await fetch('/api/tipo-cambio')
+  if (!res.ok) throw new Error('No se pudo obtener el tipo de cambio')
+  const data = await res.json() as { sell_price?: string; buy_price?: string }
+  // Usamos sell_price (precio de venta) para convertir USD → PEN
+  const rate = parseFloat(data.sell_price ?? '')
+  if (!rate || isNaN(rate)) throw new Error('Tipo de cambio no disponible')
+  return rate
+}
+
 interface RucData {
   razon_social: string
   direccion:    string

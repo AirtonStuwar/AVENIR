@@ -146,9 +146,13 @@ function AdminDashboard() {
   const pendientes  = porEstado['Pendiente'] ?? 0
   const proyActivos = proyectos.filter(p => p.estado === 'Activo').length
   const aprobadas      = solicitudes.filter(s => s.estado_soli?.nombre === 'Aprobado')
-  const montoAprobPEN  = montoSolicitudes(aprobadas, detalles, 'PEN')
-  const montoAprobUSD  = montoSolicitudes(aprobadas, detalles, 'USD')
+  const rxhAprobadas   = aprobadas.filter(s => s.solicitud_tipo?.nombre === 'Recibo por Honorarios')
+  const ocAprobadas    = aprobadas.filter(s => s.solicitud_tipo?.nombre !== 'Recibo por Honorarios')
+  const montoAprobPEN  = montoSolicitudes(ocAprobadas, detalles, 'PEN')
+  const montoAprobUSD  = montoSolicitudes(ocAprobadas, detalles, 'USD')
   const montoTotal     = montoSolicitudes(solicitudes, detalles)
+  const rxhAprobPEN    = montoSolicitudes(rxhAprobadas, detalles, 'PEN')
+  const rxhAprobUSD    = montoSolicitudes(rxhAprobadas, detalles, 'USD')
   const arendirPEN     = montoARendir(arendir, 'PEN')
   const arendirUSD     = montoARendir(arendir, 'USD')
   const reembolsoPEN   = montoReembolso(reembolso, 'PEN')
@@ -208,6 +212,16 @@ function AdminDashboard() {
           <KpiCard label="Reembolsos autorizados" value={reembolso.length} sub="total autorizados" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/reembolso')} />
           <KpiCard label="Reembolsos evaluados" value={reembolso.filter(r => r.estado === 'Evaluado').length} sub="esperando autorización" icon={<FileText size={18} />} color="amber" alert={reembolso.filter(r => r.estado === 'Evaluado').length > 0} onClick={() => navigate('/reembolso')} />
         </div>
+
+        {/* KPIs Recibo por Honorarios */}
+        {(rxhAprobadas.length > 0) && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="Honorarios aprobados S/" value={fmtMoney(rxhAprobPEN, 'PEN')} sub={`${rxhAprobadas.filter(s => (s.moneda ?? 'PEN') === 'PEN').length} aprobados soles`} icon={<FileText size={18} />} color="indigo" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="Honorarios aprobados $" value={fmtMoney(rxhAprobUSD, 'USD')} sub={`${rxhAprobadas.filter(s => (s.moneda ?? 'PEN') === 'USD').length} aprobados dólares`} icon={<FileText size={18} />} color="blue" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="RxH aprobados" value={rxhAprobadas.length} sub="total aprobados" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="RxH en proceso" value={solicitudes.filter(s => s.solicitud_tipo?.nombre === 'Recibo por Honorarios' && !['Aprobado','Rechazado','Cancelado'].includes(s.estado_soli?.nombre ?? '')).length} sub="pendientes/en revisión" icon={<Hourglass size={18} />} color="amber" onClick={() => navigate('/solicitudes')} />
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ChartCard title="Distribución por estado" subtitle="Todas las solicitudes">
@@ -335,9 +349,13 @@ function AprobadorDashboard() {
   const reembolsoFilPEN  = montoReembolso(reembolsoAuthFil, 'PEN')
   const reembolsoFilUSD  = montoReembolso(reembolsoAuthFil, 'USD')
 
+  const rxhAprob       = aprobadasFiltradas.filter(s => s.solicitud_tipo?.nombre === 'Recibo por Honorarios')
+  const ocAprob        = aprobadasFiltradas.filter(s => s.solicitud_tipo?.nombre !== 'Recibo por Honorarios')
+  const rxhAprobPEN    = montoSolicitudes(rxhAprob, detalles, 'PEN')
+  const rxhAprobUSD    = montoSolicitudes(rxhAprob, detalles, 'USD')
   const montoCola      = montoSolicitudes(colaFiltrada, detalles)
-  const montoAprobPEN  = montoSolicitudes(aprobadasFiltradas, detalles, 'PEN')
-  const montoAprobUSD  = montoSolicitudes(aprobadasFiltradas, detalles, 'USD')
+  const montoAprobPEN  = montoSolicitudes(ocAprob, detalles, 'PEN')
+  const montoAprobUSD  = montoSolicitudes(ocAprob, detalles, 'USD')
   const cmk            = currentMonthKey()
   const pmk            = prevMonthKey()
   const aprobMes       = aprobadasFiltradas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
@@ -393,6 +411,16 @@ function AprobadorDashboard() {
           <KpiCard label="Reembolso pend. aprob." value={reembolso.filter(r => r.estado === 'Evaluado').length} sub="evaluados, esperan tu firma" icon={<Hourglass size={18} />} color="amber" alert={reembolso.filter(r => r.estado === 'Evaluado').length > 0} onClick={() => navigate('/reembolso')} />
           <KpiCard label="Reembolsos autorizados" value={reembolso.filter(r => r.estado === 'Autorizado').length} sub="finalizados" icon={<CheckCircle size={18} />} color="green" />
         </div>
+
+        {/* KPIs Recibo por Honorarios */}
+        {rxhAprob.length > 0 && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="Honorarios aprobados S/" value={fmtMoney(rxhAprobPEN, 'PEN')} sub={`${rxhAprob.filter(s => (s.moneda ?? 'PEN') === 'PEN').length} aprobados soles`} icon={<FileText size={18} />} color="indigo" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="Honorarios aprobados $" value={fmtMoney(rxhAprobUSD, 'USD')} sub={`${rxhAprob.filter(s => (s.moneda ?? 'PEN') === 'USD').length} aprobados dólares`} icon={<FileText size={18} />} color="blue" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="RxH aprobados" value={rxhAprob.length} sub="total aprobados" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="RxH en evaluación" value={enCola.filter(s => s.solicitud_tipo?.nombre === 'Recibo por Honorarios').length} sub="esperando evaluación/aprobación" icon={<Hourglass size={18} />} color="amber" onClick={() => navigate('/solicitudes')} />
+          </div>
+        )}
 
         {/* Totales consolidados OC + A Rendir */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -608,17 +636,21 @@ function VisualizadorDashboard() {
 
   const { aprobadas, detalles, arendir, reembolso } = data
 
-  const cmk           = currentMonthKey()
-  const pmk           = prevMonthKey()
-  const aprobadasMes  = aprobadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
-  const aprobadasMesAnt = aprobadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === pmk).length
-  const montoAprobPEN = montoSolicitudes(aprobadas, detalles, 'PEN')
-  const montoAprobUSD = montoSolicitudes(aprobadas, detalles, 'USD')
-  const montoMes      = montoSolicitudes(aprobadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk), detalles)
-  const arendirPEN    = montoARendir(arendir, 'PEN')
-  const arendirUSD    = montoARendir(arendir, 'USD')
-  const reembolsoPEN  = montoReembolso(reembolso, 'PEN')
-  const reembolsoUSD  = montoReembolso(reembolso, 'USD')
+  const cmk             = currentMonthKey()
+  const pmk             = prevMonthKey()
+  const rxhVis          = aprobadas.filter(s => s.solicitud_tipo?.nombre === 'Recibo por Honorarios')
+  const ocVis           = aprobadas.filter(s => s.solicitud_tipo?.nombre !== 'Recibo por Honorarios')
+  const aprobadasMes    = ocVis.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
+  const aprobadasMesAnt = ocVis.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === pmk).length
+  const montoAprobPEN   = montoSolicitudes(ocVis, detalles, 'PEN')
+  const montoAprobUSD   = montoSolicitudes(ocVis, detalles, 'USD')
+  const montoMes        = montoSolicitudes(ocVis.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk), detalles)
+  const rxhVisPEN       = montoSolicitudes(rxhVis, detalles, 'PEN')
+  const rxhVisUSD       = montoSolicitudes(rxhVis, detalles, 'USD')
+  const arendirPEN      = montoARendir(arendir, 'PEN')
+  const arendirUSD      = montoARendir(arendir, 'USD')
+  const reembolsoPEN    = montoReembolso(reembolso, 'PEN')
+  const reembolsoUSD    = montoReembolso(reembolso, 'USD')
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -649,6 +681,16 @@ function VisualizadorDashboard() {
           <KpiCard label="Reembolsos autorizados" value={reembolso.filter(r => r.estado === 'Autorizado').length} sub="total autorizados" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/reembolso')} />
           <KpiCard label="Reembolsos en evaluación" value={reembolso.filter(r => r.estado === 'Evaluado').length} sub="esperando autorización gerencia" icon={<Hourglass size={18} />} color="amber" onClick={() => navigate('/reembolso')} />
         </div>
+
+        {/* KPIs Recibo por Honorarios */}
+        {rxhVis.length > 0 && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="RxH Aprobado S/" value={fmtMoney(rxhVisPEN, 'PEN')} sub={`${rxhVis.filter(s => (s.moneda ?? 'PEN') === 'PEN').length} recibos soles`} icon={<FileText size={18} />} color="indigo" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="RxH Aprobado $" value={fmtMoney(rxhVisUSD, 'USD')} sub={`${rxhVis.filter(s => s.moneda === 'USD').length} recibos dólares`} icon={<DollarSign size={18} />} color="blue" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="RxH aprobados" value={rxhVis.length} sub="recibos por honorarios" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="RxH este mes" value={rxhVis.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length} sub="aprobados este mes" icon={<Receipt size={18} />} color="amber" onClick={() => navigate('/solicitudes')} />
+          </div>
+        )}
 
         <SolicitudTable
           title="Solicitudes aprobadas"
