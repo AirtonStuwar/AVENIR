@@ -19,7 +19,7 @@ export default defineConfig(({ mode }) => {
         '/api/tipo-cambio': {
           target: 'https://api.decolecta.com',
           changeOrigin: true,
-          rewrite: () => '/v1/tipo-cambio/sbs/average?currency=USD',
+          rewrite: () => '/v1/tipo-cambio/sunat',
           headers: {
             Authorization: `Bearer ${env.DECOLECTA_API_KEY}`,
           },
