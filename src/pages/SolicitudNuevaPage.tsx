@@ -76,7 +76,7 @@ export default function SolicitudNuevaPage() {
   const [cuenta_detracciones,          setCuentaDetracciones]          = useState('')
   const [forma_pago_id,                setFormaPagoId]                 = useState<number | null>(null)
   const [moneda,                       setMoneda]                       = useState<'PEN' | 'USD'>('PEN')
-  const [porcentaje_contrato]                                           = useState<number | null>(100)
+  const [porcentaje_contrato,          setPorcentajeContrato]           = useState<number | null>(100)
   const [porcentaje_acumulado_contrato,setPorcentajeAcumulado]         = useState<number | null>(0)
   const [porcentaje_pendiente_contrato,setPorcentajePendiente]         = useState<number | null>(100)
   const [condiciones,                  setCondiciones]                 = useState(
@@ -152,6 +152,7 @@ export default function SolicitudNuevaPage() {
     if (!fecha_pedido)           e.fecha_pedido   = 'Obligatorio'
     if (!fecha_requerida)        e.fecha_requerida= 'Obligatorio'
     if (!isRxH) {
+      if (porcentaje_contrato === null) e.porcentaje_contrato = 'Obligatorio'
       if (porcentaje_acumulado_contrato === null) e.porcentaje_acumulado = 'Obligatorio'
       if (porcentaje_pendiente_contrato === null) e.porcentaje_pendiente = 'Obligatorio'
     }
@@ -470,9 +471,15 @@ export default function SolicitudNuevaPage() {
                 <SectionTitle>Porcentajes del contrato</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className={LABEL}>% Contrato</label>
-                    <input className={inp('')} type="number" value={100} readOnly
-                      style={{ opacity: 0.6, cursor: 'not-allowed', backgroundColor: '#f9fafb' }} />
+                    <label className={LABEL}>% Contrato *</label>
+                    <input className={inp(errors.porcentaje_contrato)} type="number" step="0.01" min="0" max="100" placeholder="100"
+                      value={porcentaje_contrato ?? ''}
+                      onChange={(e) => {
+                        const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)))
+                        setPorcentajeContrato(v)
+                        setErrors((x) => ({ ...x, porcentaje_contrato: '' }))
+                      }} />
+                    {errors.porcentaje_contrato && <p className="mt-1 text-xs text-red-500">{errors.porcentaje_contrato}</p>}
                   </div>
                   <div>
                     <label className={LABEL}>% Acumulado *</label>
@@ -481,7 +488,7 @@ export default function SolicitudNuevaPage() {
                       onChange={(e) => {
                         const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)))
                         setPorcentajeAcumulado(v)
-                        setPorcentajePendiente(v === null ? null : 100 - v)
+                        setPorcentajePendiente(v === null ? null : (porcentaje_contrato ?? 100) - v)
                         setErrors((x) => ({ ...x, porcentaje_acumulado: '' }))
                       }} />
                     {errors.porcentaje_acumulado && <p className="mt-1 text-xs text-red-500">{errors.porcentaje_acumulado}</p>}
@@ -493,7 +500,7 @@ export default function SolicitudNuevaPage() {
                       onChange={(e) => {
                         const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)))
                         setPorcentajePendiente(v)
-                        setPorcentajeAcumulado(v === null ? null : 100 - v)
+                        setPorcentajeAcumulado(v === null ? null : (porcentaje_contrato ?? 100) - v)
                         setErrors((x) => ({ ...x, porcentaje_pendiente: '' }))
                       }} />
                     {errors.porcentaje_pendiente && <p className="mt-1 text-xs text-red-500">{errors.porcentaje_pendiente}</p>}

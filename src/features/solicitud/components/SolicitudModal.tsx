@@ -427,13 +427,24 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
             </h4>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-gray-700">% Contrato</label>
+                <label className="mb-1 block text-xs font-medium text-gray-700">
+                  % Contrato <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="number"
-                  value={100}
-                  readOnly
-                  className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm opacity-60 cursor-not-allowed"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
+                  placeholder="Porcentaje contrato"
+                  value={porcentaje_contrato ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)))
+                    setPorcentajeContrato(v)
+                    clearErrors()
+                  }}
                 />
+                {errors.porcentaje_contrato && <p className="mt-1 text-sm text-red-600">{errors.porcentaje_contrato}</p>}
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">
@@ -450,7 +461,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
                   onChange={(e) => {
                     const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)))
                     setPorcentajeAcumuladoContrato(v)
-                    setPorcentajePendienteContrato(v === null ? null : 100 - v)
+                    setPorcentajePendienteContrato(v === null ? null : (porcentaje_contrato ?? 100) - v)
                     clearErrors()
                   }}
                 />
@@ -471,7 +482,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
                   onChange={(e) => {
                     const v = e.target.value === '' ? null : Math.min(100, Math.max(0, Number(e.target.value)))
                     setPorcentajePendienteContrato(v)
-                    setPorcentajeAcumuladoContrato(v === null ? null : 100 - v)
+                    setPorcentajeAcumuladoContrato(v === null ? null : (porcentaje_contrato ?? 100) - v)
                     clearErrors()
                   }}
                 />
