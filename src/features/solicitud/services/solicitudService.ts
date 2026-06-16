@@ -1,5 +1,5 @@
 import { supabase } from '../../../api/supabase'
-import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado, SolicitudDetalleInsert, SolicitudDetalle, SolicitudArchivo, SolicitudFormaPago, PlanContable, Usuario } from '../types/solicitud'
+import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado, SolicitudDetalleInsert, SolicitudDetalle, SolicitudArchivo, SolicitudFormaPago, PlanContable, Detraccion, Usuario } from '../types/solicitud'
 import { ROLES } from '../types/solicitud'
 
 const TABLE   = 'solicitud'
@@ -14,7 +14,9 @@ const SOL_SEL = [
   'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
   'numero_factura, monto_total, plan_contable_id, usuario_evaluador, moneda',
   'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
+  'detraccion_id, monto_detraccion',
   'proyecto:proyecto_id(id,nombre,ruc,direccion)',
+  'detraccion:detraccion_id(id,codigo,concepto,porcentaje,monto_minimo)',
   'solicitud_tipo:tipo_id(id,nombre)',
   'estado_soli:estado_id(id,nombre,tipo)',
   'solicitud_forma_pago:forma_pago_id(id,nombre)',
@@ -193,6 +195,8 @@ export async function marcarEvaluado(
   userId: string | null,
   porcentajeRetencion?: number,
   montoRetencion?: number,
+  detraccionId?: number,
+  montoDetraccion?: number,
 ): Promise<Solicitud> {
   const [estadoId] = await resolveEstadoIds(['Evaluado'])
   if (!estadoId) throw new Error('Estado "Evaluado" no encontrado en BD')
@@ -201,6 +205,9 @@ export async function marcarEvaluado(
     plan_contable_id: planContableId,
     usuario_evaluador: userId,
     ...(porcentajeRetencion !== undefined && { porcentaje_retencion: porcentajeRetencion, monto_retencion: montoRetencion ?? null }),
+    ...(detraccionId !== undefined
+      ? { detraccion_id: detraccionId, monto_detraccion: montoDetraccion ?? null }
+      : { detraccion_id: null, monto_detraccion: null }),
   })
 }
 
@@ -211,6 +218,15 @@ export async function getPlanContable(): Promise<PlanContable[]> {
     .order('tipo_gasto_costo')
   if (error) throw error
   return (data ?? []) as PlanContable[]
+}
+
+export async function getDetracciones(): Promise<Detraccion[]> {
+  const { data, error } = await supabase
+    .from('detraccion')
+    .select('id, codigo, concepto, porcentaje, monto_minimo')
+    .order('codigo')
+  if (error) throw error
+  return (data ?? []) as Detraccion[]
 }
 
 export async function devolverSolicitud(id: number, comentario: string): Promise<Solicitud> {

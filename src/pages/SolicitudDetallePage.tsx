@@ -341,7 +341,7 @@ export default function SolicitudDetallePage() {
     setEvaluarOpen(true)
   }
 
-  const handleConfirmEvaluar = async (planContableId: number, porcentajeRetencion?: number) => {
+  const handleConfirmEvaluar = async (planContableId: number, porcentajeRetencion?: number, detraccionId?: number, montoDetraccion?: number) => {
     if (!solicitud?.id || !id) return
     const isRxHSol = solicitud.solicitud_tipo?.nombre === 'Recibo por Honorarios'
     const subtotalSol = (solicitud.detalles ?? detalles).reduce(
@@ -350,7 +350,7 @@ export default function SolicitudDetallePage() {
     const montoRetencion = isRxHSol && porcentajeRetencion !== undefined
       ? subtotalSol * porcentajeRetencion / 100
       : undefined
-    await marcarEvaluado(solicitud.id, planContableId, user?.id ?? null, porcentajeRetencion, montoRetencion)
+    await marcarEvaluado(solicitud.id, planContableId, user?.id ?? null, porcentajeRetencion, montoRetencion, detraccionId, montoDetraccion)
     toast.success('Marcada como Evaluada')
     setEvaluarOpen(false)
     await reload(id)
@@ -884,6 +884,49 @@ export default function SolicitudDetallePage() {
           </div>
         )}
 
+        {/* ── DETRACCIÓN ── */}
+        {!isRxH && solicitud.detraccion && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+              <CheckCircle size={15} className="text-amber-600" />
+              <h2 className="text-sm font-semibold text-amber-700 uppercase tracking-wide">Detracción</h2>
+              <span className="ml-auto text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full">
+                {solicitud.detraccion.codigo} — {solicitud.detraccion.porcentaje}%
+              </span>
+            </div>
+            <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className={LABEL}>Código</p>
+                <p className="text-sm font-semibold text-gray-900">{solicitud.detraccion.codigo}</p>
+              </div>
+              <div className="col-span-2">
+                <p className={LABEL}>Concepto</p>
+                <p className="text-sm text-gray-700">{solicitud.detraccion.concepto}</p>
+              </div>
+              <div>
+                <p className={LABEL}>Porcentaje</p>
+                <p className="text-sm font-semibold text-gray-900">{solicitud.detraccion.porcentaje}%</p>
+              </div>
+              <div>
+                <p className={LABEL}>Monto mínimo</p>
+                <p className="text-sm text-gray-700">S/ {solicitud.detraccion.monto_minimo.toLocaleString('es-PE')}</p>
+              </div>
+              <div>
+                <p className={LABEL}>Monto detracción</p>
+                <p className="text-sm font-bold text-amber-700">
+                  S/ {(solicitud.monto_detraccion ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+              <div>
+                <p className={LABEL}>Monto neto a depositar</p>
+                <p className="text-sm font-bold text-gray-900">
+                  S/ {(totalConIgv - (solicitud.monto_detraccion ?? 0)).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── ENCUESTA PROVEEDOR ── */}
         {canEncuestar && (
           <EncuestaProveedorForm
@@ -927,6 +970,8 @@ export default function SolicitudDetallePage() {
         open={evaluarOpen}
         codigoSolicitud={solicitud?.codigo ?? `#${solicitud?.id}`}
         isRxH={isRxH}
+        isOC={!isRxH}
+        totalSolicitud={totalConIgv}
         onConfirm={handleConfirmEvaluar}
         onCancel={() => setEvaluarOpen(false)}
       />

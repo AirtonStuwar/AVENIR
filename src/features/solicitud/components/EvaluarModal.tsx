@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { X, Search, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { getPlanContable } from '../services/solicitudService'
-import type { PlanContable } from '../types/solicitud'
+import { getPlanContable, getDetracciones } from '../services/solicitudService'
+import type { PlanContable, Detraccion } from '../types/solicitud'
 
 interface Props {
   open: boolean
   codigoSolicitud: string
   isRxH?: boolean
-  onConfirm: (planContableId: number, porcentajeRetencion?: number) => Promise<void>
+  isOC?: boolean
+  totalSolicitud?: number   // total con IGV en la moneda de la solicitud (soles)
+  onConfirm: (planContableId: number, porcentajeRetencion?: number, detraccionId?: number, montoDetraccion?: number) => Promise<void>
   onCancel: () => void
 }
 
@@ -18,14 +20,16 @@ const OPCIONES_RETENCION = [
   { label: '8%', value: 8 },
 ]
 
-export default function EvaluarModal({ open, codigoSolicitud, isRxH, onConfirm, onCancel }: Props) {
-  const [opciones,   setOpciones]   = useState<PlanContable[]>([])
-  const [loading,    setLoading]    = useState(false)
-  const [saving,     setSaving]     = useState(false)
-  const [search,     setSearch]     = useState('')
-  const [selected,   setSelected]   = useState<PlanContable | null>(null)
-  const [dropOpen,   setDropOpen]   = useState(false)
-  const [retencion,  setRetencion]  = useState<number | null>(null)
+export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, totalSolicitud = 0, onConfirm, onCancel }: Props) {
+  const [opciones,      setOpciones]      = useState<PlanContable[]>([])
+  const [detracciones,  setDetracciones]  = useState<Detraccion[]>([])
+  const [loading,       setLoading]       = useState(false)
+  const [saving,        setSaving]        = useState(false)
+  const [search,        setSearch]        = useState('')
+  const [selected,      setSelected]      = useState<PlanContable | null>(null)
+  const [dropOpen,      setDropOpen]      = useState(false)
+  const [retencion,     setRetencion]     = useState<number | null>(null)
+  const [detraccionSel, setDetraccionSel] = useState<Detraccion | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const searchRef    = useRef<HTMLInputElement>(null)
 
@@ -36,12 +40,16 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, onConfirm, 
     setSearch('')
     setDropOpen(false)
     setRetencion(null)
+    setDetraccionSel(null)
     setLoading(true)
-    getPlanContable()
-      .then(setOpciones)
-      .catch(() => toast.error('Error al cargar el plan contable'))
+    Promise.all([
+      getPlanContable(),
+      isOC ? getDetracciones() : Promise.resolve([]),
+    ])
+      .then(([plan, det]) => { setOpciones(plan); setDetracciones(det) })
+      .catch(() => toast.error('Error al cargar datos de evaluación'))
       .finally(() => setLoading(false))
-  }, [open])
+  }, [open, isOC])
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -64,6 +72,14 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, onConfirm, 
     || (o.codigo_starsoft        ?? '').toLowerCase().includes(q)
   )
 
+  // Detracciones disponibles según el total de la solicitud
+  const detraccionesDisponibles = detracciones.filter(d => totalSolicitud > d.monto_minimo)
+  const mostrarDetracciones = isOC && detraccionesDisponibles.length > 0
+
+  const montoDetraccionCalc = detraccionSel
+    ? +(totalSolicitud * detraccionSel.porcentaje / 100).toFixed(2)
+    : 0
+
   const handleSelect = (op: PlanContable) => {
     setSelected(op)
     setSearch(op.tipo_gasto_costo ?? '')
@@ -75,7 +91,12 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, onConfirm, 
     if (isRxH && retencion === null) return
     setSaving(true)
     try {
-      await onConfirm(selected.id, isRxH ? (retencion ?? 0) : undefined)
+      await onConfirm(
+        selected.id,
+        isRxH ? (retencion ?? 0) : undefined,
+        detraccionSel?.id,
+        detraccionSel ? montoDetraccionCalc : undefined,
+      )
     } finally {
       setSaving(false)
     }
@@ -108,7 +129,7 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, onConfirm, 
             corresponde a esta solicitud. Este campo es obligatorio para continuar.
           </p>
 
-          {/* Combobox buscable */}
+          {/* Combobox buscable — Plan Contable */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
               Tipo de gasto / costo <span className="text-red-500">*</span>
@@ -156,7 +177,6 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, onConfirm, 
               )}
             </div>
 
-            {/* Selección confirmada */}
             {selected && (
               <div className="mt-2 flex items-start gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl">
                 <CheckCircle size={14} className="text-green-600 shrink-0 mt-0.5" />
@@ -197,6 +217,42 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, onConfirm, 
                   {retencion === 0
                     ? 'Sin retención — honorario exonerado.'
                     : `Se retendrá el ${retencion}% del monto bruto (Renta 4ta categoría).`}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Detracción — solo para OC cuando el monto supera el mínimo */}
+          {mostrarDetracciones && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Detracción <span className="text-gray-400 font-normal">(opcional)</span>
+              </label>
+              <div className="space-y-1.5">
+                {detraccionesDisponibles.map(d => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setDetraccionSel(detraccionSel?.id === d.id ? null : d)}
+                    className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl border text-sm transition-all ${
+                      detraccionSel?.id === d.id
+                        ? 'bg-[#003D7D] text-white border-[#003D7D]'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#003D7D]/40 hover:bg-[#003D7D]/5'
+                    }`}
+                  >
+                    <span className="text-left">
+                      <span className="font-semibold">{d.codigo}</span>
+                      <span className="mx-1.5 opacity-40">—</span>
+                      <span>{d.concepto}</span>
+                    </span>
+                    <span className="ml-3 shrink-0 font-bold">{d.porcentaje}%</span>
+                  </button>
+                ))}
+              </div>
+              {detraccionSel && (
+                <p className="mt-2 text-xs text-[#003D7D] font-medium">
+                  Monto detracción: S/ {montoDetraccionCalc.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                  {' '}({detraccionSel.porcentaje}% de S/ {totalSolicitud.toLocaleString('es-PE', { minimumFractionDigits: 2 })})
                 </p>
               )}
             </div>

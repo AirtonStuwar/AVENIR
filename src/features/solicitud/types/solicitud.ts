@@ -17,6 +17,14 @@ export interface SolicitudFormaPago {
   fecha_creacion: string | null
 }
 
+export interface Detraccion {
+  id:           number
+  codigo:       string
+  concepto:     string
+  porcentaje:   number
+  monto_minimo: number
+}
+
 export interface PlanContable {
   id: number
   tipo_gasto_costo:            string | null
@@ -77,7 +85,10 @@ export interface Solicitud {
   porcentaje_retencion: number | null
   monto_retencion: number | null
   aplica_suspension: boolean | null
+  detraccion_id:    number | null
+  monto_detraccion: number | null
   proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null } | null
+  detraccion?: Detraccion | null
   solicitud_tipo?: { id: number; nombre: string } | null
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
   solicitud_forma_pago?: { id: number; nombre: string } | null
@@ -122,6 +133,8 @@ export type SolicitudInsert = Omit<
   | 'porcentaje_retencion'   // lo asigna el evaluador para RxH
   | 'monto_retencion'        // calculado al marcar Evaluado en RxH
   | 'aplica_suspension'      // se guarda al finalizar Step 3 en RxH
+  | 'detraccion_id'          // lo asigna el evaluador al marcar Evaluado
+  | 'monto_detraccion'       // calculado al marcar Evaluado
   | 'detalles'               // se reemplaza por SolicitudDetalleInsert[]
 > & {
     detalles?: SolicitudDetalleInsert[]
