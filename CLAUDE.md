@@ -40,9 +40,11 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `/login` — public
 - `/dashboard`, `/solicitudes`, `/solicitudes/nueva`, `/solicitudes/:id`, `/proyectos`, `/proveedores` — all behind `ProtectedRoute`
 - `/arendir`, `/arendir/nueva`, `/arendir/:id` — A Rendir module, also behind `ProtectedRoute`
+- `/reembolso`, `/reembolso/nueva`, `/reembolso/:id` — Reembolso module, also behind `ProtectedRoute`
+- `/reportes` — Módulo Reportes (ADMIN + VISUALIZADOR), also behind `ProtectedRoute`
 - Catch-all redirects to `/dashboard`
 
-**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `usuario`, `proveedor`, `encuesta_proveedor`, `plan_contable_brash`, `solicitud_arendir`, `solicitud_arendir_detalle`.
+**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `usuario`, `proveedor`, `encuesta_proveedor`, `plan_contable_brash`, `detraccion`, `solicitud_arendir`, `solicitud_arendir_detalle`, `solicitud_reembolso`, `solicitud_reembolso_detalle`.
 
 El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no se usa ni se escribe. La columna puede seguir existiendo en la BD sin afectar nada.
 
@@ -57,20 +59,21 @@ El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no s
 - `firmas-usuario` — firma de perfil del usuario. Path determinista: `{userId}/firma.png`. Referenciado via `usuario.firma_path`.
 
 Tipos de archivo manejados por `SolicitudArchivos`:
-- Requeridos: `Contrato`, `Cotizacion`, `Sustento`
-- Opcionales: `Cuadro Comparativo`, `Factura XML`, `Factura PDF`
+- OC requeridos: `Contrato`, `Cotizacion`, `Sustento`
+- RxH requeridos: `Sustento`, `Recibo Honorario`
+- Opcionales: `Cuadro Comparativo`, `Factura XML`, `Factura PDF`, `Suspension` (solo cuando `aplica_suspension === true`)
 
-El componente acepta la prop `tiposVisibles?: string[]`; si se pasa, sólo renderiza esos tipos. Usado en el wizard para separar documentos de contrato (Step 3) de documentos de factura (Step 4). En el detalle de la solicitud se muestra sin filtro (todos los tipos visibles), permitiendo subir Factura XML/PDF directamente desde ahí.
+El componente acepta la prop `tiposVisibles?: string[]`; si se pasa, sólo renderiza esos tipos. Usado en el wizard para separar documentos de contrato (Step 3) de documentos de factura (Step 4). En el detalle de la solicitud se muestra sin filtro (todos los tipos visibles), permitiendo subir Factura XML/PDF directamente desde ahí. Cuando la solicitud es RxH con `aplica_suspension === true`, `tiposVisibles` incluye `'Suspension'`.
 
 **Solicitud workflow states** (`estado_soli` table drives UI logic):
 - Pendiente → (USUARIO/ADMIN) → `enviarARevision` → En Revision
-- En Revision → (EVALUADOR/ADMIN) → `marcarEvaluado(id, planContableId, userId)` → Evaluado
+- En Revision → (EVALUADOR/ADMIN) → `marcarEvaluado(id, planContableId, userId, porcentajeRetencion?, detraccionId?, montoDetraccion?)` → Evaluado
 - En Revision → (EVALUADOR/ADMIN) → `devolverSolicitud` → Pendiente
 - Evaluado → (APROBADOR/ADMIN) → `aprobarSolicitud` → **Aprobado** (estado final)
 - Evaluado → (APROBADOR/ADMIN) → `rechazarSolicitud` → Rechazado
 - Any active state → `cancelarSolicitud` → Cancelado
 
-`marcarEvaluado` saves `plan_contable_id` (mandatory) and `usuario_evaluador` (UUID of the evaluator) to `solicitud`. Both fields are excluded from `SolicitudInsert`.
+`marcarEvaluado` saves `plan_contable_id` (mandatory), `usuario_evaluador` (UUID), and optionally `porcentaje_retencion`/`monto_retencion` (for RxH) and `detraccion_id`/`monto_detraccion` (for OC). All these fields are excluded from `SolicitudInsert`.
 
 Los estados "Facturación Pendiente" y "Completado" fueron eliminados del flujo. **Aprobado** es el estado terminal positivo. La factura (XML y PDF) se sube opcionalmente en el Step 4 del wizard de creación, o desde el detalle de la solicitud. Los campos de factura (`numero_factura`, `motivo_factura`, `fecha_emision_factura`, `fecha_vencimiento_factura`) son editables inline directamente en el detalle cuando la solicitud está Pendiente (USUARIO/ADMIN dueño) o Aprobada.
 
@@ -79,8 +82,10 @@ The service caches estado IDs in memory to avoid repeated lookups (`estado_soli`
 **SolicitudNuevaPage** is a 4-step wizard:
 1. **Datos generales** — form with all header fields (proveedor, bancarios, proyecto, porcentajes, fechas, condiciones)
 2. **Detalles** — line-item editor (descripción, cantidad, valor unitario)
-3. **Documentos** — upload Contrato, Cotización, Sustento (required), Cuadro Comparativo (optional). Uses `tiposVisibles` to hide Factura types.
-4. **Factura** (optional) — upload Factura XML and/or PDF; fill N° Factura, Motivo de factura, Fecha de emisión, Fecha de vencimiento. "Omitir y finalizar" skips saving.
+3. **Documentos** — upload de archivos según tipo:
+   - OC: Contrato, Cotización, Sustento (required), Cuadro Comparativo (optional)
+   - RxH: Sustento, Recibo Honorario (required). Si el subtotal ≥ S/ 1,500 (o equivalente en USD via tipo de cambio SUNAT), aparece toggle **"Suspensión de retenciones"** (Sí aplica / No aplica). Si "Sí aplica", también muestra tipo `Suspension` para subir el archivo. El botón "Continuar" queda bloqueado hasta que se elija una opción. Al finalizar guarda `aplica_suspension` en `solicitud`.
+4. **Factura** (optional) — upload Factura XML y/o PDF; fill N° Factura, Motivo de factura, Fecha de emisión, Fecha de vencimiento. "Omitir y finalizar" skips saving.
 
 Step state is local to the page. The solicitud record is created at the end of Step 1; subsequent steps update it in place. Si el usuario abandona el wizard después del Step 1 o 2, puede completar documentos y datos de factura directamente desde el detalle de la solicitud (`/solicitudes/:id`).
 
@@ -91,18 +96,31 @@ Step state is local to the page. The solicitud record is created at the end of S
 - `fecha_vencimiento_factura` — fecha de vencimiento (DATE)
 - `moneda` — TEXT, valores `'PEN'` (soles, default) o `'USD'` (dólares). Controla el símbolo en totales (`S/` o `$`), en el PDF y en los KPIs del dashboard. Las solicitudes existentes sin moneda heredan `'PEN'` por el DEFAULT de BD.
 
+**Campos RxH en `solicitud`:**
+- `numero_rxh` — N° de recibo por honorarios
+- `periodo_servicio` — período de prestación del servicio
+- `porcentaje_retencion` — 0, 3 o 8 (Renta 4ta categoría, asignado por EVALUADOR)
+- `monto_retencion` — monto calculado de retención
+- `aplica_suspension` — BOOLEAN, se guarda al finalizar Step 3 del wizard cuando el monto ≥ S/ 1,500. `true` = archivo "Suspension" adjunto; `false` = no aplica. `null` = no se mostró el toggle (monto < umbral).
+
+**Campos de Detracción en `solicitud`:**
+- `detraccion_id` — FK a tabla `detraccion` (nullable, asignado por EVALUADOR solo en OC)
+- `monto_detraccion` — monto calculado (= total con IGV × porcentaje del concepto)
+
+Todos estos campos están en el `Omit` de `SolicitudInsert` y se excluyen al crear; se guardan via `updateSolicitud` en pasos posteriores.
+
 **SolicitudDetallePage** calculates totals client-side: `subtotal` (sum of line items), `igv = subtotal * 0.18` (18% Peruvian IGV), and `totalConIgv`. The `solicitud_detalle.valor_total` column may be DB-computed; the code uses `d.valor_total ?? d.cantidad * d.valor_unitario` as fallback. Currency symbol is driven by `solicitud.moneda`: `S/` (es-PE locale) for PEN, `$` (en-US locale) for USD — same in the detail page and in the PDF.
 
 **"Descargar OC" button** (`canShowPDF`): visible in all states **except** Rechazado and Cancelado — including Pendiente. For Pendiente solicitudes, the firma lookup falls back from `solicitud_archivo` (Firma_Usuario type) to the user's profile firma in the `firmas-usuario` bucket (`usuario.firma_path`) so the PDF always renders a signature when available.
 
 **"Datos de la Factura" card** (`showFacturaCard`): visible cuando `canEdit` (Pendiente + rol correcto) OR cuando ya existe algún dato de factura o archivo Factura XML/PDF. En modo editable (`canEditFactura`), muestra los 4 campos en una grilla 2×2 con un solo botón "Guardar" que se activa solo si hay cambios (`facturaHasChanges`). En modo solo lectura, usa `InfoField`. El state local (`numeroFactura`, `motivoFactura`, `fechaEmisionFactura`, `fechaVencimientoFactura`) se sincroniza desde `solicitud` vía `useEffect`; `handleGuardarFactura` guarda los 4 campos de una sola vez con `updateSolicitud`.
 
-Order of cards in detail page: **Info general → Detalles → Documentos → Datos de la Factura → Plan Contable → Encuesta Proveedor**. The Plan Contable card shows all `plan_contable_brash` fields and only renders when `solicitud.plan_contable` is not null (i.e., after an EVALUADOR marks the solicitud as Evaluado).
+Order of cards in detail page: **Info general → Detalles → Documentos → Datos de la Factura → Plan Contable → Detracción → Encuesta Proveedor**. The Plan Contable card shows all `plan_contable_brash` fields and only renders when `solicitud.plan_contable` is not null. The **Detracción card** renders only when `solicitud.detraccion_id` is not null (i.e., after an EVALUADOR assigns a detracción to an OC) — shows código, concepto, porcentaje, monto mínimo, monto detracción y monto neto a depositar. Es informativo: el total de la solicitud NO cambia.
 
 **SolicitudModal** (edit mode) includes all header fields plus `moneda`, `motivo_factura`, `fecha_emision_factura`, and `fecha_vencimiento_factura` — these duplicate the inline edit in the detail card but remain in the modal for completeness.
 
 **Line-item editing components (solicitud):** Two distinct components handle `solicitud_detalle` editing:
-- `SolicitudDetalleModal` — lightweight modal (cantidad, descripción, valor_unitario) used in `SolicitudNuevaPage` wizard Step 2 for add/edit inline.
+- `SolicitudDetalleModal` — lightweight modal (cantidad, descripción, valor_unitario) used in `SolicitudNuevaPage` wizard Step 2 for add/edit inline. Accepts prop `moneda?: 'PEN' | 'USD'` (default `'PEN'`) to show the correct currency symbol in the label and total preview.
 - `SolicitudDetalleEditor` — full slide-in panel used from `SolicitudDetallePage` to add/edit/delete line items after the solicitud is created. Fetches detalles independently via `getDetallesBySolicitud`.
 
 **Dashboard — moneda:** Todos los paneles (ADMIN, APROBADOR, EVALUADOR, VISUALIZADOR, USUARIO) muestran dos KPI separados: **"Aprobado S/"** (solicitudes con `moneda='PEN'`) y **"Aprobado $"** (solicitudes con `moneda='USD'`). Los helpers `fmtMoney(n, moneda)` y `fmtMoneyFull(n, moneda)` aceptan `'PEN'|'USD'` para formatear con el símbolo correcto. `montoSolicitudes(sols, detalles, moneda?)` acepta un tercer argumento opcional para filtrar por moneda antes de sumar.
@@ -113,7 +131,7 @@ Order of cards in detail page: **Info general → Detalles → Documentos → Da
   - Filtro de proyecto aplica a: OC (via `applyFilter`), KPIs A Rendir (`arendirKpi`), totales A Rendir (`arendirAuthFil` — solo `Autorizado`), totales Reembolso (`reembolsoAuthFil` — solo `Autorizado`).
   - `ARendirRow` y `ReembolsoRow` incluyen `proyecto_id: number | null` (seleccionado en `getARendirAutorizados` / `getReembolsoAutorizados`) para permitir el filtrado client-side por proyecto.
 - `EVALUADOR` — cola En Revision, promedio de días de espera, lista de más antiguas con alerta ≥3 días. Usa `getEvaluadorData()`.
-- `VISUALIZADOR` — solicitudes aprobadas, montos totales, KPIs de A Rendir (Evaluado + Autorizado), tabla de aprobadas. Usa `getVisualizadorData()`.
+- `VISUALIZADOR` — solicitudes aprobadas separadas en OC y RxH (4 KPIs: OC S/, OC $, RxH S/, RxH $), KPIs de A Rendir (Evaluado + Autorizado), tabla de aprobadas. Usa `getVisualizadorData()`. Los KPIs RxH usan `color="indigo"`.
 - `USUARIO` — mis solicitudes, breakdown por estado, monto aprobado (estado Aprobado), acceso rápido a nueva solicitud. Usa `getUsuarioData(userId)`.
 
 Cada función de servicio en `dashboardService.ts` hace sus propias queries optimizadas y devuelve solo los datos relevantes al rol.
@@ -125,7 +143,12 @@ Cada función de servicio en `dashboardService.ts` hace sus propias queries opti
 
 **Plan Contable (`plan_contable_brash` table):** catalog table used by the EVALUADOR to categorize each solicitud. Fields: `id`, `tipo_gasto_costo`, `codigo_starsoft`, `cuenta_contable_2020_starsoft`, `nombre_cuenta_contable`, `partida_presupuestal`, `partida_presupuesta_n1`, `partida_presupuesta_n2`. RLS policy: SELECT for authenticated users. Service function: `getPlanContable()` returns all rows ordered by `tipo_gasto_costo`.
 
-**EvaluarModal** (`src/features/solicitud/components/EvaluarModal.tsx`) — modal shown to EVALUADOR/ADMIN when marking a solicitud as Evaluado. Contains a searchable combobox (`Search` icon + input) that filters across `tipo_gasto_costo`, `nombre_cuenta_contable`, and `codigo_starsoft` using `search.trim().toLowerCase()`. Selection is mandatory — the confirm button is disabled until a plan contable entry is chosen. When the dropdown is open, the modal body adds `pb-64` to avoid clipping the absolutely-positioned list. No `overflow-hidden` on the modal wrapper; `rounded-t-2xl`/`rounded-b-2xl` are applied to the header/footer sections individually.
+**EvaluarModal** (`src/features/solicitud/components/EvaluarModal.tsx`) — modal shown to EVALUADOR/ADMIN when marking a solicitud as Evaluado. Props: `isRxH?`, `isOC?`, `totalSolicitud?` (total con IGV en soles). Contains:
+1. Searchable combobox for Plan Contable (mandatory). Filters across `tipo_gasto_costo`, `nombre_cuenta_contable`, `codigo_starsoft`.
+2. **Retención IR** (only when `isRxH`): 3 pill buttons — 0% exonerado, 3%, 8%. Mandatory for RxH.
+3. **Detracción** (only when `isOC` AND `totalSolicitud > d.monto_minimo` for at least one concept): pill buttons, one per detracción disponible. Optional — clicking same button deselects. Shows calculated monto.
+
+`onConfirm` callback: `(planContableId, porcentajeRetencion?, detraccionId?, montoDetraccion?) => Promise<void>`. When the dropdown is open, the modal body adds `pb-64` to avoid clipping the list. No `overflow-hidden` on the modal wrapper; `rounded-t-2xl`/`rounded-b-2xl` on header/footer individually.
 
 **EVALUADOR list visibility:** In `getSolicitudes`, when `role === ROLES.EVALUADOR`, the query uses `.or(`estado_id.eq.${enRevisionId},usuario_evaluador.eq.${userId}`)` so the evaluator sees both *all* "En Revision" solicitudes and *their own* previously evaluated ones (any state). Bulk "Evaluar" action was removed from `SolicitudesPage` — plan contable selection makes per-row evaluation mandatory.
 
@@ -141,7 +164,19 @@ Run `NOTIFY pgrst, 'reload schema'` if the join stops working after schema chang
 - `plan_contable_id` — FK to `plan_contable_brash.id` (nullable, set when EVALUADOR marks Evaluado)
 - `usuario_evaluador` — UUID (text FK to auth.users, nullable, set when EVALUADOR marks Evaluado)
 
-Both are excluded from `SolicitudInsert`.
+**`solicitud` columns added for RxH:**
+- `numero_rxh`, `periodo_servicio` — datos del recibo por honorarios
+- `porcentaje_retencion` — 0/3/8 (asignado por EVALUADOR)
+- `monto_retencion` — calculado
+- `aplica_suspension` — BOOLEAN (guardado al finalizar Step 3 del wizard)
+
+**`solicitud` columns added for detracciones:**
+- `detraccion_id` — FK to `detraccion.id` (nullable, solo OC, asignado por EVALUADOR)
+- `monto_detraccion` — monto calculado
+
+All above fields are excluded from `SolicitudInsert`.
+
+**Tabla `detraccion`:** 6 conceptos del sistema SPOT-SUNAT. Campos: `id`, `codigo` (ej. '022'), `concepto`, `porcentaje` (numeric), `monto_minimo` (numeric: 700 o 400 soles según concepto). RLS: SELECT for authenticated users. Service: `getDetracciones()` returns all rows. La detracción es **solo informativa** — no altera el total de la solicitud; se guarda para reportes.
 
 ---
 
@@ -275,6 +310,36 @@ Evaluado
 
 **RUC lookup:** `rucService.ts` calls `/api/ruc?numero=<ruc>`. In development, `vite.config.ts` proxies this to `https://api.decolecta.com/v1/sunat/ruc` with a Bearer token. This proxy only runs in `dev` mode; a separate server-side solution is needed in production.
 
+**Tipo de cambio SUNAT:** `getTipoCambioUSD()` en `rucService.ts` llama `/api/tipo-cambio`. `vite.config.ts` lo proxea a `https://api.decolecta.com/v1/tipo-cambio/sunat`. Respuesta: `{ buy_price: string, sell_price: string, base_currency, quote_currency, date }`. Se usa `sell_price` (precio de venta). Se consume en `SolicitudNuevaPage` Step 3 para calcular si un RxH en USD supera el umbral de S/ 1,500.
+
 **Env vars** (`.env.local`):
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase client (`src/api/supabase.ts`)
-- `DECOLECTA_API_KEY` — RUC lookup API (dev proxy only; not exposed to the browser)
+- `DECOLECTA_API_KEY` — RUC lookup y tipo de cambio SUNAT (dev proxy only; not exposed to the browser)
+
+---
+
+## Módulo Reportes
+
+Consolidación de registros aprobados/autorizados de todos los módulos en un Excel descargable.
+
+**Ruta:** `/reportes` — visible para ADMIN (1) y VISUALIZADOR (10).
+
+**Feature folder:** `src/features/reportes/services/reportesService.ts` — sin types propios ni hooks; solo servicio + exportación.
+
+**Página:** `src/pages/ReportesPage.tsx` — filtros (fecha desde/hasta, proyecto opcional), botón "Buscar", tarjetas KPI por módulo, barra de totales consolidados, tabla de vista previa, botón "Exportar Excel".
+
+**Fuentes de datos (filtradas por `fecha_aprobacion` dentro del rango):**
+- **OC y RxH** — `solicitud` con `estado = 'Aprobado'`. Subtotal de `solicitud_detalle`; IGV 18% solo para OC. Distingue OC vs RxH por `solicitud_tipo.nombre === 'Recibo por Honorarios'`.
+- **A Rendir** — `solicitud_arendir` con `estado = 'Autorizado'`. Monto = `total_reembolso`.
+- **Reembolso** — `solicitud_reembolso` con `estado = 'Autorizado'`. Monto = `total_reembolso`.
+
+**`ReporteRow` interface:** `tipo`, `codigo`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para A Rendir/Reembolso), `fecha`, `ruc`, `proyecto`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`.
+
+**`exportarReporteExcel(rows, filtros, proyectoNombre)`:** ExcelJS workbook con 1 hoja "Reporte":
+- Fila 1: título mergeado, fondo `#003D7D`, fuente blanca.
+- Fila 2: 20 cabeceras, fondo `#1F497D`, fuente blanca bold, freeze panes 1-2.
+- Filas de datos: coloreadas por tipo (OC=azul tenue, RxH=verde tenue, A Rendir=amarillo tenue, Reembolso=rosa tenue).
+- Última fila: "TOTALES" mergeada en columnas 1-11, sumas de columnas numéricas, fondo `#D9E1F2`.
+- Descarga automática como blob `Reporte_{fechaDesde}_{fechaHasta}.xlsx`.
+
+**PostgREST cast pattern en el servicio:** los tipos de retorno de Supabase usan `as unknown as MyType[]` cuando el tipo inferido no coincide con la estructura esperada (joins de FK que PostgREST puede devolver como array o null según el esquema).
