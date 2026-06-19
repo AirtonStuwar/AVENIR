@@ -1,3 +1,16 @@
+export interface ProyectoPartida {
+  id:              number
+  proyecto_id:     number
+  nombre:          string
+  presupuesto_pen: number
+  presupuesto_usd: number
+  estado:          string
+  fecha_creacion:  string | null
+}
+
+export type ProyectoPartidaInsert = Omit<ProyectoPartida, 'id' | 'fecha_creacion'>
+export type ProyectoPartidaUpdate = Partial<ProyectoPartidaInsert>
+
 export interface Proyecto {
   id: number
   codigo: string | null

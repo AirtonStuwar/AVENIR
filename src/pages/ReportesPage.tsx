@@ -206,7 +206,7 @@ export default function ReportesPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
-                      {['#','Módulo','Código','Beneficiario','Documento','Fecha','Proyecto','Concepto','Total S/.','Total $','Detrac.','Reten.','Girar S/.','Girar $','Banco'].map(h => (
+                      {['#','Módulo','Código','Beneficiario','Documento','Fecha','Proyecto','Partida','Concepto','Total S/.','Total $','Detrac.','Reten.','Girar S/.','Girar $','Banco'].map(h => (
                         <th key={h} className="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -227,6 +227,7 @@ export default function ReportesPage() {
                           <td className="px-3 py-2 text-gray-600">{row.documento ?? '—'}</td>
                           <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtDate(row.fecha)}</td>
                           <td className="px-3 py-2 text-gray-600 max-w-[120px] truncate">{row.proyecto ?? '—'}</td>
+                          <td className="px-3 py-2 text-gray-500 max-w-[100px] truncate">{row.partida ?? '—'}</td>
                           <td className="px-3 py-2 text-gray-600 max-w-[180px] truncate">{row.concepto ?? '—'}</td>
                           <td className="px-3 py-2 text-right font-medium text-gray-800">{row.total_pen > 0 ? fmt(row.total_pen) : '—'}</td>
                           <td className="px-3 py-2 text-right font-medium text-gray-800">{row.total_usd > 0 ? fmtUSD(row.total_usd) : '—'}</td>

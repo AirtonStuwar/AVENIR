@@ -1,5 +1,5 @@
 import { supabase } from '../../../api/supabase'
-import type { Proyecto, ProyectoInsert, ProyectoUpdate, ProyectoFiltros, ProyectoPaginado } from '../types/proyecto'
+import type { Proyecto, ProyectoInsert, ProyectoUpdate, ProyectoFiltros, ProyectoPaginado, ProyectoPartida, ProyectoPartidaInsert, ProyectoPartidaUpdate } from '../types/proyecto'
 
 const TABLE = 'proyecto'
 
@@ -56,4 +56,34 @@ export async function deleteProyecto(id: number): Promise<void> {
 export async function toggleProyectoEstado(id: number, currentEstado: string | null): Promise<Proyecto> {
   const nuevo = currentEstado === 'Activo' ? 'Inactivo' : 'Activo'
   return updateProyecto(id, { estado: nuevo })
+}
+
+// ── Partidas ───────────────────────────────────────────────────────
+
+export async function getPartidasByProyecto(proyectoId: number): Promise<ProyectoPartida[]> {
+  const { data, error } = await supabase
+    .from('proyecto_partida')
+    .select('*')
+    .eq('proyecto_id', proyectoId)
+    .eq('estado', 'Activo')
+    .order('nombre')
+  if (error) throw error
+  return (data ?? []) as ProyectoPartida[]
+}
+
+export async function createPartida(payload: ProyectoPartidaInsert): Promise<ProyectoPartida> {
+  const { data, error } = await supabase.from('proyecto_partida').insert(payload).select().maybeSingle()
+  if (error) throw error
+  return data as ProyectoPartida
+}
+
+export async function updatePartida(id: number, payload: ProyectoPartidaUpdate): Promise<ProyectoPartida> {
+  const { data, error } = await supabase.from('proyecto_partida').update(payload).eq('id', id).select().maybeSingle()
+  if (error) throw error
+  return data as ProyectoPartida
+}
+
+export async function deletePartida(id: number): Promise<void> {
+  const { error } = await supabase.from('proyecto_partida').delete().eq('id', id)
+  if (error) throw error
 }

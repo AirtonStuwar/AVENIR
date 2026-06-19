@@ -6,7 +6,8 @@ import {
   ChevronLeft, ChevronRight, Plus, Trash2, Upload, Loader2, Send,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import { getProyectos } from '../features/proyecto/services/proyectoService'
+import { getProyectos, getPartidasByProyecto } from '../features/proyecto/services/proyectoService'
+import type { ProyectoPartida } from '../features/proyecto/types/proyecto'
 import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import {
@@ -64,6 +65,8 @@ export default function ReembolsoNuevaPage() {
   // Step 1
   const [dniEdit,       setDniEdit]       = useState(usuarioProfile?.dni ?? '')
   const [proyectoId,    setProyectoId]    = useState<string>('')
+  const [partidaId,     setPartidaId]     = useState<string>('')
+  const [partidas,      setPartidas]      = useState<ProyectoPartida[]>([])
   const [moneda,        setMoneda]        = useState<'PEN' | 'USD'>('PEN')
   const [fechaRequerida, setFechaRequerida] = useState('')
   const [banco,         setBanco]         = useState('')
@@ -83,9 +86,22 @@ export default function ReembolsoNuevaPage() {
       .catch(() => toast.error('No se pudieron cargar los proyectos'))
   }, [])
 
+  useEffect(() => {
+    setPartidaId('')
+    setPartidas([])
+    if (!proyectoId) return
+    getPartidasByProyecto(Number(proyectoId))
+      .then(setPartidas)
+      .catch(() => {})
+  }, [proyectoId])
+
   // ── Step 1 ────────────────────────────────────────────────────
   async function handleStep1() {
     if (!user?.id) return
+    if (partidas.length > 0 && !partidaId) {
+      toast.error('Selecciona una partida del proyecto')
+      return
+    }
     setSaving(true)
     try {
       if (dniEdit !== (usuarioProfile?.dni ?? '')) {
@@ -95,6 +111,7 @@ export default function ReembolsoNuevaPage() {
       const sol = await createReembolso({
         beneficiario_id: user.id,
         proyecto_id: proyectoId ? Number(proyectoId) : null,
+        proyecto_partida_id: partidaId ? Number(partidaId) : null,
         moneda,
         fecha_requerida: fechaRequerida || null,
         estado: 'Pendiente',
@@ -288,6 +305,22 @@ export default function ReembolsoNuevaPage() {
                 {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
             </div>
+
+            {/* Partida */}
+            {partidas.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Partida *</label>
+              <select
+                value={partidaId}
+                onChange={e => setPartidaId(e.target.value)}
+                className={`w-full h-10 px-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] bg-white ${!partidaId ? 'border-orange-300' : 'border-gray-200'}`}
+              >
+                <option value="">Seleccionar partida</option>
+                {partidas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              </select>
+              {!partidaId && <p className="text-xs text-orange-500">Selecciona una partida para continuar</p>}
+            </div>
+            )}
 
             {/* Moneda */}
             <div className="space-y-1">

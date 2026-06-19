@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { X, Search, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { getPlanContable, getDetracciones } from '../services/solicitudService'
+import { getTipoCambioUSD } from '../services/rucService'
 import type { PlanContable, Detraccion } from '../types/solicitud'
 
 interface Props {
@@ -9,7 +10,8 @@ interface Props {
   codigoSolicitud: string
   isRxH?: boolean
   isOC?: boolean
-  totalSolicitud?: number   // total con IGV en la moneda de la solicitud (soles)
+  totalSolicitud?: number
+  moneda?: 'PEN' | 'USD'
   onConfirm: (planContableId: number, porcentajeRetencion?: number, detraccionId?: number, montoDetraccion?: number) => Promise<void>
   onCancel: () => void
 }
@@ -20,7 +22,7 @@ const OPCIONES_RETENCION = [
   { label: '8%', value: 8 },
 ]
 
-export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, totalSolicitud = 0, onConfirm, onCancel }: Props) {
+export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, totalSolicitud = 0, moneda = 'PEN', onConfirm, onCancel }: Props) {
   const [opciones,      setOpciones]      = useState<PlanContable[]>([])
   const [detracciones,  setDetracciones]  = useState<Detraccion[]>([])
   const [loading,       setLoading]       = useState(false)
@@ -30,8 +32,14 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
   const [dropOpen,      setDropOpen]      = useState(false)
   const [retencion,     setRetencion]     = useState<number | null>(null)
   const [detraccionSel, setDetraccionSel] = useState<Detraccion | null>(null)
+  const [tipoCambio,    setTipoCambio]    = useState<number | null>(null)
+  const [tcManual,      setTcManual]      = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const searchRef    = useRef<HTMLInputElement>(null)
+
+  const isUSD = moneda === 'USD'
+  const tcValue = tcManual ? parseFloat(tcManual) : tipoCambio
+  const totalEnSoles = isUSD && tcValue ? +(totalSolicitud * tcValue).toFixed(2) : totalSolicitud
 
   // Cargar opciones al abrir
   useEffect(() => {
@@ -41,15 +49,17 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
     setDropOpen(false)
     setRetencion(null)
     setDetraccionSel(null)
+    setTcManual('')
     setLoading(true)
     Promise.all([
       getPlanContable(),
       isOC ? getDetracciones() : Promise.resolve([]),
+      isOC && isUSD ? getTipoCambioUSD() : Promise.resolve(null),
     ])
-      .then(([plan, det]) => { setOpciones(plan); setDetracciones(det) })
+      .then(([plan, det, tc]) => { setOpciones(plan); setDetracciones(det); if (tc) setTipoCambio(tc) })
       .catch(() => toast.error('Error al cargar datos de evaluación'))
       .finally(() => setLoading(false))
-  }, [open, isOC])
+  }, [open, isOC, isUSD])
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -72,12 +82,13 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
     || (o.codigo_starsoft        ?? '').toLowerCase().includes(q)
   )
 
-  // Detracciones disponibles según el total de la solicitud
-  const detraccionesDisponibles = detracciones.filter(d => totalSolicitud > d.monto_minimo)
-  const mostrarDetracciones = isOC && detraccionesDisponibles.length > 0
+  // Detracciones: comparar contra totalEnSoles (si es USD se convierte con TC)
+  const tcListo = !isUSD || (tcValue != null && tcValue > 0)
+  const detraccionesDisponibles = detracciones.filter(d => totalEnSoles > d.monto_minimo)
+  const mostrarDetracciones = isOC && tcListo && detraccionesDisponibles.length > 0
 
   const montoDetraccionCalc = detraccionSel
-    ? +(totalSolicitud * detraccionSel.porcentaje / 100).toFixed(2)
+    ? Math.round(totalEnSoles * detraccionSel.porcentaje / 100)
     : 0
 
   const handleSelect = (op: PlanContable) => {
@@ -222,6 +233,37 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
             </div>
           )}
 
+          {/* Tipo de cambio — solo para OC en USD */}
+          {isOC && isUSD && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Tipo de cambio venta (S/ por $) <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  value={tcManual || (tipoCambio ?? '')}
+                  onChange={e => setTcManual(e.target.value)}
+                  placeholder="Ej: 3.750"
+                  className="w-36 px-3 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50
+                    focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all"
+                />
+                {tipoCambio && !tcManual && (
+                  <span className="text-xs text-green-600 font-medium">TC SUNAT del día</span>
+                )}
+              </div>
+              {tcValue != null && tcValue > 0 && (
+                <p className="mt-1.5 text-xs text-gray-500">
+                  Total: $ {totalSolicitud.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {' '}× {tcValue.toFixed(3)}
+                  {' '}= S/ {totalEnSoles.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Detracción — solo para OC cuando el monto supera el mínimo */}
           {mostrarDetracciones && (
             <div>
@@ -251,8 +293,10 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
               </div>
               {detraccionSel && (
                 <p className="mt-2 text-xs text-[#003D7D] font-medium">
-                  Monto detracción: S/ {montoDetraccionCalc.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                  {' '}({detraccionSel.porcentaje}% de S/ {totalSolicitud.toLocaleString('es-PE', { minimumFractionDigits: 2 })})
+                  Monto detracción: S/ {montoDetraccionCalc.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  {isUSD
+                    ? ` ($ ${totalSolicitud.toLocaleString('en-US', { minimumFractionDigits: 2 })} × ${tcValue?.toFixed(3)} × ${detraccionSel.porcentaje}%)`
+                    : ` (${detraccionSel.porcentaje}% de S/ ${totalEnSoles.toLocaleString('es-PE', { minimumFractionDigits: 2 })})`}
                 </p>
               )}
             </div>

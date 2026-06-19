@@ -87,7 +87,9 @@ export interface Solicitud {
   aplica_suspension: boolean | null
   detraccion_id:    number | null
   monto_detraccion: number | null
+  proyecto_partida_id: number | null
   proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null } | null
+  proyecto_partida?: { id: number; nombre: string; presupuesto_pen: number; presupuesto_usd: number } | null
   detraccion?: Detraccion | null
   solicitud_tipo?: { id: number; nombre: string } | null
   estado_soli?: { id: number; nombre: string; tipo: string | null } | null
@@ -135,12 +137,15 @@ export type SolicitudInsert = Omit<
   | 'aplica_suspension'      // se guarda al finalizar Step 3 en RxH
   | 'detraccion_id'          // lo asigna el evaluador al marcar Evaluado
   | 'monto_detraccion'       // calculado al marcar Evaluado
+  | 'proyecto_partida_id'    // opcional según si el proyecto tiene partidas
+  | 'proyecto_partida'       // join, no se inserta
   | 'detalles'               // se reemplaza por SolicitudDetalleInsert[]
 > & {
     detalles?: SolicitudDetalleInsert[]
     numero_rxh?: string | null
     periodo_servicio?: string | null
     aplica_suspension?: boolean | null
+    proyecto_partida_id?: number | null
   }
 
 export type SolicitudUpdate = Partial<Omit<Solicitud, 'id' | 'fecha_creacion'>>

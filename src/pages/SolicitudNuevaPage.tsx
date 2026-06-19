@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ArrowLeft, CheckCircle, Plus, Trash2, Pencil, Loader2 } from 'lucide-react'
 import { supabase } from '../api/supabase'
-import { getProyectos } from '../features/proyecto/services/proyectoService'
+import { getProyectos, getPartidasByProyecto } from '../features/proyecto/services/proyectoService'
+import type { ProyectoPartida } from '../features/proyecto/types/proyecto'
 import {
   createSolicitud,
   updateSolicitud,
@@ -65,6 +66,8 @@ export default function SolicitudNuevaPage() {
   // Form fields
   const [tipo_id,                      setTipoId]                      = useState<number | null>(null)
   const [proyecto_id,                  setProyectoId]                  = useState<number | null>(null)
+  const [proyecto_partida_id,          setProyectoPartidaId]           = useState<number | null>(null)
+  const [partidas,                     setPartidas]                    = useState<ProyectoPartida[]>([])
   const [razon_social,                 setRazonSocial]                 = useState('')
   const [ruc,                          setRuc]                         = useState('')
   const [direccion,                    setDireccion]                   = useState('')
@@ -115,6 +118,16 @@ export default function SolicitudNuevaPage() {
     })()
   }, [])
 
+  // ── PARTIDAS por proyecto ────────────────────────────────────
+  useEffect(() => {
+    setProyectoPartidaId(null)
+    setPartidas([])
+    if (!proyecto_id) return
+    getPartidasByProyecto(proyecto_id)
+      .then(setPartidas)
+      .catch(() => {})
+  }, [proyecto_id])
+
   // ── RUC AUTOCOMPLETE ──────────────────────────────────────────
   useEffect(() => {
     if (ruc.length !== 11) return
@@ -142,6 +155,7 @@ export default function SolicitudNuevaPage() {
     const e: Record<string, string> = {}
     if (!tipo_id)                e.tipo_id        = 'Obligatorio'
     if (!proyecto_id)            e.proyecto_id    = 'Obligatorio'
+    if (partidas.length > 0 && !proyecto_partida_id) e.proyecto_partida_id = 'Obligatorio'
     if (!razon_social.trim())    e.razon_social   = 'Obligatorio'
     if (!ruc.trim())             e.ruc            = 'Obligatorio'
     if (!direccion.trim())       e.direccion      = 'Obligatorio'
@@ -165,6 +179,7 @@ export default function SolicitudNuevaPage() {
     try {
       const payload = {
         tipo_id, proyecto_id,
+        proyecto_partida_id: proyecto_partida_id ?? null,
         razon_social, ruc, direccion,
         contacto_nombre, contacto_telefono, contacto_correo,
         banco: banco || null,
@@ -418,12 +433,25 @@ export default function SolicitudNuevaPage() {
                   <div>
                     <label className={LABEL}>Proyecto *</label>
                     <select className={inp(errors.proyecto_id)} value={proyecto_id ?? ''}
-                      onChange={(e) => { setProyectoId(e.target.value ? Number(e.target.value) : null); setErrors((x) => ({ ...x, proyecto_id: '' })) }}>
+                      onChange={(e) => { setProyectoId(e.target.value ? Number(e.target.value) : null); setErrors((x) => ({ ...x, proyecto_id: '', proyecto_partida_id: '' })) }}>
                       <option value="">Seleccionar proyecto</option>
                       {proyectos.map((p) => <option key={p.id} value={p.id}>{p.codigo ?? ''} — {p.nombre}</option>)}
                     </select>
                     {errors.proyecto_id && <p className="mt-1 text-xs text-red-500">{errors.proyecto_id}</p>}
                   </div>
+
+                  {partidas.length > 0 && (
+                  <div>
+                    <label className={LABEL}>Partida *</label>
+                    <select className={inp(errors.proyecto_partida_id)} value={proyecto_partida_id ?? ''}
+                      onChange={(e) => { setProyectoPartidaId(e.target.value ? Number(e.target.value) : null); setErrors((x) => ({ ...x, proyecto_partida_id: '' })) }}>
+                      <option value="">Seleccionar partida</option>
+                      {partidas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    </select>
+                    {errors.proyecto_partida_id && <p className="mt-1 text-xs text-red-500">{errors.proyecto_partida_id}</p>}
+                  </div>
+                  )}
+
                   <div>
                     <label className={LABEL}>Forma de pago *</label>
                     <select className={inp(errors.forma_pago_id)} value={forma_pago_id ?? ''}

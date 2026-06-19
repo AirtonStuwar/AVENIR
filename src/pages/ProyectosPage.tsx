@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { useProyectos }     from '../features/proyecto/hooks/useProyectos'
-import ProyectosTable       from '../features/proyecto/components/ProyectosTable'
-import ProyectoModal        from '../features/proyecto/components/ProyectoModal'
-import ProyectoDeleteDialog from '../features/proyecto/components/ProyectoDeleteDialog'
-import { useAuthStore }     from '../store/authStore'
-import type { Proyecto }    from '../features/proyecto/types/proyecto'
+import { useProyectos }         from '../features/proyecto/hooks/useProyectos'
+import ProyectosTable            from '../features/proyecto/components/ProyectosTable'
+import ProyectoModal             from '../features/proyecto/components/ProyectoModal'
+import ProyectoDeleteDialog      from '../features/proyecto/components/ProyectoDeleteDialog'
+import ProyectoPartidasPanel     from '../features/proyecto/components/ProyectoPartidasPanel'
+import { useAuthStore }          from '../store/authStore'
+import type { Proyecto }         from '../features/proyecto/types/proyecto'
 
 export default function ProyectosPage() {
   const {
@@ -14,14 +15,16 @@ export default function ProyectosPage() {
   } = useProyectos()
   const user = useAuthStore((state) => state.user)
 
-  const [modalOpen,    setModalOpen]    = useState(false)
-  const [editTarget,   setEditTarget]   = useState<Proyecto | null>(null)
-  const [deleteOpen,   setDeleteOpen]   = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState<Proyecto | null>(null)
+  const [modalOpen,      setModalOpen]      = useState(false)
+  const [editTarget,     setEditTarget]     = useState<Proyecto | null>(null)
+  const [deleteOpen,     setDeleteOpen]     = useState(false)
+  const [deleteTarget,   setDeleteTarget]   = useState<Proyecto | null>(null)
+  const [partidasTarget, setPartidasTarget] = useState<Proyecto | null>(null)
 
-  const handleCreate = () => { setEditTarget(null); setModalOpen(true) }
-  const handleEdit   = (p: Proyecto) => { setEditTarget(p); setModalOpen(true) }
-  const handleDelete = (p: Proyecto) => { setDeleteTarget(p); setDeleteOpen(true) }
+  const handleCreate   = () => { setEditTarget(null); setModalOpen(true) }
+  const handleEdit     = (p: Proyecto) => { setEditTarget(p); setModalOpen(true) }
+  const handleDelete   = (p: Proyecto) => { setDeleteTarget(p); setDeleteOpen(true) }
+  const handlePartidas = (p: Proyecto) => { setPartidasTarget(p) }
 
   const handleModalSubmit = async (data: Parameters<typeof create>[0]) => {
     if (editTarget) await update(editTarget.id, data)
@@ -35,7 +38,8 @@ export default function ProyectosPage() {
         data={data} total={total} page={page} pageSize={pageSize}
         totalPages={totalPages} loading={loading}
         onEdit={handleEdit} onDelete={handleDelete} onToggle={toggleEstado}
-        onCreate={handleCreate} onSearch={setSearch} onFilter={setEstadoFilter}
+        onCreate={handleCreate} onPartidas={handlePartidas}
+        onSearch={setSearch} onFilter={setEstadoFilter}
         onPageChange={setPage} onRefresh={refresh}
       />
       <ProyectoModal
@@ -45,6 +49,10 @@ export default function ProyectosPage() {
       <ProyectoDeleteDialog
         open={deleteOpen} proyecto={deleteTarget}
         onClose={() => setDeleteOpen(false)} onConfirm={remove}
+      />
+      <ProyectoPartidasPanel
+        proyecto={partidasTarget}
+        onClose={() => setPartidasTarget(null)}
       />
     </div>
 </div>

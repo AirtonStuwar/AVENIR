@@ -19,6 +19,7 @@ export interface ReporteRow {
   fecha:        string | null
   ruc:          string | null
   proyecto:     string | null
+  partida:      string | null
   concepto:     string | null
   moneda:       string
   total_usd:    number
@@ -65,11 +66,12 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     .select([
       'id, codigo, tipo_id, usuario_creador, razon_social, ruc, moneda',
       'numero_factura, numero_rxh, porcentaje_retencion, monto_retencion',
-      'detraccion_id, monto_detraccion, fecha_aprobacion, proyecto_id',
+      'detraccion_id, monto_detraccion, fecha_aprobacion, proyecto_id, proyecto_partida_id',
       'banco, numero_cuenta, contacto_correo',
       'estado_soli:estado_id(nombre)',
       'solicitud_tipo:tipo_id(nombre)',
       'proyecto:proyecto_id(nombre)',
+      'proyecto_partida:proyecto_partida_id(nombre)',
       'detraccion:detraccion_id(porcentaje)',
     ].join(', '))
     .gte('fecha_aprobacion', fechaDesde)
@@ -90,6 +92,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     estado_soli: { nombre: string } | null
     solicitud_tipo: { nombre: string } | null
     proyecto: { nombre: string } | null
+    proyecto_partida: { nombre: string } | null
     detraccion: { porcentaje: number } | null
   }[]
 
@@ -122,6 +125,8 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     const detrac   = s.monto_detraccion ?? 0
     const reten    = s.monto_retencion ?? 0
     const isPEN    = (s.moneda ?? 'PEN') === 'PEN'
+    const detracPct = s.detraccion?.porcentaje ?? 0
+    const detracUSD = isPEN ? 0 : Math.round(total * detracPct / 100)
     const u        = s.usuario_creador ? (userMap[s.usuario_creador] ?? null) : null
 
     return {
@@ -135,12 +140,13 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       ruc:          s.ruc,
       proyecto:     s.proyecto?.nombre ?? null,
       concepto:     det[0]?.descripcion ?? null,
+      partida:      s.proyecto_partida?.nombre ?? null,
       moneda:       s.moneda ?? 'PEN',
       total_usd:    isPEN ? 0 : total,
       total_pen:    isPEN ? total : 0,
-      detraccion:   isPEN ? detrac : 0,
+      detraccion:   detrac,
       retencion:    isPEN ? reten : 0,
-      girar_usd:    isPEN ? 0 : total - reten,
+      girar_usd:    isPEN ? 0 : total - detracUSD,
       girar_pen:    isPEN ? total - detrac - reten : 0,
       banco:        s.banco,
       cuenta:       s.numero_cuenta,
@@ -154,7 +160,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_arendir')
-    .select('id, codigo, beneficiario_id, proyecto_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, proyecto:proyecto_id(nombre)')
+    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
     .eq('estado', 'Autorizado')
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -168,6 +174,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     importe: number; total_reembolso: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null; fecha_aprobacion: string | null
     proyecto: { nombre: string } | null
+    proyecto_partida: { nombre: string } | null
   }[]
 
   if (!rows.length) return []
@@ -200,6 +207,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       fecha:         r.fecha_aprobacion,
       ruc:           null,
       proyecto:      r.proyecto?.nombre ?? null,
+      partida:       r.proyecto_partida?.nombre ?? null,
       concepto:      conceptoMap[r.id] ?? 'Rendición de gastos',
       moneda:        r.moneda ?? 'PEN',
       total_usd:     isPEN ? 0 : r.importe,
@@ -220,7 +228,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_reembolso')
-    .select('id, codigo, beneficiario_id, proyecto_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, proyecto:proyecto_id(nombre)')
+    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
     .eq('estado', 'Autorizado')
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -234,6 +242,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     total_reembolso: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null; fecha_aprobacion: string | null
     proyecto: { nombre: string } | null
+    proyecto_partida: { nombre: string } | null
   }[]
 
   if (!rows.length) return []
@@ -265,6 +274,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       fecha:         r.fecha_aprobacion,
       ruc:           null,
       proyecto:      r.proyecto?.nombre ?? null,
+      partida:       r.proyecto_partida?.nombre ?? null,
       concepto:      conceptoMap[r.id] ?? 'Reembolso de gastos',
       moneda:        r.moneda ?? 'PEN',
       total_usd:     isPEN ? 0 : r.total_reembolso,
@@ -326,6 +336,7 @@ export async function exportarReporteExcel(
     { header: 'FECHA',          key: 'fecha',        width: 12 },
     { header: 'RUC',            key: 'ruc',          width: 13 },
     { header: 'PROYECTO',       key: 'proyecto',     width: 20 },
+    { header: 'PARTIDA',        key: 'partida',      width: 16 },
     { header: 'CONCEPTO DE PAGO', key: 'concepto',   width: 35 },
     { header: 'TOTAL $',        key: 'total_usd',    width: 13 },
     { header: 'TOTAL S/.',      key: 'total_pen',    width: 13 },
@@ -385,6 +396,7 @@ export async function exportarReporteExcel(
       fmtDate(row.fecha),
       row.ruc,
       row.proyecto,
+      row.partida,
       row.concepto,
       fmtNum(row.total_usd),
       fmtNum(row.total_pen),
@@ -404,7 +416,7 @@ export async function exportarReporteExcel(
       cell.alignment = { vertical: 'middle', wrapText: false }
       cell.border = { bottom: { style: 'hair', color: { argb: 'FFCCCCCC' } }, right: { style: 'hair', color: { argb: 'FFCCCCCC' } } }
       // Right-align numeric columns
-      if (ci >= 11 && ci <= 16) cell.alignment = { horizontal: 'right', vertical: 'middle' }
+      if (ci >= 12 && ci <= 17) cell.alignment = { horizontal: 'right', vertical: 'middle' }
     })
     r.height = 16
   })
@@ -421,7 +433,7 @@ export async function exportarReporteExcel(
     rows.reduce((s, r) => s + r.girar_pen,   0),
   ]
 
-  ws.mergeCells(rows.length + 3, 1, rows.length + 3, 11)
+  ws.mergeCells(rows.length + 3, 1, rows.length + 3, 12)
   const totLbl = totRow.getCell(1)
   totLbl.value = 'TOTALES'
   totLbl.font  = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } }
@@ -429,7 +441,7 @@ export async function exportarReporteExcel(
   totLbl.alignment = { horizontal: 'right', vertical: 'middle' }
 
   totals.forEach((v, i) => {
-    const cell = totRow.getCell(12 + i)
+    const cell = totRow.getCell(13 + i)
     cell.value = fmtNum(v)
     cell.font  = { bold: true, size: 9 }
     cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }

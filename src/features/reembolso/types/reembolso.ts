@@ -18,6 +18,7 @@ export interface SolicitudReembolso {
   codigo: string | null
   beneficiario_id: string | null
   proyecto_id: number | null
+  proyecto_partida_id: number | null
   moneda: string
   fecha_requerida: string | null
   total_reembolso: number
@@ -33,6 +34,7 @@ export interface SolicitudReembolso {
   usuario_evaluador: string | null
   // joins
   proyecto?: { id: number; nombre: string } | null
+  proyecto_partida?: { id: number; nombre: string } | null
   plan_contable?: {
     id: number
     tipo_gasto_costo: string | null

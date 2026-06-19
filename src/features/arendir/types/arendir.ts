@@ -18,6 +18,7 @@ export interface SolicitudARendir {
   codigo: string | null
   beneficiario_id: string | null
   proyecto_id: number | null
+  proyecto_partida_id: number | null
   importe: number
   moneda: string           // 'PEN' | 'USD'
   fecha_rendicion: string | null
@@ -35,6 +36,7 @@ export interface SolicitudARendir {
   usuario_evaluador: string | null
   // joins
   proyecto?: { id: number; nombre: string } | null
+  proyecto_partida?: { id: number; nombre: string } | null
   plan_contable?: {
     id: number
     tipo_gasto_costo: string | null

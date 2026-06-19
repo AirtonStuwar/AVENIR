@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   Search, Plus, RefreshCw, Pencil, Trash2,
   ChevronLeft, ChevronRight, ToggleLeft, ToggleRight,
-  FolderOpen, Filter,
+  FolderOpen, Filter, Layers,
 } from 'lucide-react'
 import type { Proyecto } from '../types/proyecto'
 
@@ -27,6 +27,7 @@ interface Props {
   onDelete:     (p: Proyecto) => void
   onToggle:     (p: Proyecto) => void
   onCreate:     () => void
+  onPartidas:   (p: Proyecto) => void
   onSearch:     (q: string) => void
   onFilter:     (estado: string | null) => void
   onPageChange: (page: number) => void
@@ -35,7 +36,7 @@ interface Props {
 
 export default function ProyectosTable({
   data, total, page, pageSize, totalPages, loading,
-  onEdit, onDelete, onToggle, onCreate,
+  onEdit, onDelete, onToggle, onCreate, onPartidas,
   onSearch, onFilter, onPageChange, onRefresh,
 }: Props) {
   const [searchVal,  setSearchVal]  = useState('')
@@ -204,6 +205,10 @@ export default function ProyectosTable({
 
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1 justify-end">
+                    <button onClick={() => onPartidas(p)} title="Partidas"
+                      className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition-colors">
+                      <Layers size={15} />
+                    </button>
                     <button onClick={() => onToggle(p)} title={p.estado === 'Activo' ? 'Desactivar' : 'Activar'}
                       className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">
                       {p.estado === 'Activo' ? <ToggleRight size={16} className="text-emerald-500" /> : <ToggleLeft size={16} />}

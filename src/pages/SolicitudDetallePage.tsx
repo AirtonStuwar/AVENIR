@@ -914,13 +914,13 @@ export default function SolicitudDetallePage() {
               <div>
                 <p className={LABEL}>Monto detracción</p>
                 <p className="text-sm font-bold text-amber-700">
-                  S/ {(solicitud.monto_detraccion ?? 0).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                  S/ {Math.round(solicitud.monto_detraccion ?? 0).toLocaleString('es-PE')}
                 </p>
               </div>
               <div>
-                <p className={LABEL}>Monto neto a depositar</p>
+                <p className={LABEL}>Total solicitud</p>
                 <p className="text-sm font-bold text-gray-900">
-                  S/ {(totalConIgv - (solicitud.monto_detraccion ?? 0)).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                  {fmtMoney(totalConIgv, (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}
                 </p>
               </div>
             </div>
@@ -972,6 +972,7 @@ export default function SolicitudDetallePage() {
         isRxH={isRxH}
         isOC={!isRxH}
         totalSolicitud={totalConIgv}
+        moneda={(solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN'}
         onConfirm={handleConfirmEvaluar}
         onCancel={() => setEvaluarOpen(false)}
       />
