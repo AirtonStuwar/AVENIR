@@ -5,6 +5,7 @@ import {
   FolderOpen, Filter, Layers,
 } from 'lucide-react'
 import type { Proyecto } from '../types/proyecto'
+import type { Consumo } from '../services/proyectoService'
 
 function fmtDate(d: string | null): string {
   if (!d) return '—'
@@ -16,6 +17,10 @@ function fmtMoney(n: number | null): string {
   return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(n)
 }
 
+function fmtShort(n: number): string {
+  return n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 interface Props {
   data:         Proyecto[]
   total:        number
@@ -23,6 +28,7 @@ interface Props {
   pageSize:     number
   totalPages:   number
   loading:      boolean
+  consumo?:     Record<number, Consumo>
   onEdit:       (p: Proyecto) => void
   onDelete:     (p: Proyecto) => void
   onToggle:     (p: Proyecto) => void
@@ -35,7 +41,7 @@ interface Props {
 }
 
 export default function ProyectosTable({
-  data, total, page, pageSize, totalPages, loading,
+  data, total, page, pageSize, totalPages, loading, consumo = {},
   onEdit, onDelete, onToggle, onCreate, onPartidas,
   onSearch, onFilter, onPageChange, onRefresh,
 }: Props) {
@@ -53,6 +59,7 @@ export default function ProyectosTable({
 
   const fromItem = total === 0 ? 0 : (page - 1) * pageSize + 1
   const toItem   = Math.min(page * pageSize, total)
+  const showConsumo = consumo !== undefined
 
   return (
     <div className="flex flex-col rounded-2xl overflow-hidden border border-gray-200 shadow-[0_2px_12px_0_rgba(0,61,125,.07)] bg-white">
@@ -137,7 +144,7 @@ export default function ProyectosTable({
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[#003D7D]/[0.03] border-b border-gray-100">
-                {['Código', 'Nombre', 'Presupuesto', 'Inicio', 'Fin', 'Estado', ''].map((h) => (
+                {['Código', 'Nombre', 'Presupuesto', ...(showConsumo ? ['Consumido'] : []), 'Inicio', 'Fin', 'Estado', ''].map((h) => (
                 <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">
                   {h}
                 </th>
@@ -148,7 +155,7 @@ export default function ProyectosTable({
           <tbody>
             {loading && data.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-16 text-center">
+                <td colSpan={showConsumo ? 8 : 7} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-3 text-gray-400">
                     <RefreshCw size={28} className="animate-spin text-[#003D7D]/30" />
                     <span className="text-sm">Cargando proyectos…</span>
@@ -159,7 +166,7 @@ export default function ProyectosTable({
 
             {!loading && data.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-16 text-center">
+                <td colSpan={showConsumo ? 8 : 7} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <FolderOpen size={32} className="text-gray-200" />
                     <p className="text-sm font-medium text-gray-500">No hay proyectos</p>
@@ -191,6 +198,43 @@ export default function ProyectosTable({
                 <td className="px-4 py-3 whitespace-nowrap">
                   <span className="font-mono text-sm text-gray-700">{fmtMoney(p.presupuesto)}</span>
                 </td>
+
+                {showConsumo && (
+                <td className="px-4 py-3 min-w-[160px]">
+                  {(() => {
+                    const c = consumo![p.id]
+                    if (!c || (c.pen === 0 && c.usd === 0)) return <span className="text-xs text-gray-400">Sin consumo</span>
+                    const pctPen = p.presupuesto && p.presupuesto > 0 ? (c.pen / p.presupuesto) * 100 : 0
+                    return (
+                      <div className="space-y-1">
+                        {c.pen > 0 && (
+                          <div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-gray-500">S/ {fmtShort(c.pen)}</span>
+                              {p.presupuesto && p.presupuesto > 0 && (
+                                <span className={`text-[10px] font-bold ${pctPen > 100 ? 'text-red-600' : pctPen > 80 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                  {pctPen.toFixed(0)}%
+                                </span>
+                              )}
+                            </div>
+                            {p.presupuesto && p.presupuesto > 0 && (
+                              <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${pctPen > 100 ? 'bg-red-500' : pctPen > 80 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                  style={{ width: `${Math.min(pctPen, 100)}%` }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {c.usd > 0 && (
+                          <span className="text-[10px] text-gray-500">$ {fmtShort(c.usd)}</span>
+                        )}
+                      </div>
+                    )
+                  })()}
+                </td>
+                )}
 
                 <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(p.fecha_inicio)}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate((p as any).fecha_fin)}</td>

@@ -88,7 +88,7 @@ export interface Solicitud {
   detraccion_id:    number | null
   monto_detraccion: number | null
   proyecto_partida_id: number | null
-  proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null } | null
+  proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null; presupuesto?: number | null } | null
   proyecto_partida?: { id: number; nombre: string; presupuesto_pen: number; presupuesto_usd: number } | null
   detraccion?: Detraccion | null
   solicitud_tipo?: { id: number; nombre: string } | null

@@ -15,7 +15,7 @@ const SOL_SEL = [
   'numero_factura, monto_total, plan_contable_id, usuario_evaluador, moneda',
   'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
   'detraccion_id, monto_detraccion, proyecto_partida_id',
-  'proyecto:proyecto_id(id,nombre,ruc,direccion)',
+  'proyecto:proyecto_id(id,nombre,ruc,direccion,presupuesto)',
   'proyecto_partida:proyecto_partida_id(id,nombre,presupuesto_pen,presupuesto_usd)',
   'detraccion:detraccion_id(id,codigo,concepto,porcentaje,monto_minimo)',
   'solicitud_tipo:tipo_id(id,nombre)',

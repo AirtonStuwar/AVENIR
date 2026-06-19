@@ -22,6 +22,7 @@ import ReembolsoPage from './pages/ReembolsoPage';
 import ReembolsoNuevaPage from './pages/ReembolsoNuevaPage';
 import ReembolsoDetallePage from './pages/ReembolsoDetallePage'
 import ReportesPage from './pages/ReportesPage';
+import AreasConsumoPage from './pages/AreasConsumoPage';
 
 function App() {
   const setSession = useAuthStore((state) => state.setSession);
@@ -78,6 +79,7 @@ function App() {
             <Route path="/reembolso/nueva" element={<ReembolsoNuevaPage />} />
             <Route path="/reembolso/:id"   element={<ReembolsoDetallePage />} />
             <Route path="/reportes"        element={<ReportesPage />} />
+            <Route path="/areas"           element={<AreasConsumoPage />} />
           </Route>
         </Route>
 

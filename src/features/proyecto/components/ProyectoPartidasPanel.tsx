@@ -3,15 +3,17 @@ import { X, Plus, Pencil, Trash2, Check, AlertCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
   getPartidasByProyecto,
+  getConsumoByProyectos,
   createPartida,
   updatePartida,
   deletePartida,
 } from '../services/proyectoService'
-import type { ProyectoPartida } from '../types/proyecto'
-import type { Proyecto } from '../types/proyecto'
+import type { ProyectoPartida, Proyecto } from '../types/proyecto'
+import type { Consumo } from '../services/proyectoService'
 
 interface Props {
   proyecto: Proyecto | null
+  mostrarConsumo?: boolean
   onClose: () => void
 }
 
@@ -22,8 +24,9 @@ const fmtUSD = (n: number) =>
 
 const EMPTY = { nombre: '', presupuesto_pen: '', presupuesto_usd: '' }
 
-export default function ProyectoPartidasPanel({ proyecto, onClose }: Props) {
+export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false, onClose }: Props) {
   const [partidas,  setPartidas]  = useState<ProyectoPartida[]>([])
+  const [consumoMap, setConsumoMap] = useState<Record<number, Consumo>>({})
   const [loading,   setLoading]   = useState(false)
   const [saving,    setSaving]    = useState(false)
   const [editId,    setEditId]    = useState<number | 'new' | null>(null)
@@ -33,11 +36,18 @@ export default function ProyectoPartidasPanel({ proyecto, onClose }: Props) {
   useEffect(() => {
     if (!proyecto) return
     setLoading(true)
-    getPartidasByProyecto(proyecto.id)
-      .then(setPartidas)
+    const promises: [Promise<ProyectoPartida[]>, Promise<{ porPartida: Record<number, Consumo> }> | Promise<null>] = [
+      getPartidasByProyecto(proyecto.id),
+      mostrarConsumo ? getConsumoByProyectos([proyecto.id]) : Promise.resolve(null),
+    ]
+    Promise.all(promises)
+      .then(([parts, consumoData]) => {
+        setPartidas(parts as ProyectoPartida[])
+        if (consumoData) setConsumoMap((consumoData as { porPartida: Record<number, Consumo> }).porPartida)
+      })
       .catch(() => toast.error('Error al cargar partidas'))
       .finally(() => setLoading(false))
-  }, [proyecto])
+  }, [proyecto, mostrarConsumo])
 
   if (!proyecto) return null
 
@@ -182,34 +192,74 @@ export default function ProyectoPartidasPanel({ proyecto, onClose }: Props) {
             </div>
           ) : (
             <div className="space-y-2">
-              {partidas.map(p => (
-                <div key={p.id} className="flex items-center justify-between px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-[#003D7D]/20 hover:bg-[#003D7D]/[0.02] transition-all group">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800">{p.nombre}</p>
-                    <div className="flex items-center gap-3 mt-0.5">
-                      {p.presupuesto_pen > 0 && (
-                        <span className="text-xs text-gray-500">S/. <span className="font-medium text-gray-700">{fmtPEN(p.presupuesto_pen)}</span></span>
-                      )}
-                      {p.presupuesto_usd > 0 && (
-                        <span className="text-xs text-gray-500">$ <span className="font-medium text-gray-700">{fmtUSD(p.presupuesto_usd)}</span></span>
+              {partidas.map(p => {
+                const c = consumoMap[p.id] ?? { pen: 0, usd: 0 }
+                const pctPen = p.presupuesto_pen > 0 ? (c.pen / p.presupuesto_pen) * 100 : 0
+                const pctUsd = p.presupuesto_usd > 0 ? (c.usd / p.presupuesto_usd) * 100 : 0
+                const barColor = (pct: number) => pct > 100 ? 'bg-red-500' : pct > 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                const txtColor = (pct: number) => pct > 100 ? 'text-red-600' : pct > 80 ? 'text-amber-600' : 'text-emerald-600'
+                return (
+                  <div key={p.id} className="px-4 py-3 rounded-xl border border-gray-200 bg-white hover:border-[#003D7D]/20 hover:bg-[#003D7D]/[0.02] transition-all group">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-semibold text-gray-800">{p.nombre}</p>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openEdit(p)} title="Editar"
+                          className="p-1.5 rounded-lg hover:bg-[#003D7D]/8 text-gray-400 hover:text-[#003D7D] transition-colors">
+                          <Pencil size={14} />
+                        </button>
+                        <button onClick={() => setDeleteId(p.id)} title="Eliminar"
+                          className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      {mostrarConsumo ? (
+                        <>
+                          {p.presupuesto_pen > 0 ? (
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-gray-500">S/ {fmtPEN(c.pen)} / {fmtPEN(p.presupuesto_pen)}</span>
+                                <span className={`text-[10px] font-bold ${txtColor(pctPen)}`}>{pctPen.toFixed(0)}%</span>
+                              </div>
+                              <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${barColor(pctPen)}`} style={{ width: `${Math.min(pctPen, 100)}%` }} />
+                              </div>
+                            </div>
+                          ) : c.pen > 0 ? (
+                            <span className="text-[10px] text-gray-500">Consumido S/ {fmtPEN(c.pen)}</span>
+                          ) : null}
+                          {p.presupuesto_usd > 0 ? (
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] text-gray-500">$ {fmtUSD(c.usd)} / {fmtUSD(p.presupuesto_usd)}</span>
+                                <span className={`text-[10px] font-bold ${txtColor(pctUsd)}`}>{pctUsd.toFixed(0)}%</span>
+                              </div>
+                              <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full transition-all ${barColor(pctUsd)}`} style={{ width: `${Math.min(pctUsd, 100)}%` }} />
+                              </div>
+                            </div>
+                          ) : c.usd > 0 ? (
+                            <span className="text-[10px] text-gray-500">Consumido $ {fmtUSD(c.usd)}</span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          {p.presupuesto_pen > 0 && (
+                            <span className="text-xs text-gray-500">S/. <span className="font-medium text-gray-700">{fmtPEN(p.presupuesto_pen)}</span></span>
+                          )}
+                          {p.presupuesto_usd > 0 && (
+                            <span className="text-xs text-gray-500">$ <span className="font-medium text-gray-700">{fmtUSD(p.presupuesto_usd)}</span></span>
+                          )}
+                        </>
                       )}
                       {p.presupuesto_pen === 0 && p.presupuesto_usd === 0 && (
                         <span className="text-xs text-gray-400 italic">Sin presupuesto asignado</span>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(p)} title="Editar"
-                      className="p-1.5 rounded-lg hover:bg-[#003D7D]/8 text-gray-400 hover:text-[#003D7D] transition-colors">
-                      <Pencil size={14} />
-                    </button>
-                    <button onClick={() => setDeleteId(p.id)} title="Eliminar"
-                      className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

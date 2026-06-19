@@ -6,8 +6,9 @@ import {
   ChevronLeft, ChevronRight, Plus, Trash2, Upload, Loader2, Send,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
-import { getProyectos, getPartidasByProyecto } from '../features/proyecto/services/proyectoService'
+import { getProyectos, getPartidasByProyecto, getConsumoByProyectos } from '../features/proyecto/services/proyectoService'
 import type { ProyectoPartida } from '../features/proyecto/types/proyecto'
+import type { Consumo } from '../features/proyecto/services/proyectoService'
 import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import {
@@ -55,7 +56,8 @@ function newRow(): DetalleRow {
 
 export default function ReembolsoNuevaPage() {
   const navigate = useNavigate()
-  const { user, usuarioProfile } = useAuthStore()
+  const { user, usuarioProfile, userRole } = useAuthStore()
+  const canVerConsumo = userRole === 1 || userRole === 9
 
   const [step, setStep] = useState<1 | 2>(1)
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
@@ -86,14 +88,24 @@ export default function ReembolsoNuevaPage() {
       .catch(() => toast.error('No se pudieron cargar los proyectos'))
   }, [])
 
+  const [consumoPartidas, setConsumoPartidas] = useState<Record<number, Consumo>>({})
+
   useEffect(() => {
     setPartidaId('')
     setPartidas([])
+    setConsumoPartidas({})
     if (!proyectoId) return
-    getPartidasByProyecto(Number(proyectoId))
-      .then(setPartidas)
+    const pid = Number(proyectoId)
+    Promise.all([
+      getPartidasByProyecto(pid),
+      canVerConsumo ? getConsumoByProyectos([pid]) : Promise.resolve(null),
+    ])
+      .then(([parts, c]) => {
+        setPartidas(parts as ProyectoPartida[])
+        if (c) setConsumoPartidas((c as { porPartida: Record<number, Consumo> }).porPartida)
+      })
       .catch(() => {})
-  }, [proyectoId])
+  }, [proyectoId, canVerConsumo])
 
   // ── Step 1 ────────────────────────────────────────────────────
   async function handleStep1() {
@@ -319,6 +331,32 @@ export default function ReembolsoNuevaPage() {
                 {partidas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
               {!partidaId && <p className="text-xs text-orange-500">Selecciona una partida para continuar</p>}
+              {canVerConsumo && (() => {
+                if (!partidaId) return null
+                const sel = partidas.find(p => p.id === Number(partidaId))
+                const c = consumoPartidas[Number(partidaId)]
+                if (!sel || !c) return null
+                const pres = moneda === 'USD' ? sel.presupuesto_usd : sel.presupuesto_pen
+                const cons = moneda === 'USD' ? c.usd : c.pen
+                if (pres <= 0) return null
+                const pct = (cons / pres) * 100
+                const sym = moneda === 'USD' ? '$' : 'S/'
+                const saldo = pres - cons
+                if (pct <= 80) return (
+                  <p className="text-[11px] text-emerald-600">
+                    Saldo disponible: {sym} {saldo.toLocaleString('es-PE', { minimumFractionDigits: 2 })} ({(100 - pct).toFixed(0)}%)
+                  </p>
+                )
+                return (
+                  <div className={`flex items-start gap-1.5 px-3 py-2 rounded-lg text-xs ${pct >= 100 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                    <span className="shrink-0 mt-0.5">⚠️</span>
+                    <span>{pct >= 100
+                      ? `Presupuesto agotado — consumido ${sym} ${cons.toLocaleString('es-PE', { minimumFractionDigits: 2 })} de ${sym} ${pres.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
+                      : `Presupuesto al ${pct.toFixed(0)}% — saldo: ${sym} ${saldo.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                    </span>
+                  </div>
+                )
+              })()}
             </div>
             )}
 

@@ -21,6 +21,8 @@ import EncuestaProveedorForm from '../features/proveedor/components/EncuestaProv
 import { getEncuestaBySolicitud } from '../features/proveedor/services/proveedorService'
 import type { Encuesta } from '../features/proveedor/types/proveedor'
 import { useAuthStore } from '../store/authStore'
+import { getConsumoByProyectos } from '../features/proyecto/services/proyectoService'
+import type { Consumo } from '../features/proyecto/services/proyectoService'
 import { getUserFirmaBlob, getUserFirmaUrl } from '../features/usuario/services/usuarioService'
 import type { Solicitud, SolicitudDetalle, SolicitudArchivo, SolicitudUpdate } from '../features/solicitud/types/solicitud'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -95,6 +97,10 @@ export default function SolicitudDetallePage() {
   // Encuesta
   const [encuesta,         setEncuesta]         = useState<Encuesta | null>(null)
 
+  // Consumo presupuesto (ADMIN + APROBADOR)
+  const canVerConsumo = userRole === ROLES.ADMIN || userRole === ROLES.APROBADOR
+  const [consumoData, setConsumoData] = useState<{ consumo: Consumo; presupuesto: { pen: number; usd: number }; label: string } | null>(null)
+
   // Datos de factura
   const [numeroFactura,        setNumeroFactura]        = useState('')
   const [motivoFactura,        setMotivoFactura]        = useState('')
@@ -152,6 +158,29 @@ export default function SolicitudDetallePage() {
     setFechaEmisionFactura(solicitud?.fecha_emision_factura ?? '')
     setFechaVencimientoFactura(solicitud?.fecha_vencimiento_factura ?? '')
   }, [solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura])
+
+  // Consumo de presupuesto (partida o proyecto)
+  useEffect(() => {
+    if (!canVerConsumo || !solicitud?.proyecto_id) return
+    getConsumoByProyectos([solicitud.proyecto_id])
+      .then(c => {
+        if (solicitud.proyecto_partida_id && solicitud.proyecto_partida) {
+          setConsumoData({
+            consumo: c.porPartida[solicitud.proyecto_partida_id] ?? { pen: 0, usd: 0 },
+            presupuesto: { pen: solicitud.proyecto_partida.presupuesto_pen, usd: solicitud.proyecto_partida.presupuesto_usd },
+            label: solicitud.proyecto_partida.nombre,
+          })
+        } else {
+          const proy = solicitud.proyecto
+          setConsumoData({
+            consumo: c.porProyecto[solicitud.proyecto_id!] ?? { pen: 0, usd: 0 },
+            presupuesto: { pen: proy?.presupuesto ?? 0, usd: 0 },
+            label: proy?.nombre ?? 'Proyecto',
+          })
+        }
+      })
+      .catch(() => {})
+  }, [canVerConsumo, solicitud?.proyecto_id, solicitud?.proyecto_partida_id])
 
   // ── Derived state ──────────────────────────────────────────────
   const nombre         = solicitud?.estado_soli?.nombre ?? ''
@@ -637,6 +666,85 @@ export default function SolicitudDetallePage() {
             </div>
           )}
         </div>
+
+        {/* ── PRESUPUESTO (ADMIN + APROBADOR) ── */}
+        {canVerConsumo && consumoData && (consumoData.presupuesto.pen > 0 || consumoData.presupuesto.usd > 0 || consumoData.consumo.pen > 0 || consumoData.consumo.usd > 0) && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+              <CheckCircle size={15} className="text-[#003D7D]" />
+              <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">
+                Presupuesto — {consumoData.label}
+              </h2>
+              {solicitud.proyecto_partida && (
+                <span className="ml-auto text-xs text-gray-400">{solicitud.proyecto?.nombre}</span>
+              )}
+            </div>
+            <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(consumoData.presupuesto.pen > 0 || consumoData.consumo.pen > 0) && (() => {
+                const pres = consumoData.presupuesto.pen
+                const cons = consumoData.consumo.pen
+                const pct = pres > 0 ? (cons / pres) * 100 : 0
+                const color = pct > 100 ? 'bg-red-500' : pct > 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                const txtColor = pct > 100 ? 'text-red-600' : pct > 80 ? 'text-amber-600' : 'text-emerald-600'
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-500">Soles (PEN)</span>
+                      {pres > 0 && <span className={`text-xs font-bold ${txtColor}`}>{pct.toFixed(0)}%</span>}
+                    </div>
+                    {pres > 0 && (
+                      <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden mb-1.5">
+                        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                      </div>
+                    )}
+                    <div className="flex justify-between text-[11px] text-gray-500">
+                      <span>Consumido: S/ {cons.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
+                      {pres > 0 && <span>Presup: S/ {pres.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>}
+                    </div>
+                    {pres > 0 && (
+                      <p className={`mt-1 text-xs font-medium ${pct > 100 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {pct > 100
+                          ? `Excedido por S/ ${(cons - pres).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
+                          : `Saldo: S/ ${(pres - cons).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
+              {(consumoData.presupuesto.usd > 0 || consumoData.consumo.usd > 0) && (() => {
+                const pres = consumoData.presupuesto.usd
+                const cons = consumoData.consumo.usd
+                const pct = pres > 0 ? (cons / pres) * 100 : 0
+                const color = pct > 100 ? 'bg-red-500' : pct > 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                const txtColor = pct > 100 ? 'text-red-600' : pct > 80 ? 'text-amber-600' : 'text-emerald-600'
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs text-gray-500">Dólares (USD)</span>
+                      {pres > 0 && <span className={`text-xs font-bold ${txtColor}`}>{pct.toFixed(0)}%</span>}
+                    </div>
+                    {pres > 0 && (
+                      <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden mb-1.5">
+                        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                      </div>
+                    )}
+                    <div className="flex justify-between text-[11px] text-gray-500">
+                      <span>Consumido: $ {cons.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      {pres > 0 && <span>Presup: $ {pres.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>}
+                    </div>
+                    {pres > 0 && (
+                      <p className={`mt-1 text-xs font-medium ${pct > 100 ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {pct > 100
+                          ? `Excedido por $ ${(cons - pres).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                          : `Saldo: $ ${(pres - cons).toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                      </p>
+                    )}
+                  </div>
+                )
+              })()}
+            </div>
+          </div>
+        )}
 
         {/* ── DETALLES ── */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">

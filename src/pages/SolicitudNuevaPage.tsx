@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { ArrowLeft, CheckCircle, Plus, Trash2, Pencil, Loader2 } from 'lucide-react'
 import { supabase } from '../api/supabase'
-import { getProyectos, getPartidasByProyecto } from '../features/proyecto/services/proyectoService'
+import { getProyectos, getPartidasByProyecto, getConsumoByProyectos } from '../features/proyecto/services/proyectoService'
 import type { ProyectoPartida } from '../features/proyecto/types/proyecto'
+import type { Consumo } from '../features/proyecto/services/proyectoService'
 import {
   createSolicitud,
   updateSolicitud,
@@ -41,6 +42,8 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 export default function SolicitudNuevaPage() {
   const navigate  = useNavigate()
   const user      = useAuthStore((s) => s.user)
+  const userRole  = useAuthStore((s) => s.userRole)
+  const canVerConsumo = userRole === 1 || userRole === 9
 
   // ─── Step ───
   const [step,          setStep]          = useState<'form' | 'detalles' | 'archivos' | 'factura'>('form')
@@ -118,15 +121,25 @@ export default function SolicitudNuevaPage() {
     })()
   }, [])
 
-  // ── PARTIDAS por proyecto ────────────────────────────────────
+  // ── PARTIDAS y CONSUMO por proyecto ──────────────────────────
+  const [consumoPartidas, setConsumoPartidas] = useState<Record<number, Consumo>>({})
+
   useEffect(() => {
     setProyectoPartidaId(null)
     setPartidas([])
+    setConsumoPartidas({})
     if (!proyecto_id) return
-    getPartidasByProyecto(proyecto_id)
-      .then(setPartidas)
+    const promises: [Promise<ProyectoPartida[]>, Promise<{ porPartida: Record<number, Consumo> }> | Promise<null>] = [
+      getPartidasByProyecto(proyecto_id),
+      canVerConsumo ? getConsumoByProyectos([proyecto_id]) : Promise.resolve(null),
+    ]
+    Promise.all(promises)
+      .then(([parts, c]) => {
+        setPartidas(parts as ProyectoPartida[])
+        if (c) setConsumoPartidas((c as { porPartida: Record<number, Consumo> }).porPartida)
+      })
       .catch(() => {})
-  }, [proyecto_id])
+  }, [proyecto_id, canVerConsumo])
 
   // ── RUC AUTOCOMPLETE ──────────────────────────────────────────
   useEffect(() => {
@@ -449,6 +462,33 @@ export default function SolicitudNuevaPage() {
                       {partidas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                     </select>
                     {errors.proyecto_partida_id && <p className="mt-1 text-xs text-red-500">{errors.proyecto_partida_id}</p>}
+                    {canVerConsumo && (() => {
+                      if (!proyecto_partida_id) return null
+                      const sel = partidas.find(p => p.id === proyecto_partida_id)
+                      const c = consumoPartidas[proyecto_partida_id]
+                      if (!sel || !c) return null
+                      const pres = moneda === 'USD' ? sel.presupuesto_usd : sel.presupuesto_pen
+                      const cons = moneda === 'USD' ? c.usd : c.pen
+                      if (pres <= 0) return null
+                      const pct = (cons / pres) * 100
+                      const sym = moneda === 'USD' ? '$' : 'S/'
+                      const saldo = pres - cons
+                      if (pct <= 80) return (
+                        <p className="mt-1 text-[11px] text-emerald-600">
+                          Saldo disponible: {sym} {saldo.toLocaleString('es-PE', { minimumFractionDigits: 2 })} ({(100 - pct).toFixed(0)}%)
+                        </p>
+                      )
+                      return (
+                        <div className={`mt-1.5 flex items-start gap-1.5 px-3 py-2 rounded-lg text-xs ${pct >= 100 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
+                          <span className="shrink-0 mt-0.5">⚠️</span>
+                          <span>
+                            {pct >= 100
+                              ? `Presupuesto agotado — consumido ${sym} ${cons.toLocaleString('es-PE', { minimumFractionDigits: 2 })} de ${sym} ${pres.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
+                              : `Presupuesto al ${pct.toFixed(0)}% — saldo: ${sym} ${saldo.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                          </span>
+                        </div>
+                      )
+                    })()}
                   </div>
                   )}
 
