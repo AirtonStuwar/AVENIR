@@ -6,7 +6,7 @@ import type {
 import { ROLES } from '../../solicitud/types/solicitud'
 
 const BUCKET = 'reembolso-documentos'
-const SEL = '*, proyecto:proyecto_id(id,nombre), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)'
+const SEL = '*, proyecto:proyecto_id(id,nombre), proyecto_partida:proyecto_partida_id(id,nombre), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)'
 
 // ── Enrich helper ──────────────────────────────────────────────
 async function enrichReembolso(items: SolicitudReembolso[]): Promise<SolicitudReembolso[]> {

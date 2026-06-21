@@ -308,6 +308,39 @@ Evaluado
 
 ---
 
+## Módulo Reembolso
+
+Gestión de **reembolso de gastos** — un empleado registra gastos ya realizados y solicita su devolución. Estructura análoga al módulo A Rendir.
+
+**Rutas:**
+- `/reembolso` — listado (`ReembolsoPage`)
+- `/reembolso/nueva` — wizard de creación (`ReembolsoNuevaPage`)
+- `/reembolso/:id` — detalle y acciones (`ReembolsoDetallePage`)
+
+**Sidebar:** visible para ADMIN (1), EVALUADOR (8), APROBADOR (9), VISUALIZADOR (10), USUARIO (11). Solo USUARIO y ADMIN pueden crear.
+
+**Feature folder:** `src/features/reembolso/` — contiene `types/reembolso.ts`, `services/reembolsoService.ts`, `hooks/useReembolso.ts`.
+
+**Tablas Supabase:**
+- `solicitud_reembolso` — cabecera
+- `solicitud_reembolso_detalle` — líneas de gasto
+
+**Campos de `solicitud_reembolso`:**
+- `id`, `codigo` (auto-generado), `beneficiario_id` (UUID FK), `proyecto_id` (FK, nullable), `proyecto_partida_id` (FK, nullable)
+- `moneda` ('PEN'|'USD'), `fecha_requerida` (date, nullable), `total_reembolso` (numeric)
+- `banco`, `numero_cuenta`, `documento_sustento_path` (nullable)
+- `estado`: `'Pendiente'` | `'En Revision'` | `'Evaluado'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'`
+- `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `plan_contable_id`, `usuario_evaluador`, `fecha_creacion`
+
+**Flujo de estados:** idéntico a A Rendir (Pendiente → En Revision → Evaluado → Autorizado/Rechazado/Devuelto).
+
+**Diferencias clave vs A Rendir:**
+- Sin campo `importe` (adelanto) — solo `total_reembolso`
+- Sin `numero_pago`
+- El wizard y detalle tienen la misma estructura pero sin la lógica de balance adelanto vs gasto
+
+---
+
 **TypeScript config:** strict mode with `noUnusedLocals` and `noUnusedParameters` enabled — unused variables will cause build errors. Use `Omit<T, 'id' | 'fecha_creacion' | ...>` for insert/update types (see `SolicitudInsert` as the canonical example).
 
 **RUC lookup:** `rucService.ts` calls `/api/ruc?numero=<ruc>`. In development, `vite.config.ts` proxies this to `https://api.decolecta.com/v1/sunat/ruc` with a Bearer token. This proxy only runs in `dev` mode; a separate server-side solution is needed in production.
@@ -341,9 +374,9 @@ Consolidación de registros aprobados/autorizados de todos los módulos en un Ex
 
 **`exportarReporteExcel(rows, filtros, proyectoNombre)`:** ExcelJS workbook con 1 hoja "Reporte":
 - Fila 1: título mergeado, fondo `#003D7D`, fuente blanca.
-- Fila 2: 20 cabeceras, fondo `#1F497D`, fuente blanca bold, freeze panes 1-2.
+- Fila 2: 21 cabeceras (incluye PARTIDA después de PROYECTO), fondo `#1F497D`, fuente blanca bold, freeze panes 1-2.
 - Filas de datos: coloreadas por tipo (OC=azul tenue, RxH=verde tenue, A Rendir=amarillo tenue, Reembolso=rosa tenue).
-- Última fila: "TOTALES" mergeada en columnas 1-11, sumas de columnas numéricas, fondo `#D9E1F2`.
+- Última fila: "TOTALES" mergeada en columnas 1-12, sumas de columnas numéricas (13-18), fondo `#D9E1F2`.
 - Descarga automática como blob `Reporte_{fechaDesde}_{fechaHasta}.xlsx`.
 
 **PostgREST cast pattern en el servicio:** los tipos de retorno de Supabase usan `as unknown as MyType[]` cuando el tipo inferido no coincide con la estructura esperada (joins de FK que PostgREST puede devolver como array o null según el esquema).
