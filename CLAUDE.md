@@ -42,6 +42,7 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `/arendir`, `/arendir/nueva`, `/arendir/:id` — A Rendir module, also behind `ProtectedRoute`
 - `/reembolso`, `/reembolso/nueva`, `/reembolso/:id` — Reembolso module, also behind `ProtectedRoute`
 - `/reportes` — Módulo Reportes (ADMIN + VISUALIZADOR), also behind `ProtectedRoute`
+- `/areas` — Gasto por Área (ADMIN + APROBADOR), also behind `ProtectedRoute`
 - Catch-all redirects to `/dashboard`
 
 **Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `usuario`, `proveedor`, `encuesta_proveedor`, `plan_contable_brash`, `detraccion`, `solicitud_arendir`, `solicitud_arendir_detalle`, `solicitud_reembolso`, `solicitud_reembolso_detalle`.
@@ -105,7 +106,7 @@ Step state is local to the page. The solicitud record is created at the end of S
 
 **Campos de Detracción en `solicitud`:**
 - `detraccion_id` — FK a tabla `detraccion` (nullable, asignado por EVALUADOR solo en OC)
-- `monto_detraccion` — monto calculado (= total con IGV × porcentaje del concepto)
+- `monto_detraccion` — monto calculado, siempre en soles, redondeado sin decimales (`Math.round`). Para solicitudes en USD se usa la fórmula: `Math.round(totalUSD × tipoCambioVenta × porcentaje / 100)`
 
 Todos estos campos están en el `Omit` de `SolicitudInsert` y se excluyen al crear; se guardan via `updateSolicitud` en pasos posteriores.
 
@@ -115,7 +116,7 @@ Todos estos campos están en el `Omit` de `SolicitudInsert` y se excluyen al cre
 
 **"Datos de la Factura" card** (`showFacturaCard`): visible cuando `canEdit` (Pendiente + rol correcto) OR cuando ya existe algún dato de factura o archivo Factura XML/PDF. En modo editable (`canEditFactura`), muestra los 4 campos en una grilla 2×2 con un solo botón "Guardar" que se activa solo si hay cambios (`facturaHasChanges`). En modo solo lectura, usa `InfoField`. El state local (`numeroFactura`, `motivoFactura`, `fechaEmisionFactura`, `fechaVencimientoFactura`) se sincroniza desde `solicitud` vía `useEffect`; `handleGuardarFactura` guarda los 4 campos de una sola vez con `updateSolicitud`.
 
-Order of cards in detail page: **Info general → Detalles → Documentos → Datos de la Factura → Plan Contable → Detracción → Encuesta Proveedor**. The Plan Contable card shows all `plan_contable_brash` fields and only renders when `solicitud.plan_contable` is not null. The **Detracción card** renders only when `solicitud.detraccion_id` is not null (i.e., after an EVALUADOR assigns a detracción to an OC) — shows código, concepto, porcentaje, monto mínimo, monto detracción y monto neto a depositar. Es informativo: el total de la solicitud NO cambia.
+Order of cards in detail page: **Info general → Presupuesto (ADMIN+APROBADOR) → Detalles → Documentos → Datos de la Factura → Plan Contable → Detracción → Encuesta Proveedor**. The **Presupuesto card** shows consumo vs presupuesto con barra de progreso — si la solicitud tiene partida, muestra la partida; si no, muestra el proyecto. Solo visible para ADMIN (1) y APROBADOR (9). Usa `getConsumoByProyectos()`. The Plan Contable card shows all `plan_contable_brash` fields and only renders when `solicitud.plan_contable` is not null. The **Detracción card** renders only when `solicitud.detraccion_id` is not null (i.e., after an EVALUADOR assigns a detracción to an OC) — shows código, concepto, porcentaje, monto mínimo, monto detracción y total solicitud (en su moneda). La detracción siempre se muestra en S/ (SUNAT). Es informativo: el total de la solicitud NO cambia.
 
 **SolicitudModal** (edit mode) includes all header fields plus `moneda`, `motivo_factura`, `fecha_emision_factura`, and `fecha_vencimiento_factura` — these duplicate the inline edit in the detail card but remain in the modal for completeness.
 
@@ -143,10 +144,11 @@ Cada función de servicio en `dashboardService.ts` hace sus propias queries opti
 
 **Plan Contable (`plan_contable_brash` table):** catalog table used by the EVALUADOR to categorize each solicitud. Fields: `id`, `tipo_gasto_costo`, `codigo_starsoft`, `cuenta_contable_2020_starsoft`, `nombre_cuenta_contable`, `partida_presupuestal`, `partida_presupuesta_n1`, `partida_presupuesta_n2`. RLS policy: SELECT for authenticated users. Service function: `getPlanContable()` returns all rows ordered by `tipo_gasto_costo`.
 
-**EvaluarModal** (`src/features/solicitud/components/EvaluarModal.tsx`) — modal shown to EVALUADOR/ADMIN when marking a solicitud as Evaluado. Props: `isRxH?`, `isOC?`, `totalSolicitud?` (total con IGV en soles). Contains:
+**EvaluarModal** (`src/features/solicitud/components/EvaluarModal.tsx`) — modal shown to EVALUADOR/ADMIN when marking a solicitud as Evaluado. Props: `isRxH?`, `isOC?`, `totalSolicitud?`, `moneda?` ('PEN'|'USD'). Contains:
 1. Searchable combobox for Plan Contable (mandatory). Filters across `tipo_gasto_costo`, `nombre_cuenta_contable`, `codigo_starsoft`.
 2. **Retención IR** (only when `isRxH`): 3 pill buttons — 0% exonerado, 3%, 8%. Mandatory for RxH.
-3. **Detracción** (only when `isOC` AND `totalSolicitud > d.monto_minimo` for at least one concept): pill buttons, one per detracción disponible. Optional — clicking same button deselects. Shows calculated monto.
+3. **Tipo de cambio** (only when `isOC` AND `moneda === 'USD'`): input numérico pre-llenado con TC venta SUNAT (`getTipoCambioUSD()`), editable. Convierte el total a soles: `totalEnSoles = totalUSD × TC`. Muestra conversión inline.
+4. **Detracción** (only when `isOC` AND `totalEnSoles > d.monto_minimo` for at least one concept): pill buttons, one per detracción disponible. Optional — clicking same button deselects. Monto calculado en soles con `Math.round()` (sin decimales). Para USD muestra la fórmula completa: `($ total × TC × %)`.
 
 `onConfirm` callback: `(planContableId, porcentajeRetencion?, detraccionId?, montoDetraccion?) => Promise<void>`. When the dropdown is open, the modal body adds `pb-64` to avoid clipping the list. No `overflow-hidden` on the modal wrapper; `rounded-t-2xl`/`rounded-b-2xl` on header/footer individually.
 
@@ -333,7 +335,9 @@ Consolidación de registros aprobados/autorizados de todos los módulos en un Ex
 - **A Rendir** — `solicitud_arendir` con `estado = 'Autorizado'`. Monto = `total_reembolso`.
 - **Reembolso** — `solicitud_reembolso` con `estado = 'Autorizado'`. Monto = `total_reembolso`.
 
-**`ReporteRow` interface:** `tipo`, `codigo`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para A Rendir/Reembolso), `fecha`, `ruc`, `proyecto`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`.
+**`ReporteRow` interface:** `tipo`, `codigo`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para A Rendir/Reembolso), `fecha`, `ruc`, `proyecto`, `partida`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`.
+
+**Detracción en reportes:** `detraccion` siempre en S/ (SUNAT), sin importar la moneda de la solicitud. `girar_usd` descuenta la detracción en dólares: `total - Math.round(total × porcentaje / 100)`. `girar_pen` descuenta detracción y retención en soles.
 
 **`exportarReporteExcel(rows, filtros, proyectoNombre)`:** ExcelJS workbook con 1 hoja "Reporte":
 - Fila 1: título mergeado, fondo `#003D7D`, fuente blanca.
@@ -343,3 +347,48 @@ Consolidación de registros aprobados/autorizados de todos los módulos en un Ex
 - Descarga automática como blob `Reporte_{fechaDesde}_{fechaHasta}.xlsx`.
 
 **PostgREST cast pattern en el servicio:** los tipos de retorno de Supabase usan `as unknown as MyType[]` cuando el tipo inferido no coincide con la estructura esperada (joins de FK que PostgREST puede devolver como array o null según el esquema).
+
+---
+
+## Proyecto Partidas
+
+Un proyecto puede subdividirse en partidas (ej: COPISAC → HITO, JOMY, OP-ADM). Cada partida tiene su propio presupuesto en PEN y USD.
+
+**Tabla `proyecto_partida`:** `id`, `proyecto_id` (FK), `nombre`, `presupuesto_pen` (numeric), `presupuesto_usd` (numeric), `estado` (text, default 'Activo'), `fecha_creacion`. RLS: SELECT para authenticated, INSERT/UPDATE/DELETE solo ADMIN (`EXISTS (SELECT 1 FROM usuario_rol WHERE usuario = auth.uid() AND rol = 1)`). FK `ON DELETE SET NULL` para no afectar solicitudes existentes.
+
+**CRUD:** `src/features/proyecto/services/proyectoService.ts` — `getPartidasByProyecto`, `createPartida`, `updatePartida`, `deletePartida`. Panel: `ProyectoPartidasPanel.tsx` (slide-in desde `ProyectosPage`).
+
+**Integración con solicitudes:** `proyecto_partida_id` (nullable FK) en `solicitud`, `solicitud_arendir`, `solicitud_reembolso`. Seleccionar partida es **obligatorio** cuando el proyecto tiene partidas. Los 3 wizards (`SolicitudNuevaPage`, `ARendirNuevaPage`, `ReembolsoNuevaPage`) cargan partidas con `useEffect` al cambiar proyecto y muestran dropdown condicional.
+
+**`SOL_SEL` join:** `proyecto_partida:proyecto_partida_id(id,nombre,presupuesto_pen,presupuesto_usd)`.
+
+---
+
+## Control de Presupuesto
+
+Funcionalidad que calcula el monto consumido vs presupuesto por proyecto y partida. Solo visible para **ADMIN (1)** y **APROBADOR (9)**.
+
+**`getConsumoByProyectos(proyectoIds)`** en `proyectoService.ts` — retorna `{ porProyecto, porPartida }` con `Consumo = { pen: number; usd: number }`. Suma:
+- Solicitudes aprobadas (OC con IGV 18%, RxH sin IGV) agrupadas por `proyecto_id` / `proyecto_partida_id`
+- A Rendir autorizados (`total_reembolso`)
+- Reembolso autorizados (`total_reembolso`)
+
+**Dónde se muestra:**
+- **`ProyectosTable`** — columna "Consumido" con barra de progreso (verde <80%, amarillo 80-100%, rojo >100%). Solo si `consumo` prop está definida.
+- **`ProyectoPartidasPanel`** — barras de consumo por moneda en cada partida. Prop `mostrarConsumo`.
+- **`SolicitudDetallePage`** — card "Presupuesto — [partida/proyecto]" con barras, consumido, saldo. Se muestra para partida si existe, sino para el proyecto.
+- **Wizards** — alerta de saldo debajo del select de partida (verde=saldo OK, amarillo=>80%, rojo=agotado).
+
+---
+
+## Gasto por Área
+
+Página `/areas` — visible para **ADMIN (1)** y **APROBADOR (9)**.
+
+**Feature folder:** `src/features/area/services/areaConsumoService.ts`.
+
+**`getConsumoByAreas()`** — consulta `area_usuario` (estado=1) para mapear usuarios a áreas, luego suma montos aprobados/autorizados de OC, RxH, A Rendir y Reembolso agrupados por área del creador/beneficiario. Retorna `AreaConsumo[]` con desglose por módulo (oc_pen, oc_usd, rxh_pen, etc.) y totales.
+
+**Página:** `src/pages/AreasConsumoPage.tsx` — barra de totales globales, cards por área con barra de progreso relativa al área que más gasta, desglose por módulo (OC, RxH, A Rendir, Reembolso) con montos PEN y USD.
+
+**Sidebar:** item "Áreas" con ícono `Building2`, roles [1, 9].
