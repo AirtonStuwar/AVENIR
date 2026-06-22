@@ -38,12 +38,12 @@ export interface ReporteRow {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-async function enrichUsers(ids: (string | null)[]): Promise<Record<string, { nombre: string | null; cargo: string | null; correo: string | null; area: string | null }>> {
+async function enrichUsers(ids: (string | null)[]): Promise<Record<string, { nombre: string | null; cargo: string | null; correo: string | null; area: string | null; dni: string | null }>> {
   const clean = [...new Set(ids.filter(Boolean))] as string[]
   if (!clean.length) return {}
 
   const [usersRes, areasRes] = await Promise.all([
-    supabase.from('usuario').select('id, nombre_completo, cargo, correo').in('id', clean),
+    supabase.from('usuario').select('id, nombre_completo, cargo, correo, dni').in('id', clean),
     supabase.from('area_usuario').select('usuario_id, area_id(nombre)').in('usuario_id', clean).eq('estado', 1),
   ])
 
@@ -52,9 +52,9 @@ async function enrichUsers(ids: (string | null)[]): Promise<Record<string, { nom
     areaMap[row.usuario_id] = row.area_id?.nombre ?? ''
   }
 
-  const result: Record<string, { nombre: string | null; cargo: string | null; correo: string | null; area: string | null }> = {}
-  for (const u of (usersRes.data ?? []) as { id: string; nombre_completo: string | null; cargo: string | null; correo: string | null }[]) {
-    result[u.id] = { nombre: u.nombre_completo, cargo: u.cargo, correo: u.correo, area: areaMap[u.id] ?? null }
+  const result: Record<string, { nombre: string | null; cargo: string | null; correo: string | null; area: string | null; dni: string | null }> = {}
+  for (const u of (usersRes.data ?? []) as { id: string; nombre_completo: string | null; cargo: string | null; correo: string | null; dni: string | null }[]) {
+    result[u.id] = { nombre: u.nombre_completo, cargo: u.cargo, correo: u.correo, area: areaMap[u.id] ?? null, dni: u.dni }
   }
   return result
 }
@@ -217,7 +217,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       area:          u?.area ?? null,
       beneficiario:  u?.nombre ?? null,
       documento:     null,
-      ruc:           null,
+      ruc:           u?.dni ?? null,
       proyecto:      r.proyecto?.nombre ?? null,
       partida:       r.proyecto_partida?.nombre ?? null,
       concepto:      conceptoMap[r.id] ?? 'Rendición de gastos',
@@ -288,7 +288,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       area:          u?.area ?? null,
       beneficiario:  u?.nombre ?? null,
       documento:     null,
-      ruc:           null,
+      ruc:           u?.dni ?? null,
       proyecto:      r.proyecto?.nombre ?? null,
       partida:       r.proyecto_partida?.nombre ?? null,
       concepto:      conceptoMap[r.id] ?? 'Reembolso de gastos',
@@ -353,7 +353,7 @@ export async function exportarReporteExcel(
     { header: 'ÁREA',            key: 'area',            width: 16 },
     { header: 'BENEFICIARIO',    key: 'beneficiario',    width: 28 },
     { header: 'DOCUMENTO',       key: 'documento',       width: 18 },
-    { header: 'RUC',             key: 'ruc',             width: 13 },
+    { header: 'RUC / DNI',       key: 'ruc',             width: 13 },
     { header: 'PROYECTO',        key: 'proyecto',        width: 20 },
     { header: 'PARTIDA',         key: 'partida',         width: 16 },
     { header: 'CONCEPTO DE PAGO',key: 'concepto',        width: 35 },
