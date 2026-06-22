@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   ArrowLeft, Plus, Trash2, Pencil, Send, CheckCircle, Ban, RotateCcw,
-  Upload, Loader2, AlertCircle, Wallet,
+  Upload, Loader2, AlertCircle, Wallet, Download,
 } from 'lucide-react'
+import { pdf } from '@react-pdf/renderer'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import {
@@ -13,10 +14,13 @@ import {
   enviarCajaChica, autorizarCajaChica, rechazarCajaChica, devolverCajaChica,
   getAreas,
 } from '../features/caja-chica/services/cajaChicaService'
+import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import { supabase } from '../api/supabase'
 import type { CajaChica, CajaChicaDetalle } from '../features/caja-chica/types/cajaChica'
+import { CajaChicaPDF } from '../features/caja-chica/components/CajaChicaPDF'
 import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
+import logoUrl from '../assets/avenir-logo.png'
 
 const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
 const fmtDate = (s: string | null) => s ? new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(s + 'T00:00:00')) : '—'
@@ -106,10 +110,51 @@ export default function CajaChicaDetallePage() {
   const canEdit = (isPendiente || isDevuelto) && (isOwner || userRole === ROLES.ADMIN)
   const canEnviar = canEdit && detalles.length > 0
   const canAprobar = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEnRevision
+  const canShowPDF = !isPendiente && detalles.length > 0
 
   const totalGastos = detalles.reduce((s, d) => s + d.monto, 0)
   const pctUsado = cc.monto_asignado > 0 ? (totalGastos / cc.monto_asignado) * 100 : 0
   const barColor = pctUsado > 100 ? 'bg-red-500' : pctUsado > 80 ? 'bg-amber-500' : 'bg-emerald-500'
+
+  const handleDownloadPDF = async () => {
+    if (!cc) return
+    try {
+      let logoSrc: string | null = null
+      try {
+        const res = await fetch(logoUrl)
+        const blob = await res.blob()
+        logoSrc = await new Promise<string>((resolve) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result as string)
+          reader.readAsDataURL(blob)
+        })
+      } catch { /* logo optional */ }
+
+      let firmaUsuarioSrc: string | null = null
+      let firmaAprobadorSrc: string | null = null
+      if (cc.responsable_id) {
+        try { const b = await getUserFirmaBlob(cc.responsable_id); if (b) firmaUsuarioSrc = URL.createObjectURL(b) } catch {}
+      }
+      if (cc.usuario_aprobador) {
+        try { const b = await getUserFirmaBlob(cc.usuario_aprobador); if (b) firmaAprobadorSrc = URL.createObjectURL(b) } catch {}
+      }
+
+      const pdfBlob = await pdf(
+        <CajaChicaPDF cajaChica={cc} detalles={detalles}
+          logoSrc={logoSrc} firmaUsuarioSrc={firmaUsuarioSrc} firmaAprobadorSrc={firmaAprobadorSrc} />
+      ).toBlob()
+      const url = URL.createObjectURL(pdfBlob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${cc.codigo ?? `CC-${cc.id}`}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      if (firmaUsuarioSrc) URL.revokeObjectURL(firmaUsuarioSrc)
+      if (firmaAprobadorSrc) URL.revokeObjectURL(firmaAprobadorSrc)
+    } catch {
+      toast.error('Error al generar el PDF')
+    }
+  }
 
   // Form handlers
   const resetForm = () => {
@@ -236,6 +281,12 @@ export default function CajaChicaDetallePage() {
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {canShowPDF && (
+              <button onClick={handleDownloadPDF}
+                className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                <Download size={13} /> PDF
+              </button>
+            )}
             {canEnviar && (
               <button onClick={handleEnviar} disabled={actioning}
                 className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-sm font-medium hover:bg-[#002D5C] disabled:opacity-50 transition-all">
