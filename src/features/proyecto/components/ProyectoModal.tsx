@@ -81,7 +81,7 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
               <FolderOpen size={16} className="text-white" />
             </div>
             <h2 className="font-semibold text-white text-lg">
-              {isEdit ? 'Editar proyecto' : 'Nuevo proyecto'}
+              {isEdit ? 'Editar empresa' : 'Nueva empresa'}
             </h2>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors">
@@ -103,7 +103,7 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
             <div className="col-span-2">
               <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Nombre *</label>
               <input className={inputCls(errors.nombre)}
-                value={form.nombre} maxLength={150} placeholder="Nombre del proyecto"
+                value={form.nombre} maxLength={150} placeholder="Nombre de la empresa"
                 onChange={(e) => set('nombre', e.target.value)} />
               {errors.nombre && <p className="mt-1 text-xs text-[#F65740]">{errors.nombre}</p>}
             </div>
@@ -176,7 +176,7 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
             {loading
               ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
               : <Save size={15} />}
-            {isEdit ? 'Guardar cambios' : 'Crear proyecto'}
+            {isEdit ? 'Guardar cambios' : 'Crear empresa'}
           </button>
         </div>
       </div>

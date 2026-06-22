@@ -71,7 +71,7 @@ export default function ProyectosTable({
             <FolderOpen size={17} className="text-white" />
           </div>
           <div>
-            <h2 className="font-semibold text-[#003D7D] text-base leading-tight">Proyectos</h2>
+            <h2 className="font-semibold text-[#003D7D] text-base leading-tight">Empresas</h2>
             <p className="text-[11px] text-gray-400">{total} registros en total</p>
           </div>
         </div>
@@ -158,7 +158,7 @@ export default function ProyectosTable({
                 <td colSpan={showConsumo ? 8 : 7} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-3 text-gray-400">
                     <RefreshCw size={28} className="animate-spin text-[#003D7D]/30" />
-                    <span className="text-sm">Cargando proyectos…</span>
+                    <span className="text-sm">Cargando empresas…</span>
                   </div>
                 </td>
               </tr>
@@ -169,7 +169,7 @@ export default function ProyectosTable({
                 <td colSpan={showConsumo ? 8 : 7} className="py-16 text-center">
                   <div className="flex flex-col items-center gap-2">
                     <FolderOpen size={32} className="text-gray-200" />
-                    <p className="text-sm font-medium text-gray-500">No hay proyectos</p>
+                    <p className="text-sm font-medium text-gray-500">No hay empresas</p>
                     <p className="text-xs text-gray-400">Crea uno nuevo para comenzar.</p>
                   </div>
                 </td>
@@ -249,7 +249,7 @@ export default function ProyectosTable({
 
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1 justify-end">
-                    <button onClick={() => onPartidas(p)} title="Partidas"
+                    <button onClick={() => onPartidas(p)} title="Centros de costo"
                       className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition-colors">
                       <Layers size={15} />
                     </button>

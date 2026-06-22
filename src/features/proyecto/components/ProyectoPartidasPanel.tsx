@@ -45,7 +45,7 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
         setPartidas(parts as ProyectoPartida[])
         if (consumoData) setConsumoMap((consumoData as { porPartida: Record<number, Consumo> }).porPartida)
       })
-      .catch(() => toast.error('Error al cargar partidas'))
+      .catch(() => toast.error('Error al cargar centros de costo'))
       .finally(() => setLoading(false))
   }, [proyecto, mostrarConsumo])
 
@@ -76,15 +76,15 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
       if (editId === 'new') {
         const nueva = await createPartida(payload)
         setPartidas(prev => [...prev, nueva])
-        toast.success('Partida creada')
+        toast.success('Centro de costo creado')
       } else if (typeof editId === 'number') {
         const updated = await updatePartida(editId, payload)
         setPartidas(prev => prev.map(p => p.id === editId ? updated : p))
-        toast.success('Partida actualizada')
+        toast.success('Centro de costo actualizado')
       }
       cancelEdit()
     } catch {
-      toast.error('Error al guardar la partida')
+      toast.error('Error al guardar el centro de costo')
     } finally {
       setSaving(false)
     }
@@ -96,7 +96,7 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
     try {
       await deletePartida(deleteId)
       setPartidas(prev => prev.filter(p => p.id !== deleteId))
-      toast.success('Partida eliminada')
+      toast.success('Centro de costo eliminado')
     } catch {
       toast.error('No se puede eliminar — puede tener solicitudes asociadas')
     } finally {
@@ -118,7 +118,7 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-[#003D7D]">
           <div>
-            <p className="text-xs text-white/60 uppercase tracking-wide">Partidas del proyecto</p>
+            <p className="text-xs text-white/60 uppercase tracking-wide">Centros de costo de la empresa</p>
             <h2 className="text-sm font-semibold text-white mt-0.5">{proyecto.nombre}</h2>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 text-white/70 hover:text-white transition-colors">
@@ -133,7 +133,7 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
           {editId === null && (
             <button onClick={openNew}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium hover:bg-[#002D5C] transition-all">
-              <Plus size={14} /> Nueva partida
+              <Plus size={14} /> Nuevo centro de costo
             </button>
           )}
 
@@ -141,7 +141,7 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
           {editId !== null && (
             <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4 space-y-3">
               <p className="text-xs font-semibold text-[#003D7D] uppercase tracking-wide">
-                {editId === 'new' ? 'Nueva partida' : 'Editar partida'}
+                {editId === 'new' ? 'Nuevo centro de costo' : 'Editar centro de costo'}
               </p>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Nombre *</label>
@@ -187,8 +187,8 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
           ) : partidas.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-12 text-gray-400">
               <AlertCircle size={28} className="text-gray-200" />
-              <p className="text-sm">Este proyecto no tiene partidas aún.</p>
-              <p className="text-xs">Usa el botón "Nueva partida" para agregar una.</p>
+              <p className="text-sm">Esta empresa no tiene centros de costo aún.</p>
+              <p className="text-xs">Usa el botón "Nuevo centro de costo" para agregar uno.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -273,7 +273,7 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
               <div className="w-11 h-11 rounded-2xl bg-red-50 flex items-center justify-center">
                 <Trash2 size={20} className="text-red-500" />
               </div>
-              <p className="text-sm font-semibold text-gray-800">¿Eliminar esta partida?</p>
+              <p className="text-sm font-semibold text-gray-800">¿Eliminar este centro de costo?</p>
               <p className="text-xs text-gray-500">Esta acción no se puede deshacer. Si hay solicitudes asociadas, no se podrá eliminar.</p>
             </div>
             <div className="flex gap-3">

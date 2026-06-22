@@ -280,7 +280,7 @@ export default function CajaChicaDetallePage() {
           </div>
           <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
             <InfoField label="Código" value={cc.codigo} />
-            <InfoField label="Proyecto" value={cc.proyecto?.nombre} />
+            <InfoField label="Empresa" value={cc.proyecto?.nombre} />
             <InfoField label="Responsable" value={cc.responsable_nombre} />
             <InfoField label="Período" value={`${fmtDate(cc.periodo_desde)} — ${fmtDate(cc.periodo_hasta)}`} />
             <InfoField label="Cuenta BBVA" value={cc.cuenta_bbva} />

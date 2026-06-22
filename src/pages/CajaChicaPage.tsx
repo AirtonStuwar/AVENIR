@@ -76,7 +76,7 @@ export default function CajaChicaPage() {
                 value={filtroProy ?? ''}
                 onChange={e => handleProy(e.target.value ? Number(e.target.value) : null)}
               >
-                <option value="">Proyecto</option>
+                <option value="">Empresa</option>
                 {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
               {(filtroEstado || filtroProy) && (
@@ -102,7 +102,7 @@ export default function CajaChicaPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#003D7D]/[0.03] border-b border-gray-100">
-                  {['Código', 'Proyecto', 'Responsable', 'Período', 'Asignado', 'Gastado', 'Saldo', 'Estado'].map(h => (
+                  {['Código', 'Empresa', 'Responsable', 'Período', 'Asignado', 'Gastado', 'Saldo', 'Estado'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>

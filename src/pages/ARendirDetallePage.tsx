@@ -625,7 +625,7 @@ export default function ARendirDetallePage() {
             { label: 'Beneficiario',     value: solicitud.beneficiario_nombre },
             { label: 'DNI',              value: solicitud.beneficiario_dni },
             { label: 'Cargo',            value: solicitud.beneficiario_cargo },
-            { label: 'Proyecto',         value: solicitud.proyecto?.nombre },
+            { label: 'Empresa',          value: solicitud.proyecto?.nombre },
             { label: 'Moneda',           value: solicitud.moneda === 'USD' ? 'Dólares (USD)' : 'Soles (PEN)' },
             { label: 'Importe adelanto', value: fmtMoney(solicitud.importe, solicitud.moneda) },
             { label: 'Total reembolso',  value: fmtMoney(solicitud.total_reembolso, solicitud.moneda) },

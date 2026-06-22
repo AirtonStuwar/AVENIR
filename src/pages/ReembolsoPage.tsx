@@ -187,7 +187,7 @@ export default function ReembolsoPage() {
           onChange={e => setProyectoFilter(e.target.value ? Number(e.target.value) : null)}
           className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
         >
-          <option value="">Todos los proyectos</option>
+          <option value="">Todas las empresas</option>
           {proyectos.map(p => (
             <option key={p.id} value={p.id}>{p.nombre}</option>
           ))}
@@ -240,7 +240,7 @@ export default function ReembolsoPage() {
                   )}
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Código</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Beneficiario</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Proyecto</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Empresa</th>
                   <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Total Reembolso</th>
                   <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Fecha solicitud</th>

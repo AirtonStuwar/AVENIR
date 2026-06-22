@@ -35,7 +35,7 @@ export default function ProyectoDeleteDialog({ open, proyecto, onClose, onConfir
 
           <div className="flex items-start justify-between">
             <div>
-              <h3 className="font-semibold text-gray-900 text-lg">Eliminar proyecto</h3>
+              <h3 className="font-semibold text-gray-900 text-lg">Eliminar empresa</h3>
               <p className="text-sm text-gray-500 mt-1">Esta acción no se puede deshacer.</p>
             </div>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 -mt-1 -mr-1">
@@ -44,7 +44,7 @@ export default function ProyectoDeleteDialog({ open, proyecto, onClose, onConfir
           </div>
 
           <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-            <p className="text-xs text-gray-500 mb-0.5">Proyecto a eliminar</p>
+            <p className="text-xs text-gray-500 mb-0.5">Empresa a eliminar</p>
             <p className="font-semibold text-gray-900 text-sm">{proyecto.nombre}</p>
             <p className="text-xs font-mono text-gray-400 mt-0.5">{proyecto.codigo}</p>
           </div>

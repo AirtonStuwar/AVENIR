@@ -160,7 +160,7 @@ export default function SolicitudesTable({
               onChange={e => onProyectoFilterChange(e.target.value ? Number(e.target.value) : null)}
               className="h-9 flex-1 sm:flex-none rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 min-w-0"
             >
-              <option value="">Todos los proyectos</option>
+              <option value="">Todas las empresas</option>
               {proyectos.map(p => (
                 <option key={p.id} value={p.id}>{p.nombre}</option>
               ))}
@@ -237,7 +237,7 @@ export default function SolicitudesTable({
                     />
                   </th>
                 )}
-                {['Código', 'Razón social', 'RUC', 'Proyecto', 'Fecha pedido', 'Venc. Factura', 'Creado por', 'Área', 'Estado', ''].map(h => (
+                {['Código', 'Razón social', 'RUC', 'Empresa', 'Fecha pedido', 'Venc. Factura', 'Creado por', 'Área', 'Estado', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -365,7 +365,7 @@ export default function SolicitudesTable({
                 {/* Meta grid */}
                 <div className="grid grid-cols-2 gap-x-4 gap-y-2">
                   <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Proyecto</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Empresa</p>
                     <p className="text-xs text-gray-700 truncate">{s.proyecto?.nombre ?? '—'}</p>
                   </div>
                   <div>

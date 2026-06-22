@@ -111,7 +111,7 @@ export default function ReembolsoNuevaPage() {
   async function handleStep1() {
     if (!user?.id) return
     if (partidas.length > 0 && !partidaId) {
-      toast.error('Selecciona una partida del proyecto')
+      toast.error('Selecciona un centro de costo de la empresa')
       return
     }
     setSaving(true)
@@ -307,13 +307,13 @@ export default function ReembolsoNuevaPage() {
 
             {/* Proyecto */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Proyecto</label>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Empresa</label>
               <select
                 value={proyectoId}
                 onChange={e => setProyectoId(e.target.value)}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] bg-white"
               >
-                <option value="">— Sin proyecto —</option>
+                <option value="">— Sin empresa —</option>
                 {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
             </div>
@@ -321,16 +321,16 @@ export default function ReembolsoNuevaPage() {
             {/* Partida */}
             {partidas.length > 0 && (
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Partida *</label>
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Centro de costo *</label>
               <select
                 value={partidaId}
                 onChange={e => setPartidaId(e.target.value)}
                 className={`w-full h-10 px-3 rounded-xl border text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] bg-white ${!partidaId ? 'border-orange-300' : 'border-gray-200'}`}
               >
-                <option value="">Seleccionar partida</option>
+                <option value="">Seleccionar centro de costo</option>
                 {partidas.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
-              {!partidaId && <p className="text-xs text-orange-500">Selecciona una partida para continuar</p>}
+              {!partidaId && <p className="text-xs text-orange-500">Selecciona un centro de costo para continuar</p>}
               {canVerConsumo && (() => {
                 if (!partidaId) return null
                 const sel = partidas.find(p => p.id === Number(partidaId))

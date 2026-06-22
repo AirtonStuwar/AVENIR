@@ -175,7 +175,7 @@ export default function SolicitudDetallePage() {
           setConsumoData({
             consumo: c.porProyecto[solicitud.proyecto_id!] ?? { pen: 0, usd: 0 },
             presupuesto: { pen: proy?.presupuesto ?? 0, usd: 0 },
-            label: proy?.nombre ?? 'Proyecto',
+            label: proy?.nombre ?? 'Empresa',
           })
         }
       })
@@ -603,7 +603,7 @@ export default function SolicitudDetallePage() {
           <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
             <InfoField label="Código"          value={solicitud.codigo} />
             <InfoField label="Tipo"            value={solicitud.solicitud_tipo?.nombre} />
-            <InfoField label="Proyecto"        value={solicitud.proyecto?.nombre} />
+            <InfoField label="Empresa"         value={solicitud.proyecto?.nombre} />
             <InfoField label="Fecha pedido"    value={fmtDate(solicitud.fecha_pedido)} />
             <InfoField label="Fecha requerida" value={fmtDate(solicitud.fecha_requerida)} />
             <InfoField label="Forma de pago"   value={solicitud.solicitud_forma_pago?.nombre ?? solicitud.forma_pago} />

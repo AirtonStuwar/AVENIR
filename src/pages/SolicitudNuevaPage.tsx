@@ -433,7 +433,7 @@ export default function SolicitudNuevaPage() {
 
               {/* Proyecto */}
               <div>
-                <SectionTitle>Proyecto y tipo</SectionTitle>
+                <SectionTitle>Empresa y tipo</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className={LABEL}>Tipo *</label>
@@ -445,10 +445,10 @@ export default function SolicitudNuevaPage() {
                     {errors.tipo_id && <p className="mt-1 text-xs text-red-500">{errors.tipo_id}</p>}
                   </div>
                   <div>
-                    <label className={LABEL}>Proyecto *</label>
+                    <label className={LABEL}>Empresa *</label>
                     <select className={inp(errors.proyecto_id)} value={proyecto_id ?? ''}
                       onChange={(e) => { setProyectoId(e.target.value ? Number(e.target.value) : null); setErrors((x) => ({ ...x, proyecto_id: '', proyecto_partida_id: '' })) }}>
-                      <option value="">Seleccionar proyecto</option>
+                      <option value="">Seleccionar empresa</option>
                       {proyectos.map((p) => <option key={p.id} value={p.id}>{p.codigo ?? ''} — {p.nombre}</option>)}
                     </select>
                     {errors.proyecto_id && <p className="mt-1 text-xs text-red-500">{errors.proyecto_id}</p>}
@@ -456,10 +456,10 @@ export default function SolicitudNuevaPage() {
 
                   {partidas.length > 0 && (
                   <div>
-                    <label className={LABEL}>Partida *</label>
+                    <label className={LABEL}>Centro de costo *</label>
                     <select className={inp(errors.proyecto_partida_id)} value={proyecto_partida_id ?? ''}
                       onChange={(e) => { setProyectoPartidaId(e.target.value ? Number(e.target.value) : null); setErrors((x) => ({ ...x, proyecto_partida_id: '' })) }}>
-                      <option value="">Seleccionar partida</option>
+                      <option value="">Seleccionar centro de costo</option>
                       {partidas.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                     </select>
                     {errors.proyecto_partida_id && <p className="mt-1 text-xs text-red-500">{errors.proyecto_partida_id}</p>}

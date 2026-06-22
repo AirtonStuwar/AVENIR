@@ -15,7 +15,7 @@ const menuItems = [
   { name: 'Reembolso',   path: '/reembolso',   icon: RefreshCw,  roles: [1, 8, 9, 10, 11] },
   { name: 'Caja Chica',  path: '/caja-chica',  icon: Wallet,     roles: [1, 8, 9, 10, 11] },
   { name: 'Proveedores', path: '/proveedores', icon: Users,      roles: [1, 11] },
-  { name: 'Proyectos',   path: '/proyectos',   icon: Briefcase,  roles: [1] },
+  { name: 'Empresas',    path: '/proyectos',   icon: Briefcase,  roles: [1] },
   { name: 'Áreas',       path: '/areas',       icon: Building2,  roles: [1, 9] },
   { name: 'Reportes',    path: '/reportes',    icon: BarChart2,  roles: [1, 10] },
 ]

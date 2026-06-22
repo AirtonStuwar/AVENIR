@@ -102,16 +102,16 @@ export default function CajaChicaNuevaPage() {
 
           {/* Proyecto */}
           <div>
-            <label className={LABEL}>Proyecto *</label>
+            <label className={LABEL}>Empresa *</label>
             <select className={INPUT} value={proyectoId ?? ''}
               onChange={e => setProyectoId(e.target.value ? Number(e.target.value) : null)}>
-              <option value="">Seleccionar proyecto</option>
+              <option value="">Seleccionar empresa</option>
               {proyectos.map(p => (
                 <option key={p.id} value={p.id}>{p.nombre} — Fondo: S/ {p.monto_caja_chica.toLocaleString('es-PE')}</option>
               ))}
             </select>
             {proyectos.length === 0 && (
-              <p className="mt-1 text-xs text-amber-600">No hay proyectos con monto de caja chica configurado. El ADMIN debe asignar el monto desde Proyectos.</p>
+              <p className="mt-1 text-xs text-amber-600">No hay empresas con monto de caja chica configurado. El ADMIN debe asignar el monto desde Empresas.</p>
             )}
           </div>
 

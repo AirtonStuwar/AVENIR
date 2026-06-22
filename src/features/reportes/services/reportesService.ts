@@ -354,8 +354,8 @@ export async function exportarReporteExcel(
     { header: 'BENEFICIARIO',    key: 'beneficiario',    width: 28 },
     { header: 'DOCUMENTO',       key: 'documento',       width: 18 },
     { header: 'RUC / DNI',       key: 'ruc',             width: 13 },
-    { header: 'PROYECTO',        key: 'proyecto',        width: 20 },
-    { header: 'PARTIDA',         key: 'partida',         width: 16 },
+    { header: 'EMPRESA',         key: 'proyecto',        width: 20 },
+    { header: 'CENTRO DE COSTO',key: 'partida',         width: 16 },
     { header: 'CONCEPTO DE PAGO',key: 'concepto',        width: 35 },
     { header: 'TOTAL $',         key: 'total_usd',       width: 13 },
     { header: 'TOTAL S/.',       key: 'total_pen',       width: 13 },
@@ -377,7 +377,7 @@ export async function exportarReporteExcel(
   const titleCell = ws.getCell('A1')
   titleCell.value = [
     'AVENIR',
-    proyectoNombre ? `  |  PROYECTO: ${proyectoNombre.toUpperCase()}` : '  |  TODOS LOS PROYECTOS',
+    proyectoNombre ? `  |  EMPRESA: ${proyectoNombre.toUpperCase()}` : '  |  TODAS LAS EMPRESAS',
     `  |  PERÍODO: ${fmtDate(filtros.fechaDesde)} — ${fmtDate(filtros.fechaHasta)}`,
   ].join('')
   titleCell.font    = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } }

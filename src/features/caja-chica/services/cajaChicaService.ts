@@ -185,13 +185,8 @@ export async function getSaldoAnterior(proyectoId: number): Promise<number> {
 
 export async function getAreas(): Promise<{ id: number; nombre: string }[]> {
   const { data } = await supabase
-    .from('area_usuario')
-    .select('area_id(id, nombre)')
-    .eq('estado', 1)
-
-  const seen = new Map<number, string>()
-  for (const row of (data ?? []) as unknown as { area_id: { id: number; nombre: string } | null }[]) {
-    if (row.area_id && !seen.has(row.area_id.id)) seen.set(row.area_id.id, row.area_id.nombre)
-  }
-  return [...seen.entries()].map(([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre))
+    .from('area')
+    .select('id, nombre')
+    .order('nombre')
+  return (data ?? []) as { id: number; nombre: string }[]
 }

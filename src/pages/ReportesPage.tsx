@@ -113,10 +113,10 @@ export default function ReportesPage() {
                 onChange={e => setFechaHasta(e.target.value)} />
             </div>
             <div>
-              <label className={LABEL}>Proyecto (opcional)</label>
+              <label className={LABEL}>Empresa (opcional)</label>
               <select className={INPUT + ' w-full'} value={proyectoId ?? ''}
                 onChange={e => setProyectoId(e.target.value ? Number(e.target.value) : null)}>
-                <option value="">Todos los proyectos</option>
+                <option value="">Todas las empresas</option>
                 {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
             </div>
@@ -206,7 +206,7 @@ export default function ReportesPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
-                      {['#','Módulo','Código','F.Solic.','F.Req.','F.Aprob.','F.Emis.','Beneficiario','Proyecto','Concepto','Total S/.','Total $','Girar S/.','Girar $'].map(h => (
+                      {['#','Módulo','Código','F.Solic.','F.Req.','F.Aprob.','F.Emis.','Beneficiario','Empresa','Concepto','Total S/.','Total $','Girar S/.','Girar $'].map(h => (
                         <th key={h} className="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                       ))}
                     </tr>

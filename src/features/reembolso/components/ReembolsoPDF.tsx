@@ -147,7 +147,7 @@ export function ReembolsoPDF({ solicitud, detalles, logoSrc, firmaUsuarioSrc, fi
             <Text style={s.headerValue}>{solicitud.beneficiario_cargo ?? '—'}</Text>
           </View>
           <View style={s.headerCard}>
-            <Text style={s.headerLabel}>Proyecto</Text>
+            <Text style={s.headerLabel}>Empresa</Text>
             <Text style={s.headerValue}>{solicitud.proyecto?.nombre ?? '—'}</Text>
           </View>
           <View style={s.headerCard}>

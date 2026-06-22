@@ -169,7 +169,7 @@ function AdminDashboard() {
 
   const montoByProyecto: Record<string, number> = {}
   for (const s of solicitudes) {
-    const nombre = s.proyecto?.nombre ?? 'Sin proyecto'
+    const nombre = s.proyecto?.nombre ?? 'Sin empresa'
     const monto = detalles.filter(d => d.solicitud_id === s.id).reduce((acc, d) => acc + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
     montoByProyecto[nombre] = (montoByProyecto[nombre] ?? 0) + monto
   }
@@ -192,7 +192,7 @@ function AdminDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <KpiCard label="Pend. de aprobación" value={pendientes} sub={`de ${solicitudes.length} solicitudes`} icon={<Clock size={18} />} color="amber" alert={pendientes > 0} onClick={() => navigate('/solicitudes')} />
           <KpiCard label="Solicitudes este mes" value={barMensual[barMensual.length - 1]?.Nuevas ?? 0} sub="en el mes actual" icon={<TrendingUp size={18} />} color="blue" />
-          <KpiCard label="Proyectos activos" value={proyActivos} sub={`${proyectos.length - proyActivos} inactivos`} icon={<FolderOpen size={18} />} color="green" onClick={() => navigate('/proyectos')} />
+          <KpiCard label="Empresas activas" value={proyActivos} sub={`${proyectos.length - proyActivos} inactivas`} icon={<FolderOpen size={18} />} color="green" onClick={() => navigate('/proyectos')} />
           <KpiCard label="Aprobado S/" value={fmtMoney(montoAprobPEN, 'PEN')} sub={`${fmtMoney(montoTotal)} potencial`} icon={<DollarSign size={18} />} color="indigo" />
           <KpiCard label="Aprobado $" value={fmtMoney(montoAprobUSD, 'USD')} sub="solicitudes en dólares" icon={<DollarSign size={18} />} color="green" />
         </div>
@@ -254,7 +254,7 @@ function AdminDashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <ChartCard title="Monto por proyecto" subtitle="Top 5 — solicitudes aprobadas">
+            <ChartCard title="Monto por empresa" subtitle="Top 5 — solicitudes aprobadas">
               {barProyecto.length === 0 ? <EmptyChart /> : (
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={barProyecto} layout="vertical" barSize={16} margin={{ left: 8, right: 20 }}>
@@ -268,7 +268,7 @@ function AdminDashboard() {
             </ChartCard>
           </div>
 
-          <ChartCard title="Estado de proyectos" subtitle={`${proyectos.length} proyectos registrados`}>
+          <ChartCard title="Estado de empresas" subtitle={`${proyectos.length} empresas registradas`}>
             {barEstadoProy.length === 0 ? <EmptyChart /> : (
               <div className="flex flex-col gap-3 pt-2">
                 {barEstadoProy.map(({ estado, cantidad }) => {
@@ -383,7 +383,7 @@ function AprobadorDashboard() {
             onChange={e => setProyectoFilter(e.target.value ? Number(e.target.value) : null)}
             className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 shadow-sm"
           >
-            <option value="">Todos los proyectos</option>
+            <option value="">Todas las empresas</option>
             {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
           </select>
         </div>
@@ -978,7 +978,7 @@ function SolicitudTable({ title, rows, count, badge, onVerTodas, onView, showEst
           <table className="min-w-full divide-y divide-gray-100 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {['Código', 'Proveedor', 'Proyecto', 'Fecha pedido', ...(showEstado ? ['Estado'] : []), ''].map(h => (
+                {['Código', 'Proveedor', 'Empresa', 'Fecha pedido', ...(showEstado ? ['Estado'] : []), ''].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>

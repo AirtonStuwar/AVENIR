@@ -122,7 +122,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
     // Validar campos obligatorios (inline). Sólo `banco`, `numero_cuenta` y `cuenta_detracciones` pueden quedar vacíos.
     const e: Record<string, string> = {}
     if (!tipo_id && tipo_id !== 0) e.tipo_id = 'Tipo es obligatorio'
-    if (!proyecto_id && proyecto_id !== 0) e.proyecto_id = 'Proyecto es obligatorio'
+    if (!proyecto_id && proyecto_id !== 0) e.proyecto_id = 'Empresa es obligatoria'
     if (!razon_social?.trim()) e.razon_social = 'Razón social es obligatoria'
     if (!direccion?.trim()) e.direccion = 'Dirección es obligatoria'
     if (!ruc?.trim()) e.ruc = 'RUC es obligatorio'
@@ -358,7 +358,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
               <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
               </svg>
-              Configuración del Proyecto
+              Configuración de la Empresa
             </h4>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div>
@@ -377,14 +377,14 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-gray-700">
-                  Proyecto <span className="text-red-500">*</span>
+                  Empresa <span className="text-red-500">*</span>
                 </label>
                 <select
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
                   value={proyecto_id ?? ''}
                   onChange={(e) => { setProyectoId(e.target.value ? Number(e.target.value) : null); clearErrors() }}
                 >
-                  <option value="">Seleccionar proyecto</option>
+                  <option value="">Seleccionar empresa</option>
                   {proyectos.map((p) => <option key={p.id} value={p.id}>{p.codigo ?? ''} — {p.nombre}</option>)}
                 </select>
                 {errors.proyecto_id && <p className="mt-1 text-sm text-red-600">{errors.proyecto_id}</p>}
