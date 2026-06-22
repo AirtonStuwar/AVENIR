@@ -5,6 +5,7 @@ import { pdf } from '@react-pdf/renderer'
 import {
   ChevronLeft, Loader2, FileText, CheckCircle2, XCircle,
   RotateCcw, Download, ExternalLink, BookOpen,
+  Plus, Trash2, Pencil, Upload,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -18,6 +19,10 @@ import {
   devolverReembolso,
   getArchivoUrlReembolso,
   uploadFirmaReembolso,
+  addDetalleReembolso,
+  updateDetalleReembolso,
+  deleteDetalleReembolso,
+  uploadDetalleArchivoReembolso,
 } from '../features/reembolso/services/reembolsoService'
 import { getPlanContable } from '../features/solicitud/services/solicitudService'
 import type { SolicitudReembolso, ReembolsoDetalle } from '../features/reembolso/types/reembolso'
@@ -183,6 +188,81 @@ export default function ReembolsoDetallePage() {
   const [loading,       setLoading]       = useState(true)
   const [actionLoading, setActionLoading] = useState(false)
 
+  // Detalle form
+  const [detFormOpen, setDetFormOpen] = useState(false)
+  const [detEditId,   setDetEditId]   = useState<number | null>(null)
+  const [detFecha,    setDetFecha]    = useState('')
+  const [detProv,     setDetProv]     = useState('')
+  const [detTipoDoc,  setDetTipoDoc]  = useState('FACTURA')
+  const [detNumDoc,   setDetNumDoc]   = useState('')
+  const [detConcepto, setDetConcepto] = useState('')
+  const [detImporte,  setDetImporte]  = useState('')
+  const [detArchivo,  setDetArchivo]  = useState<File | null>(null)
+  const [detSaving,   setDetSaving]   = useState(false)
+
+  const TIPOS_DOC_DET = ['FACTURA', 'RECIBO', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
+
+  const resetDetForm = () => {
+    setDetFormOpen(false); setDetEditId(null); setDetFecha(''); setDetProv('')
+    setDetTipoDoc('FACTURA'); setDetNumDoc(''); setDetConcepto(''); setDetImporte(''); setDetArchivo(null)
+  }
+  const openDetAdd = () => { resetDetForm(); setDetFormOpen(true) }
+  const openDetEdit = (d: ReembolsoDetalle) => {
+    setDetEditId(d.id); setDetFecha(d.fecha_documento ?? ''); setDetProv(d.proveedor ?? '')
+    setDetTipoDoc(d.tipo_documento ?? 'FACTURA'); setDetNumDoc(d.numero_documento ?? '')
+    setDetConcepto(d.concepto ?? ''); setDetImporte(String(d.importe)); setDetArchivo(null); setDetFormOpen(true)
+  }
+
+  const reloadData = async () => {
+    if (!id) return
+    const sol = await getReembolsoById(Number(id))
+    setSolicitud(sol); setDetalles(sol.detalles ?? [])
+  }
+
+  const handleDetSave = async () => {
+    if (!solicitud || !id) return
+    if (!detFecha || !detProv.trim() || !detConcepto.trim() || !detImporte) {
+      toast.error('Completa fecha, proveedor, concepto e importe'); return
+    }
+    setDetSaving(true)
+    try {
+      let archivoPath: string | null = null
+      if (detArchivo) archivoPath = await uploadDetalleArchivoReembolso(detArchivo, solicitud.id, detEditId ?? 0)
+
+      if (detEditId) {
+        await updateDetalleReembolso(detEditId, {
+          fecha_documento: detFecha, proveedor: detProv.trim(), tipo_documento: detTipoDoc,
+          numero_documento: detNumDoc.trim() || null, concepto: detConcepto.trim(),
+          importe: parseFloat(detImporte), ...(archivoPath ? { archivo_path: archivoPath } : {}),
+        })
+        toast.success('Gasto actualizado')
+      } else {
+        const nuevo = await addDetalleReembolso({
+          solicitud_reembolso_id: solicitud.id, fecha_documento: detFecha,
+          proveedor: detProv.trim(), tipo_documento: detTipoDoc,
+          numero_documento: detNumDoc.trim() || null, concepto: detConcepto.trim(),
+          importe: parseFloat(detImporte), archivo_path: archivoPath,
+        })
+        if (detArchivo && !archivoPath) {
+          const path = await uploadDetalleArchivoReembolso(detArchivo, solicitud.id, nuevo.id)
+          await updateDetalleReembolso(nuevo.id, { archivo_path: path })
+        }
+        toast.success('Gasto agregado')
+      }
+      resetDetForm()
+      await reloadData()
+    } catch { toast.error('Error al guardar') }
+    finally { setDetSaving(false) }
+  }
+
+  const handleDetDelete = async (det: ReembolsoDetalle) => {
+    try {
+      await deleteDetalleReembolso(det.id, det.archivo_path)
+      toast.success('Gasto eliminado')
+      await reloadData()
+    } catch { toast.error('Error al eliminar') }
+  }
+
   const [evaluarOpen,  setEvaluarOpen]  = useState(false)
   const [firmaOpen,    setFirmaOpen]    = useState(false)
   const [rechazarOpen, setRechazarOpen] = useState(false)
@@ -202,6 +282,8 @@ export default function ReembolsoDetallePage() {
   const isEvaluador = userRole === ROLES.EVALUADOR
   const isAprobador = userRole === ROLES.APROBADOR
   const isOwner     = solicitud?.beneficiario_id === user?.id
+  const canEditDet  = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
+    ['Pendiente', 'Devuelto'].includes(solicitud?.estado ?? '')
 
   async function handleEnviar() {
     if (!solicitud) return
@@ -468,9 +550,79 @@ export default function ReembolsoDetallePage() {
 
       {/* Tabla detalle */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">Detalle de gastos</h2>
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-900">
+            Detalle de gastos <span className="text-gray-400 font-normal">({detalles.length} ítems)</span>
+          </h2>
+          {canEditDet && (
+            <button onClick={openDetAdd}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#003D7D] text-white text-xs font-medium hover:bg-[#002D5C] transition-all">
+              <Plus size={13} /> Agregar gasto
+            </button>
+          )}
         </div>
+
+        {/* Form inline */}
+        {detFormOpen && (
+          <div className="px-5 py-4 bg-blue-50 border-b border-blue-200 space-y-3">
+            <p className="text-xs font-semibold text-[#003D7D] uppercase">{detEditId ? 'Editar gasto' : 'Nuevo gasto'}</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase">Fecha *</label>
+                <input type="date" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+                  value={detFecha} onChange={e => setDetFecha(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase">Proveedor *</label>
+                <input className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+                  value={detProv} onChange={e => setDetProv(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase">Tipo doc</label>
+                <select className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+                  value={detTipoDoc} onChange={e => setDetTipoDoc(e.target.value)}>
+                  {TIPOS_DOC_DET.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase">N° Doc</label>
+                <input className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+                  value={detNumDoc} onChange={e => setDetNumDoc(e.target.value)} />
+              </div>
+              <div className="col-span-2">
+                <label className="text-[10px] font-semibold text-gray-500 uppercase">Concepto *</label>
+                <input className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+                  value={detConcepto} onChange={e => setDetConcepto(e.target.value)} placeholder="Descripción del gasto" />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase">Importe *</label>
+                <input type="number" step="0.01" min="0" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+                  value={detImporte} onChange={e => setDetImporte(e.target.value)} placeholder="0.00" />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-gray-500 uppercase">Comprobante</label>
+                <label className="flex items-center gap-2 mt-1 cursor-pointer">
+                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs text-gray-600 hover:bg-gray-50">
+                    <Upload size={12} /> {detArchivo ? detArchivo.name : 'Subir archivo'}
+                  </span>
+                  <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={e => setDetArchivo(e.target.files?.[0] ?? null)} />
+                </label>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={handleDetSave} disabled={detSaving}
+                className="px-4 py-2 rounded-xl bg-[#003D7D] text-white text-sm font-medium disabled:opacity-50 transition-all">
+                {detSaving ? 'Guardando…' : detEditId ? 'Actualizar' : 'Agregar'}
+              </button>
+              <button onClick={resetDetForm}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-all">
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+
         {detalles.length === 0 ? (
           <p className="px-5 py-8 text-sm text-center text-gray-400">Sin detalles registrados</p>
         ) : (
@@ -499,7 +651,19 @@ export default function ReembolsoDetallePage() {
                       {sym}{d.importe.toLocaleString(solicitud.moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-3">
-                      {d.archivo_path && <DetalleArchivoBtn path={d.archivo_path} />}
+                      <div className="flex items-center gap-1 justify-end">
+                        {d.archivo_path && <DetalleArchivoBtn path={d.archivo_path} />}
+                        {canEditDet && (
+                          <>
+                            <button onClick={() => openDetEdit(d)} className="p-1 rounded hover:bg-[#003D7D]/10 text-gray-400 hover:text-[#003D7D]">
+                              <Pencil size={13} />
+                            </button>
+                            <button onClick={() => handleDetDelete(d)} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
+                              <Trash2 size={13} />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
