@@ -17,6 +17,7 @@ export interface Proyecto {
   nombre: string
   descripcion: string | null
   presupuesto: number | null
+  monto_caja_chica: number
   fecha_inicio: string | null
   fecha_fin: string | null
   estado: string | null

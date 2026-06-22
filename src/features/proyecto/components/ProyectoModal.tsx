@@ -11,7 +11,7 @@ interface Props {
 
 const EMPTY: ProyectoInsert = {
   codigo: '', nombre: '', descripcion: null,
-  presupuesto: null, fecha_inicio: null, fecha_fin: null, estado: 'Activo', ruc: null, direccion: null,
+  presupuesto: null, monto_caja_chica: 0, fecha_inicio: null, fecha_fin: null, estado: 'Activo', ruc: null, direccion: null,
   usuario_creador: null,
 }
 
@@ -27,6 +27,7 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
       setForm({
         codigo: proyecto.codigo ?? '', nombre: proyecto.nombre,
         descripcion: proyecto.descripcion ?? null, presupuesto: proyecto.presupuesto ?? null,
+        monto_caja_chica: proyecto.monto_caja_chica ?? 0,
         fecha_inicio: proyecto.fecha_inicio ?? null, fecha_fin: proyecto.fecha_fin ?? null,
         estado: proyecto.estado ?? 'Activo', ruc: proyecto.ruc ?? null, direccion: proyecto.direccion ?? null,
         usuario_creador: proyecto.usuario_creador ?? null,
@@ -54,7 +55,7 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
     if (!validate()) return
     setLoading(true)
     try {
-      await onSubmit({ ...form, presupuesto: form.presupuesto !== null ? Number(form.presupuesto) : null })
+      await onSubmit({ ...form, presupuesto: form.presupuesto !== null ? Number(form.presupuesto) : null, monto_caja_chica: Number(form.monto_caja_chica) || 0 })
       onClose()
     } finally {
       setLoading(false)
@@ -115,11 +116,19 @@ export default function ProyectoModal({ open, proyecto, onClose, onSubmit }: Pro
               onChange={(e) => set('descripcion', e.target.value || null)} />
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Presupuesto (S/)</label>
-            <input className={inputCls(errors.presupuesto)} type="number" min="0" step="0.01"
-              value={form.presupuesto ?? ''} placeholder="0.00"
-              onChange={(e) => set('presupuesto', e.target.value ? Number(e.target.value) : null)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Presupuesto (S/)</label>
+              <input className={inputCls(errors.presupuesto)} type="number" min="0" step="0.01"
+                value={form.presupuesto ?? ''} placeholder="0.00"
+                onChange={(e) => set('presupuesto', e.target.value ? Number(e.target.value) : null)} />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">Caja Chica (S/)</label>
+              <input className={inputCls()} type="number" min="0" step="0.01"
+                value={form.monto_caja_chica || ''} placeholder="0.00"
+                onChange={(e) => set('monto_caja_chica', Number(e.target.value) || 0)} />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -113,7 +113,8 @@ export default function SolicitudNuevaPage() {
           getFormasPago(),
         ])
         setProyectos(pRes.data)
-        setTipos(tRes.data ?? [])
+        const OCULTAR = ['A RENDIR', 'CAJA CHICA', 'REEMBOLSO']
+        setTipos((tRes.data ?? []).filter((t: { nombre: string }) => !OCULTAR.includes(t.nombre.toUpperCase())))
         setFormasPago(fpRes)
       } catch {
         toast.error('Error al cargar catálogos')

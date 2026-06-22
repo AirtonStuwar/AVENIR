@@ -1,6 +1,6 @@
-# AVENIR — Sistema de Gestión de Solicitudes
+# AVENIR — Sistema de Gestión Financiera
 
-Plataforma web para la gestión y aprobación de solicitudes de compra/servicio, con flujo de trabajo por roles, seguimiento de estados, encuesta de proveedores y panel de indicadores.
+Plataforma web para la gestión y aprobación de solicitudes de pago (OC y RxH), rendición de gastos (A Rendir), reembolsos, con control de presupuesto por proyecto/partida, gasto por área y reportes consolidados.
 
 ## Stack
 
@@ -80,13 +80,13 @@ Evaluado ──────── rechazarSolicitud ─────────�
 
 ## Roles y permisos
 
-| Rol | ID | Dashboard | Solicitudes visibles | Acciones |
-|---|---|---|---|---|
-| Admin | 1 | KPIs globales + gráficas + métricas proveedores | Todas | Todas |
-| Evaluador | 8 | Cola de revisión + promedio espera | En Revision (cualquiera) + propias evaluadas | Marcar evaluado (seleccionando Plan Contable), Devolver |
-| Aprobador | 9 | Cola de aprobación + métricas proveedores | Evaluado / Aprobado / Rechazado | Aprobar, Rechazar |
-| Visualizador | 10 | Solicitudes aprobadas + montos | Aprobadas | Solo lectura, exportar Excel |
-| Usuario | 11 | Mis solicitudes por estado + monto aprobado | Propias | Crear, Editar (Pendiente), Enviar, Cancelar, Encuestar proveedor |
+| Rol | ID | Dashboard | Acciones principales |
+|---|---|---|---|
+| Admin | 1 | KPIs globales + gráficas + métricas proveedores | Acceso total, gestión de partidas, ve presupuesto y gasto por área |
+| Evaluador | 8 | Cola de revisión + promedio espera | Evalúa solicitudes, asigna plan contable, detracción y retención |
+| Aprobador | 9 | Cola de aprobación + totales comprometidos | Aprueba/rechaza, ve presupuesto consumido y gasto por área |
+| Visualizador | 10 | Solicitudes aprobadas + montos | Solo lectura, acceso a reportes |
+| Usuario | 11 | Mis solicitudes por estado + monto aprobado | Crea solicitudes, A Rendir y reembolsos |
 
 ### Módulos por rol
 
@@ -94,8 +94,12 @@ Evaluado ──────── rechazarSolicitud ─────────�
 |---|---|---|---|---|---|
 | Dashboard | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Solicitudes | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A Rendir | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Reembolso | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Proveedores | ✅ | — | — | — | ✅ |
 | Proyectos | ✅ | — | — | — | — |
+| Áreas | ✅ | — | ✅ | — | — |
+| Reportes | ✅ | — | — | ✅ | — |
 
 ## Wizard de nueva solicitud (4 pasos)
 
@@ -103,6 +107,60 @@ Evaluado ──────── rechazarSolicitud ─────────�
 2. **Detalles** — ítems de la solicitud (descripción, cantidad, valor unitario). Muestra subtotal, IGV (18%) y total.
 3. **Documentos** — subida de archivos obligatorios (Contrato, Cotización, Sustento) y opcional (Cuadro Comparativo). No permite avanzar sin los 3 obligatorios.
 4. **Factura** *(opcional)* — Factura XML y/o Factura PDF, número de factura, motivo, fecha de emisión y fecha de vencimiento. Se puede omitir y completar desde el detalle de la solicitud.
+
+## Módulo A Rendir
+
+Rendición de gastos con adelantos. El empleado solicita un adelanto, ejecuta gastos registrando comprobantes, y el aprobador autoriza.
+
+- **Rutas:** `/arendir`, `/arendir/nueva`, `/arendir/:id`
+- **Wizard:** 2 pasos (datos generales + detalle de gastos)
+- **Flujo:** Pendiente → En Revision → Evaluado → Autorizado / Rechazado / Devuelto
+- **Moneda:** PEN o USD seleccionable
+- **PDF:** Landscape A4 con firma beneficiario + aprobador
+- **Excel BBVA:** Exportación masiva para pagos (VISUALIZADOR + ADMIN)
+
+## Módulo Reembolso
+
+Reembolso de gastos ya realizados. Estructura similar a A Rendir pero sin adelanto.
+
+- **Rutas:** `/reembolso`, `/reembolso/nueva`, `/reembolso/:id`
+- **Wizard:** 2 pasos
+- **Flujo:** Idéntico a A Rendir
+
+## Proyectos y Partidas
+
+Un proyecto puede subdividirse en partidas (ej: COPISAC → HITO, JOMY, OP-ADM). Cada partida tiene presupuesto propio en S/ y $.
+
+- Solo ADMIN crea/edita partidas desde `/proyectos`
+- Seleccionar partida es obligatorio cuando el proyecto tiene partidas
+- `proyecto_partida_id` es nullable FK en solicitud, A Rendir y Reembolso
+
+## Control de Presupuesto
+
+Visible solo para **ADMIN** y **APROBADOR**:
+
+- **Tabla de proyectos:** columna "Consumido" con barra de progreso (verde < 80%, amarillo 80-100%, rojo > 100%)
+- **Panel de partidas:** consumo vs presupuesto por moneda en cada partida
+- **Detalle de solicitud:** card "Presupuesto" con barra, consumido, saldo disponible
+- **Wizards:** alerta de saldo al seleccionar partida
+
+Fuentes: OC aprobadas (con IGV), RxH aprobadas, A Rendir autorizados, Reembolso autorizados.
+
+## Gasto por Área
+
+Página `/areas` — visible para ADMIN y APROBADOR. Muestra el gasto consolidado por área (Marketing, Legal, etc.) con desglose por módulo (OC, RxH, A Rendir, Reembolso) en PEN y USD.
+
+## Detracción SUNAT
+
+Solo para OC. El monto se calcula y almacena siempre en soles, redondeado sin decimales. Para solicitudes en USD, el EVALUADOR ingresa el tipo de cambio venta (pre-llenado desde API SUNAT):
+
+```
+monto_detraccion = Math.round(totalUSD × TC_venta × porcentaje / 100)
+```
+
+## Reportes
+
+Página `/reportes` — ADMIN y VISUALIZADOR. Consolida OC, RxH, A Rendir y Reembolso aprobados/autorizados en un Excel con 21 columnas, filtrado por fecha y proyecto. Incluye partida, detracciones y retenciones.
 
 ## Documentos por solicitud
 
@@ -132,53 +190,43 @@ La **encuesta de satisfacción** se habilita en el detalle de la solicitud cuand
 
 ```
 src/
-├── api/
-│   └── supabase.ts                   # Cliente Supabase
-├── assets/                           # Imágenes estáticas (logo, etc.)
+├── api/                         # Cliente Supabase
+├── assets/                      # Logo y recursos estáticos
 ├── components/
-│   ├── layout/                       # MainLayout, Sidebar, Topbar, ProtectedRoute
-│   └── ui/                           # DataTable compartido
+│   ├── layout/                  # MainLayout, Sidebar, Topbar, ProtectedRoute
+│   └── ui/                      # DataTable compartido
 ├── features/
-│   ├── dashboard/
-│   │   └── services/                 # getDashboardData, getAprobadorData,
-│   │                                 # getEvaluadorData, getVisualizadorData,
-│   │                                 # getUsuarioData, getProveedorMetricas
-│   ├── proyecto/
-│   │   ├── components/               # ProyectoModal, ProyectoDeleteDialog, ProyectosTable
-│   │   ├── hooks/                    # useProyectos
-│   │   ├── services/                 # proyectoService
-│   │   └── types/                    # Proyecto
-│   ├── proveedor/
-│   │   ├── components/               # EncuestaProveedorForm
-│   │   ├── services/                 # proveedorService (métricas + encuesta CRUD)
-│   │   └── types/                    # Proveedor, ProveedorConMetricas, Encuesta
-│   └── solicitud/
-│       ├── components/               # SolicitudesTable, SolicitudArchivos (tiposVisibles),
-│       │                             # SolicitudModal, RechazoModal, ConfirmModal,
-│       │                             # EvaluarModal (plan contable combobox),
-│       │                             # FirmaModal, OrdenCompraPDF, ...
-│       ├── constants/                # bancos.ts (lista + helpers CCI/cuenta)
-│       ├── hooks/                    # useSolicitudes
-│       ├── services/                 # solicitudService (CRUD + flujo + getPlanContable), rucService
-│       └── types/                    # Solicitud, PlanContable, ROLES, SolicitudFiltros, ...
-├── pages/                            # SolicitudesPage, SolicitudDetallePage,
-│                                     # SolicitudNuevaPage (4-step wizard),
-│                                     # DashboardPage, ProyectosPage, ProveedoresPage
-└── store/
-    └── authStore.ts                  # Zustand: usuario autenticado + rol
+│   ├── area/services/           # Gasto por área (areaConsumoService)
+│   ├── arendir/                 # Módulo A Rendir (types, services, hooks, components)
+│   ├── auth/                    # Autenticación
+│   ├── dashboard/services/      # Dashboard por rol
+│   ├── proveedor/               # Proveedores y encuestas
+│   ├── proyecto/                # Proyectos, partidas y consumo de presupuesto
+│   ├── reembolso/               # Módulo Reembolso (types, services, hooks, components)
+│   ├── reportes/services/       # Reportes y exportación Excel
+│   ├── solicitud/               # Solicitudes OC/RxH (types, services, hooks, components, constants)
+│   └── usuario/services/        # Perfil de usuario
+├── pages/                       # Páginas de rutas
+└── store/                       # Zustand (authStore)
 ```
 
 ## Tablas principales en Supabase
 
 | Tabla | Descripción |
 |---|---|
-| `solicitud` | Solicitudes de compra / servicio |
+| `solicitud` | Solicitudes de compra / servicio (OC y RxH) |
 | `solicitud_detalle` | Ítems de cada solicitud |
 | `solicitud_archivo` | Archivos adjuntos (bucket `solicitud-archivos`) |
+| `solicitud_arendir` | Cabecera de rendición de gastos |
+| `solicitud_arendir_detalle` | Líneas de gasto de A Rendir |
+| `solicitud_reembolso` | Cabecera de reembolso |
+| `solicitud_reembolso_detalle` | Líneas de gasto de reembolso |
 | `estado_soli` | Catálogo de estados del flujo |
 | `solicitud_tipo` | Tipos de solicitud |
 | `solicitud_forma_pago` | Formas de pago seleccionables |
 | `proyecto` | Proyectos asociables a solicitudes |
+| `proyecto_partida` | Partidas por proyecto (presupuesto PEN/USD) |
+| `detraccion` | Conceptos de detracción SUNAT (6 registros) |
 | `usuario` | Perfil extendido 1:1 con auth.users |
 | `usuario_rol` | Rol asignado a cada usuario |
 | `area_usuario` | Área a la que pertenece cada usuario |
