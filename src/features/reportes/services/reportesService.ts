@@ -10,27 +10,30 @@ export interface ReporteFiltros {
 }
 
 export interface ReporteRow {
-  tipo:         'OC' | 'RxH' | 'A Rendir' | 'Reembolso'
-  codigo:       string | null
-  requerido_por: string | null
-  area:         string | null
-  beneficiario: string | null
-  documento:    string | null   // N° factura, N° RxH, o vacío
-  fecha:        string | null
-  ruc:          string | null
-  proyecto:     string | null
-  partida:      string | null
-  concepto:     string | null
-  moneda:       string
-  total_usd:    number
-  total_pen:    number
-  detraccion:   number
-  retencion:    number
-  girar_usd:    number
-  girar_pen:    number
-  banco:        string | null
-  cuenta:       string | null
-  correo:       string | null
+  tipo:           'OC' | 'RxH' | 'A Rendir' | 'Reembolso'
+  codigo:         string | null
+  fecha_solicitud: string | null
+  fecha_requerida: string | null
+  fecha_aprobada:  string | null
+  fecha_emision:   string | null
+  requerido_por:  string | null
+  area:           string | null
+  beneficiario:   string | null
+  documento:      string | null
+  ruc:            string | null
+  proyecto:       string | null
+  partida:        string | null
+  concepto:       string | null
+  moneda:         string
+  total_usd:      number
+  total_pen:      number
+  detraccion:     number
+  retencion:      number
+  girar_usd:      number
+  girar_pen:      number
+  banco:          string | null
+  cuenta:         string | null
+  correo:         string | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -66,7 +69,8 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     .select([
       'id, codigo, tipo_id, usuario_creador, razon_social, ruc, moneda',
       'numero_factura, numero_rxh, porcentaje_retencion, monto_retencion',
-      'detraccion_id, monto_detraccion, fecha_aprobacion, proyecto_id, proyecto_partida_id',
+      'detraccion_id, monto_detraccion, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura',
+      'proyecto_id, proyecto_partida_id',
       'banco, numero_cuenta, contacto_correo',
       'estado_soli:estado_id(nombre)',
       'solicitud_tipo:tipo_id(nombre)',
@@ -88,6 +92,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     numero_factura: string | null; numero_rxh: string | null
     porcentaje_retencion: number | null; monto_retencion: number | null
     monto_detraccion: number | null; fecha_aprobacion: string | null
+    fecha_creacion: string | null; fecha_requerida: string | null; fecha_emision_factura: string | null
     banco: string | null; numero_cuenta: string | null; contacto_correo: string | null
     estado_soli: { nombre: string } | null
     solicitud_tipo: { nombre: string } | null
@@ -130,13 +135,16 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     const u        = s.usuario_creador ? (userMap[s.usuario_creador] ?? null) : null
 
     return {
-      tipo:         isRxH ? 'RxH' : 'OC',
-      codigo:       s.codigo,
+      tipo:           isRxH ? 'RxH' : 'OC',
+      codigo:         s.codigo,
+      fecha_solicitud: s.fecha_creacion,
+      fecha_requerida: s.fecha_requerida,
+      fecha_aprobada:  s.fecha_aprobacion,
+      fecha_emision:   s.fecha_emision_factura,
       requerido_por: u?.nombre ?? null,
       area:         u?.area ?? null,
       beneficiario: s.razon_social,
       documento:    isRxH ? s.numero_rxh : s.numero_factura,
-      fecha:        s.fecha_aprobacion,
       ruc:          s.ruc,
       proyecto:     s.proyecto?.nombre ?? null,
       concepto:     det[0]?.descripcion ?? null,
@@ -160,7 +168,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_arendir')
-    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
+    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_rendicion, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
     .eq('estado', 'Autorizado')
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -173,6 +181,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     id: number; codigo: string | null; beneficiario_id: string | null
     importe: number; total_reembolso: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null; fecha_aprobacion: string | null
+    fecha_creacion: string | null; fecha_rendicion: string | null
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
   }[]
@@ -198,13 +207,16 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     const isPEN = (r.moneda ?? 'PEN') === 'PEN'
     const u     = r.beneficiario_id ? (userMap[r.beneficiario_id] ?? null) : null
     return {
-      tipo:          'A Rendir',
-      codigo:        r.codigo,
+      tipo:            'A Rendir',
+      codigo:          r.codigo,
+      fecha_solicitud: r.fecha_creacion,
+      fecha_requerida: r.fecha_rendicion,
+      fecha_aprobada:  r.fecha_aprobacion,
+      fecha_emision:   null,
       requerido_por: u?.nombre ?? null,
       area:          u?.area ?? null,
       beneficiario:  u?.nombre ?? null,
       documento:     null,
-      fecha:         r.fecha_aprobacion,
       ruc:           null,
       proyecto:      r.proyecto?.nombre ?? null,
       partida:       r.proyecto_partida?.nombre ?? null,
@@ -228,7 +240,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_reembolso')
-    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
+    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_requerida, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
     .eq('estado', 'Autorizado')
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -241,6 +253,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     id: number; codigo: string | null; beneficiario_id: string | null
     total_reembolso: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null; fecha_aprobacion: string | null
+    fecha_creacion: string | null; fecha_requerida: string | null
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
   }[]
@@ -265,13 +278,16 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     const isPEN = (r.moneda ?? 'PEN') === 'PEN'
     const u     = r.beneficiario_id ? (userMap[r.beneficiario_id] ?? null) : null
     return {
-      tipo:          'Reembolso',
-      codigo:        r.codigo,
+      tipo:            'Reembolso',
+      codigo:          r.codigo,
+      fecha_solicitud: r.fecha_creacion,
+      fecha_requerida: r.fecha_requerida,
+      fecha_aprobada:  r.fecha_aprobacion,
+      fecha_emision:   null,
       requerido_por: u?.nombre ?? null,
       area:          u?.area ?? null,
       beneficiario:  u?.nombre ?? null,
       documento:     null,
-      fecha:         r.fecha_aprobacion,
       ruc:           null,
       proyecto:      r.proyecto?.nombre ?? null,
       partida:       r.proyecto_partida?.nombre ?? null,
@@ -297,7 +313,7 @@ export async function getReporteData(filtros: ReporteFiltros): Promise<ReporteRo
     fetchReembolso(filtros),
   ])
   return [...solis, ...arendir, ...reembolso].sort((a, b) =>
-    (a.fecha ?? '').localeCompare(b.fecha ?? '')
+    (a.fecha_aprobada ?? '').localeCompare(b.fecha_aprobada ?? '')
   )
 }
 
@@ -326,27 +342,30 @@ export async function exportarReporteExcel(
   const ws = wb.addWorksheet('Reporte')
 
   const COLS = [
-    { header: '#',              key: 'num',          width: 5  },
-    { header: 'MÓDULO',         key: 'tipo',         width: 12 },
-    { header: 'CÓDIGO',         key: 'codigo',       width: 14 },
-    { header: 'REQUERIDO POR',  key: 'requerido_por',width: 22 },
-    { header: 'ÁREA',           key: 'area',         width: 16 },
-    { header: 'BENEFICIARIO',   key: 'beneficiario', width: 28 },
-    { header: 'DOCUMENTO',      key: 'documento',    width: 18 },
-    { header: 'FECHA',          key: 'fecha',        width: 12 },
-    { header: 'RUC',            key: 'ruc',          width: 13 },
-    { header: 'PROYECTO',       key: 'proyecto',     width: 20 },
-    { header: 'PARTIDA',        key: 'partida',      width: 16 },
-    { header: 'CONCEPTO DE PAGO', key: 'concepto',   width: 35 },
-    { header: 'TOTAL $',        key: 'total_usd',    width: 13 },
-    { header: 'TOTAL S/.',      key: 'total_pen',    width: 13 },
-    { header: 'DETRACCIÓN S/.', key: 'detraccion',   width: 14 },
-    { header: 'RETENCIÓN S/.',  key: 'retencion',    width: 14 },
-    { header: 'GIRAR $',        key: 'girar_usd',    width: 13 },
-    { header: 'GIRAR S/.',      key: 'girar_pen',    width: 13 },
-    { header: 'BANCO',          key: 'banco',        width: 16 },
-    { header: 'CUENTA / CCI',   key: 'cuenta',       width: 22 },
-    { header: 'CORREO',         key: 'correo',       width: 28 },
+    { header: '#',               key: 'num',             width: 5  },
+    { header: 'MÓDULO',          key: 'tipo',            width: 12 },
+    { header: 'CÓDIGO',          key: 'codigo',          width: 14 },
+    { header: 'F. SOLICITUD',    key: 'fecha_solicitud', width: 13 },
+    { header: 'F. REQUERIDA',    key: 'fecha_requerida', width: 13 },
+    { header: 'F. APROBADA',     key: 'fecha_aprobada',  width: 13 },
+    { header: 'F. EMISIÓN',      key: 'fecha_emision',   width: 13 },
+    { header: 'REQUERIDO POR',   key: 'requerido_por',   width: 22 },
+    { header: 'ÁREA',            key: 'area',            width: 16 },
+    { header: 'BENEFICIARIO',    key: 'beneficiario',    width: 28 },
+    { header: 'DOCUMENTO',       key: 'documento',       width: 18 },
+    { header: 'RUC',             key: 'ruc',             width: 13 },
+    { header: 'PROYECTO',        key: 'proyecto',        width: 20 },
+    { header: 'PARTIDA',         key: 'partida',         width: 16 },
+    { header: 'CONCEPTO DE PAGO',key: 'concepto',        width: 35 },
+    { header: 'TOTAL $',         key: 'total_usd',       width: 13 },
+    { header: 'TOTAL S/.',       key: 'total_pen',       width: 13 },
+    { header: 'DETRACCIÓN S/.',  key: 'detraccion',      width: 14 },
+    { header: 'RETENCIÓN S/.',   key: 'retencion',       width: 14 },
+    { header: 'GIRAR $',         key: 'girar_usd',       width: 13 },
+    { header: 'GIRAR S/.',       key: 'girar_pen',       width: 13 },
+    { header: 'BANCO',           key: 'banco',           width: 16 },
+    { header: 'CUENTA / CCI',    key: 'cuenta',          width: 22 },
+    { header: 'CORREO',          key: 'correo',          width: 28 },
   ]
 
   ws.columns = COLS.map(c => ({ key: c.key, width: c.width }))
@@ -389,11 +408,14 @@ export async function exportarReporteExcel(
       idx + 1,
       row.tipo,
       row.codigo,
+      fmtDate(row.fecha_solicitud),
+      fmtDate(row.fecha_requerida),
+      fmtDate(row.fecha_aprobada),
+      fmtDate(row.fecha_emision),
       row.requerido_por,
       row.area,
       row.beneficiario,
       row.documento,
-      fmtDate(row.fecha),
       row.ruc,
       row.proyecto,
       row.partida,
@@ -415,8 +437,8 @@ export async function exportarReporteExcel(
       cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + bg } }
       cell.alignment = { vertical: 'middle', wrapText: false }
       cell.border = { bottom: { style: 'hair', color: { argb: 'FFCCCCCC' } }, right: { style: 'hair', color: { argb: 'FFCCCCCC' } } }
-      // Right-align numeric columns
-      if (ci >= 12 && ci <= 17) cell.alignment = { horizontal: 'right', vertical: 'middle' }
+      // Right-align numeric columns (TOTAL $ through GIRAR S/.)
+      if (ci >= 15 && ci <= 20) cell.alignment = { horizontal: 'right', vertical: 'middle' }
     })
     r.height = 16
   })
@@ -433,7 +455,7 @@ export async function exportarReporteExcel(
     rows.reduce((s, r) => s + r.girar_pen,   0),
   ]
 
-  ws.mergeCells(rows.length + 3, 1, rows.length + 3, 12)
+  ws.mergeCells(rows.length + 3, 1, rows.length + 3, 15)
   const totLbl = totRow.getCell(1)
   totLbl.value = 'TOTALES'
   totLbl.font  = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } }
@@ -441,7 +463,7 @@ export async function exportarReporteExcel(
   totLbl.alignment = { horizontal: 'right', vertical: 'middle' }
 
   totals.forEach((v, i) => {
-    const cell = totRow.getCell(13 + i)
+    const cell = totRow.getCell(16 + i)
     cell.value = fmtNum(v)
     cell.font  = { bold: true, size: 9 }
     cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
