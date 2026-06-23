@@ -38,13 +38,15 @@ interface Props {
   onMesAprobacionChange?: (mes: number | null) => void
   proyectoFilter?: number | null
   onProyectoFilterChange?: (id: number | null) => void
+  pagoFilter?: 'pendiente' | 'pagado' | null
+  onPagoFilterChange?: (v: 'pendiente' | 'pagado' | null) => void
 }
 
 export default function SolicitudesTable({
   data, total, page, pageSize, totalPages, loading,
   onSearch, onPageChange, onRefresh, onCreate, onView, onCancel,
   selectedIds, onSelectionChange, mesAprobacion, onMesAprobacionChange,
-  proyectoFilter, onProyectoFilterChange,
+  proyectoFilter, onProyectoFilterChange, pagoFilter, onPagoFilterChange,
 }: Props) {
   const [searchVal, setSearchVal] = useState('')
   const [proyectos, setProyectos] = useState<Array<{id: number; nombre: string}>>([])
@@ -180,6 +182,18 @@ export default function SolicitudesTable({
             </select>
           )}
 
+          {onPagoFilterChange && (
+            <select
+              value={pagoFilter ?? ''}
+              onChange={e => onPagoFilterChange(e.target.value ? e.target.value as 'pendiente' | 'pagado' : null)}
+              className="h-9 flex-1 sm:flex-none rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 min-w-0"
+            >
+              <option value="">Pago: Todos</option>
+              <option value="pendiente">Por pagar</option>
+              <option value="pagado">Pagados</option>
+            </select>
+          )}
+
           <div className="relative flex-1 sm:flex-none">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
@@ -290,7 +304,14 @@ export default function SolicitudesTable({
                       }
                     </td>
                     <td className="px-4 py-3">
-                      <EstadoBadge nombre={s.estado_soli?.nombre} />
+                      <div className="flex items-center gap-1.5">
+                        <EstadoBadge nombre={s.estado_soli?.nombre} />
+                        {s.estado_soli?.nombre === 'Aprobado' && (
+                          s.fecha_pago
+                            ? <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">Pagado</span>
+                            : <span className="text-[10px] font-semibold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-200">Por pagar</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>

@@ -18,7 +18,7 @@ import type { Solicitud } from '../features/solicitud/types/solicitud'
 export default function SolicitudesPage() {
   const navigate = useNavigate()
   const { userRole, user } = useAuthStore()
-  const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, setProyectoFilter, setMesAprobacion, refresh } = useSolicitudes()
+  const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, setProyectoFilter, setMesAprobacion, setPagoFilter, refresh } = useSolicitudes()
 
   const isVisualizador = userRole === ROLES.VISUALIZADOR
 
@@ -34,6 +34,13 @@ export default function SolicitudesPage() {
   const handleMesChange = (mes: number | null) => {
     setMesAprobacionLocal(mes)
     setMesAprobacion(mes)
+  }
+
+  // ── Filtro pago (solo VISUALIZADOR) ──────────────────────────
+  const [pagoLocal, setPagoLocal] = useState<'pendiente' | 'pagado' | null>(null)
+  const handlePagoChange = (v: 'pendiente' | 'pagado' | null) => {
+    setPagoLocal(v)
+    setPagoFilter(v)
   }
 
   // ── Selección ─────────────────────────────────────────────────
@@ -225,6 +232,8 @@ export default function SolicitudesPage() {
         onProyectoFilterChange={handleProyectoChange}
         mesAprobacion={isVisualizador ? mesAprobacion : undefined}
         onMesAprobacionChange={isVisualizador ? handleMesChange : undefined}
+        pagoFilter={isVisualizador ? pagoLocal : undefined}
+        onPagoFilterChange={isVisualizador ? handlePagoChange : undefined}
       />
 
       <ConfirmModal

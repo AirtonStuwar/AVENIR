@@ -279,7 +279,14 @@ export default function ReembolsoPage() {
                       {fmtMoney(item.total_reembolso, item.moneda)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <EstadoBadge estado={item.estado} />
+                      <div className="flex items-center justify-center gap-1">
+                        <EstadoBadge estado={item.estado} />
+                        {item.estado === 'Autorizado' && (
+                          item.fecha_pago
+                            ? <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">Pagado</span>
+                            : <span className="text-[10px] font-semibold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-200">Por pagar</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {fmtDate(item.fecha_creacion)}

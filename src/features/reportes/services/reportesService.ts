@@ -34,6 +34,7 @@ export interface ReporteRow {
   banco:          string | null
   cuenta:         string | null
   correo:         string | null
+  fecha_pago:     string | null
   // Archivos adjuntos
   arc_contrato:   boolean
   arc_sustento:   boolean
@@ -75,7 +76,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     .select([
       'id, codigo, tipo_id, usuario_creador, razon_social, ruc, moneda',
       'numero_factura, numero_rxh, porcentaje_retencion, monto_retencion',
-      'detraccion_id, monto_detraccion, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura',
+      'detraccion_id, monto_detraccion, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura, fecha_pago',
       'proyecto_id, proyecto_partida_id',
       'banco, numero_cuenta, contacto_correo',
       'estado_soli:estado_id(nombre)',
@@ -98,7 +99,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     numero_factura: string | null; numero_rxh: string | null
     porcentaje_retencion: number | null; monto_retencion: number | null
     monto_detraccion: number | null; fecha_aprobacion: string | null
-    fecha_creacion: string | null; fecha_requerida: string | null; fecha_emision_factura: string | null
+    fecha_creacion: string | null; fecha_requerida: string | null; fecha_emision_factura: string | null; fecha_pago: string | null
     banco: string | null; numero_cuenta: string | null; contacto_correo: string | null
     estado_soli: { nombre: string } | null
     solicitud_tipo: { nombre: string } | null
@@ -178,6 +179,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       banco:        s.banco,
       cuenta:       s.numero_cuenta,
       correo:       s.contacto_correo,
+      fecha_pago:   s.fecha_pago,
       arc_contrato:   arcs.has('Contrato'),
       arc_sustento:   arcs.has('Sustento'),
       arc_cotizacion: arcs.has('Cotizacion'),
@@ -192,7 +194,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_arendir')
-    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_rendicion, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
+    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_rendicion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
     .eq('estado', 'Autorizado')
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -205,7 +207,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     id: number; codigo: string | null; beneficiario_id: string | null
     importe: number; total_reembolso: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null; fecha_aprobacion: string | null
-    fecha_creacion: string | null; fecha_rendicion: string | null
+    fecha_creacion: string | null; fecha_rendicion: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
   }[]
@@ -258,6 +260,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       banco:         r.banco,
       cuenta:        r.numero_cuenta,
       correo:        u?.correo ?? null,
+      fecha_pago:    r.fecha_pago,
       arc_contrato:   false,
       arc_sustento:   hasArch,
       arc_cotizacion: false,
@@ -272,7 +275,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_reembolso')
-    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_requerida, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
+    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
     .eq('estado', 'Autorizado')
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -285,7 +288,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     id: number; codigo: string | null; beneficiario_id: string | null
     total_reembolso: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null; fecha_aprobacion: string | null
-    fecha_creacion: string | null; fecha_requerida: string | null
+    fecha_creacion: string | null; fecha_requerida: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
   }[]
@@ -337,6 +340,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       banco:         r.banco,
       cuenta:        r.numero_cuenta,
       correo:        u?.correo ?? null,
+      fecha_pago:    r.fecha_pago,
       arc_contrato:   false,
       arc_sustento:   hasArch,
       arc_cotizacion: false,
@@ -406,6 +410,7 @@ export async function exportarReporteExcel(
     { header: 'BANCO',           key: 'banco',           width: 16 },
     { header: 'CUENTA / CCI',    key: 'cuenta',          width: 22 },
     { header: 'CORREO',          key: 'correo',          width: 28 },
+    { header: 'F. PAGO',         key: 'fecha_pago',      width: 13 },
     { header: 'CONTRATO',        key: 'arc_contrato',    width: 10 },
     { header: 'SUSTENTO',        key: 'arc_sustento',    width: 10 },
     { header: 'COTIZACIÓN',      key: 'arc_cotizacion',  width: 10 },
@@ -474,6 +479,7 @@ export async function exportarReporteExcel(
       row.banco,
       row.cuenta,
       row.correo,
+      fmtDate(row.fecha_pago),
       row.arc_contrato   ? 'SI' : '',
       row.arc_sustento   ? 'SI' : '',
       row.arc_cotizacion ? 'SI' : '',

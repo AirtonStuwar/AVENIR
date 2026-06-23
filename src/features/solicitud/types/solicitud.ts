@@ -172,6 +172,7 @@ export interface SolicitudFiltros {
   proyecto_id?: number | null
   estado_id?: number | null
   mes_aprobacion?: number | null
+  pagoFilter?: 'pendiente' | 'pagado' | null
   page?: number
   pageSize?: number
   role?: number | null
