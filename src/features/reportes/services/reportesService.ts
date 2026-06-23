@@ -34,6 +34,12 @@ export interface ReporteRow {
   banco:          string | null
   cuenta:         string | null
   correo:         string | null
+  // Archivos adjuntos
+  arc_contrato:   boolean
+  arc_sustento:   boolean
+  arc_cotizacion: boolean
+  arc_factura:    boolean
+  arc_otros:      boolean
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -118,10 +124,23 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     detallesMap[d.solicitud_id].push({ descripcion: d.descripcion, valor_total: d.valor_total ?? d.cantidad * d.valor_unitario })
   }
 
+  // Archivos por solicitud
+  const { data: archRes } = await supabase
+    .from('solicitud_archivo')
+    .select('solicitud_id, tipo_archivo')
+    .in('solicitud_id', ids)
+
+  const archivosMap: Record<number, Set<string>> = {}
+  for (const a of (archRes ?? []) as { solicitud_id: number; tipo_archivo: string | null }[]) {
+    if (!archivosMap[a.solicitud_id]) archivosMap[a.solicitud_id] = new Set()
+    if (a.tipo_archivo) archivosMap[a.solicitud_id].add(a.tipo_archivo)
+  }
+
   // Enrich users
   const userMap = await enrichUsers(aprobadas.map(s => s.usuario_creador))
 
   return aprobadas.map(s => {
+    const arcs = archivosMap[s.id] ?? new Set()
     const isRxH   = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
     const det      = detallesMap[s.id] ?? []
     const subtotal = det.reduce((sum, d) => sum + d.valor_total, 0)
@@ -159,6 +178,11 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       banco:        s.banco,
       cuenta:       s.numero_cuenta,
       correo:       s.contacto_correo,
+      arc_contrato:   arcs.has('Contrato'),
+      arc_sustento:   arcs.has('Sustento'),
+      arc_cotizacion: arcs.has('Cotizacion'),
+      arc_factura:    arcs.has('Factura XML') || arcs.has('Factura PDF'),
+      arc_otros:      arcs.has('Cuadro Comparativo') || arcs.has('Recibo Honorario') || arcs.has('Suspension'),
     } satisfies ReporteRow
   })
 }
@@ -190,22 +214,25 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   const userMap = await enrichUsers(rows.map(r => r.beneficiario_id))
 
-  // First detalle concepto per record
+  // First detalle concepto + check archivos
   const ids = rows.map(r => r.id)
   const { data: detRes } = await supabase
     .from('solicitud_arendir_detalle')
-    .select('solicitud_arendir_id, concepto')
+    .select('solicitud_arendir_id, concepto, archivo_path')
     .in('solicitud_arendir_id', ids)
     .order('id')
 
   const conceptoMap: Record<number, string> = {}
-  for (const d of (detRes ?? []) as { solicitud_arendir_id: number; concepto: string }[]) {
+  const tieneArchivo: Record<number, boolean> = {}
+  for (const d of (detRes ?? []) as { solicitud_arendir_id: number; concepto: string; archivo_path: string | null }[]) {
     if (!conceptoMap[d.solicitud_arendir_id]) conceptoMap[d.solicitud_arendir_id] = d.concepto
+    if (d.archivo_path) tieneArchivo[d.solicitud_arendir_id] = true
   }
 
   return rows.map(r => {
     const isPEN = (r.moneda ?? 'PEN') === 'PEN'
     const u     = r.beneficiario_id ? (userMap[r.beneficiario_id] ?? null) : null
+    const hasArch = tieneArchivo[r.id] || false
     return {
       tipo:            'A Rendir',
       codigo:          r.codigo,
@@ -231,6 +258,11 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       banco:         r.banco,
       cuenta:        r.numero_cuenta,
       correo:        u?.correo ?? null,
+      arc_contrato:   false,
+      arc_sustento:   hasArch,
+      arc_cotizacion: false,
+      arc_factura:    false,
+      arc_otros:      false,
     } satisfies ReporteRow
   })
 }
@@ -261,22 +293,25 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
   if (!rows.length) return []
   const userMap = await enrichUsers(rows.map(r => r.beneficiario_id))
 
-  // First detalle concepto
+  // First detalle concepto + archivos
   const ids = rows.map(r => r.id)
   const { data: detRes } = await supabase
     .from('solicitud_reembolso_detalle')
-    .select('solicitud_reembolso_id, concepto')
+    .select('solicitud_reembolso_id, concepto, archivo_path')
     .in('solicitud_reembolso_id', ids)
     .order('id')
 
   const conceptoMap: Record<number, string> = {}
-  for (const d of (detRes ?? []) as { solicitud_reembolso_id: number; concepto: string }[]) {
+  const tieneArchivoR: Record<number, boolean> = {}
+  for (const d of (detRes ?? []) as { solicitud_reembolso_id: number; concepto: string; archivo_path: string | null }[]) {
     if (!conceptoMap[d.solicitud_reembolso_id]) conceptoMap[d.solicitud_reembolso_id] = d.concepto
+    if (d.archivo_path) tieneArchivoR[d.solicitud_reembolso_id] = true
   }
 
   return rows.map(r => {
     const isPEN = (r.moneda ?? 'PEN') === 'PEN'
     const u     = r.beneficiario_id ? (userMap[r.beneficiario_id] ?? null) : null
+    const hasArch = tieneArchivoR[r.id] || false
     return {
       tipo:            'Reembolso',
       codigo:          r.codigo,
@@ -302,6 +337,11 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       banco:         r.banco,
       cuenta:        r.numero_cuenta,
       correo:        u?.correo ?? null,
+      arc_contrato:   false,
+      arc_sustento:   hasArch,
+      arc_cotizacion: false,
+      arc_factura:    false,
+      arc_otros:      false,
     } satisfies ReporteRow
   })
 }
@@ -366,6 +406,11 @@ export async function exportarReporteExcel(
     { header: 'BANCO',           key: 'banco',           width: 16 },
     { header: 'CUENTA / CCI',    key: 'cuenta',          width: 22 },
     { header: 'CORREO',          key: 'correo',          width: 28 },
+    { header: 'CONTRATO',        key: 'arc_contrato',    width: 10 },
+    { header: 'SUSTENTO',        key: 'arc_sustento',    width: 10 },
+    { header: 'COTIZACIÓN',      key: 'arc_cotizacion',  width: 10 },
+    { header: 'FACTURA',         key: 'arc_factura',     width: 10 },
+    { header: 'OTROS',           key: 'arc_otros',       width: 10 },
   ]
 
   ws.columns = COLS.map(c => ({ key: c.key, width: c.width }))
@@ -429,6 +474,11 @@ export async function exportarReporteExcel(
       row.banco,
       row.cuenta,
       row.correo,
+      row.arc_contrato   ? 'SI' : '',
+      row.arc_sustento   ? 'SI' : '',
+      row.arc_cotizacion ? 'SI' : '',
+      row.arc_factura    ? 'SI' : '',
+      row.arc_otros      ? 'SI' : '',
     ]
     vals.forEach((v, ci) => {
       const cell = r.getCell(ci + 1)
