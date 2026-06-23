@@ -2,7 +2,7 @@ import { useState } from 'react'
 import {
   Search, Plus, RefreshCw, Pencil, Trash2,
   ChevronLeft, ChevronRight, ToggleLeft, ToggleRight,
-  FolderOpen, Filter, Layers,
+  FolderOpen, Filter, Layers, CreditCard,
 } from 'lucide-react'
 import type { Proyecto } from '../types/proyecto'
 import type { Consumo } from '../services/proyectoService'
@@ -34,6 +34,7 @@ interface Props {
   onToggle:     (p: Proyecto) => void
   onCreate:     () => void
   onPartidas:   (p: Proyecto) => void
+  onCuentas:    (p: Proyecto) => void
   onSearch:     (q: string) => void
   onFilter:     (estado: string | null) => void
   onPageChange: (page: number) => void
@@ -42,7 +43,7 @@ interface Props {
 
 export default function ProyectosTable({
   data, total, page, pageSize, totalPages, loading, consumo = {},
-  onEdit, onDelete, onToggle, onCreate, onPartidas,
+  onEdit, onDelete, onToggle, onCreate, onPartidas, onCuentas,
   onSearch, onFilter, onPageChange, onRefresh,
 }: Props) {
   const [searchVal,  setSearchVal]  = useState('')
@@ -252,6 +253,10 @@ export default function ProyectosTable({
                     <button onClick={() => onPartidas(p)} title="Centros de costo"
                       className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition-colors">
                       <Layers size={15} />
+                    </button>
+                    <button onClick={() => onCuentas(p)} title="Cuentas bancarias"
+                      className="p-1.5 rounded-lg hover:bg-emerald-50 text-gray-400 hover:text-emerald-600 transition-colors">
+                      <CreditCard size={15} />
                     </button>
                     <button onClick={() => onToggle(p)} title={p.estado === 'Activo' ? 'Desactivar' : 'Activar'}
                       className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition-colors">

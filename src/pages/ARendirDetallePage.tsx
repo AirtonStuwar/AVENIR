@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
+import PagoModal from '../features/solicitud/components/PagoModal'
+import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
 import {
   getARendirById,
   enviarARendir,
@@ -488,6 +490,17 @@ export default function ARendirDetallePage() {
   const isOwner     = solicitud?.beneficiario_id === user?.id
   const canEditDet  = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
     ['Pendiente', 'Devuelto'].includes(solicitud?.estado ?? '')
+  const canMarcarPagado = solicitud?.estado === 'Autorizado' && !solicitud?.fecha_pago && userRole === ROLES.VISUALIZADOR
+
+  const [pagoOpen, setPagoOpen] = useState(false)
+  const handleConfirmPago = async (cuentaId: number, fechaPago: string) => {
+    if (!solicitud?.id || !user?.id) return
+    await marcarPagado('solicitud_arendir', solicitud.id, cuentaId, fechaPago, user.id)
+    toast.success('Marcado como pagado')
+    setPagoOpen(false)
+    const sol = await getARendirById(Number(id))
+    setSolicitud(sol); setDetalles(sol.detalles ?? [])
+  }
 
   // ── Render ─────────────────────────────────────────────────────
   if (loading) {
@@ -542,6 +555,19 @@ export default function ARendirDetallePage() {
             >
               <Download size={13} /> PDF
             </button>
+          )}
+
+          {/* Marcar pagado (VISUALIZADOR/Contabilidad) */}
+          {canMarcarPagado && (
+            <button onClick={() => setPagoOpen(true)} disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+              Marcar pagado
+            </button>
+          )}
+          {solicitud.fecha_pago && (
+            <span className="flex items-center gap-1 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
+              Pagado {new Date(solicitud.fecha_pago).toLocaleDateString('es-PE')}
+            </span>
           )}
 
           {/* USUARIO/ADMIN: Enviar a revisión (Pendiente o Devuelto) */}
@@ -815,6 +841,13 @@ export default function ARendirDetallePage() {
       )}
 
       {/* Modales */}
+      <PagoModal
+        open={pagoOpen}
+        proyectoId={solicitud?.proyecto_id ?? null}
+        onConfirm={handleConfirmPago}
+        onCancel={() => setPagoOpen(false)}
+      />
+
       <EvaluarARendirModal
         open={evaluarOpen}
         onClose={() => setEvaluarOpen(false)}

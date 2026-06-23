@@ -43,9 +43,10 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `/reembolso`, `/reembolso/nueva`, `/reembolso/:id` — Reembolso module, also behind `ProtectedRoute`
 - `/reportes` — Módulo Reportes (ADMIN + VISUALIZADOR), also behind `ProtectedRoute`
 - `/areas` — Gasto por Área (ADMIN + APROBADOR), also behind `ProtectedRoute`
+- `/caja-chica`, `/caja-chica/nueva`, `/caja-chica/:id` — Módulo Caja Chica, also behind `ProtectedRoute`
 - Catch-all redirects to `/dashboard`
 
-**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `area_usuario`, `usuario`, `proveedor`, `encuesta_proveedor`, `plan_contable_brash`, `detraccion`, `solicitud_arendir`, `solicitud_arendir_detalle`, `solicitud_reembolso`, `solicitud_reembolso_detalle`.
+**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `proyecto_partida`, `area_usuario`, `area`, `usuario`, `proveedor`, `encuesta_proveedor`, `plan_contable_brash`, `detraccion`, `solicitud_arendir`, `solicitud_arendir_detalle`, `solicitud_reembolso`, `solicitud_reembolso_detalle`, `caja_chica`, `caja_chica_detalle`.
 
 El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no se usa ni se escribe. La columna puede seguir existiendo en la BD sin afectar nada.
 
@@ -368,24 +369,86 @@ Consolidación de registros aprobados/autorizados de todos los módulos en un Ex
 - **A Rendir** — `solicitud_arendir` con `estado = 'Autorizado'`. Monto = `total_reembolso`.
 - **Reembolso** — `solicitud_reembolso` con `estado = 'Autorizado'`. Monto = `total_reembolso`.
 
-**`ReporteRow` interface:** `tipo`, `codigo`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para A Rendir/Reembolso), `fecha`, `ruc`, `proyecto`, `partida`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`.
+**`ReporteRow` interface:** `tipo`, `codigo`, `fecha_solicitud`, `fecha_requerida`, `fecha_aprobada`, `fecha_emision`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para A Rendir/Reembolso), `ruc` (RUC para OC/RxH, DNI para A Rendir/Reembolso), `proyecto`, `partida`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`.
 
 **Detracción en reportes:** `detraccion` siempre en S/ (SUNAT), sin importar la moneda de la solicitud. `girar_usd` descuenta la detracción en dólares: `total - Math.round(total × porcentaje / 100)`. `girar_pen` descuenta detracción y retención en soles.
 
 **`exportarReporteExcel(rows, filtros, proyectoNombre)`:** ExcelJS workbook con 1 hoja "Reporte":
 - Fila 1: título mergeado, fondo `#003D7D`, fuente blanca.
-- Fila 2: 21 cabeceras (incluye PARTIDA después de PROYECTO), fondo `#1F497D`, fuente blanca bold, freeze panes 1-2.
+- Fila 2: 24 cabeceras (incluye 4 fechas: F.SOLICITUD, F.REQUERIDA, F.APROBADA, F.EMISIÓN; más CENTRO DE COSTO después de EMPRESA), fondo `#1F497D`, fuente blanca bold, freeze panes 1-2. Columna RUC/DNI muestra RUC para OC/RxH y DNI para A Rendir/Reembolso.
 - Filas de datos: coloreadas por tipo (OC=azul tenue, RxH=verde tenue, A Rendir=amarillo tenue, Reembolso=rosa tenue).
-- Última fila: "TOTALES" mergeada en columnas 1-12, sumas de columnas numéricas (13-18), fondo `#D9E1F2`.
+- Última fila: "TOTALES" mergeada en columnas 1-15, sumas de columnas numéricas (16-21), fondo `#D9E1F2`.
 - Descarga automática como blob `Reporte_{fechaDesde}_{fechaHasta}.xlsx`.
 
 **PostgREST cast pattern en el servicio:** los tipos de retorno de Supabase usan `as unknown as MyType[]` cuando el tipo inferido no coincide con la estructura esperada (joins de FK que PostgREST puede devolver como array o null según el esquema).
 
 ---
 
+## Módulo Caja Chica
+
+Fondo rotativo de efectivo por empresa para gastos menores (agua, luz, insumos, movilidad). El monto ya está aprobado de antemano; el usuario solo rinde los comprobantes.
+
+**Rutas:**
+- `/caja-chica` — listado (`CajaChicaPage`)
+- `/caja-chica/nueva` — creación (`CajaChicaNuevaPage`)
+- `/caja-chica/:id` — detalle y acciones (`CajaChicaDetallePage`)
+
+**Sidebar:** visible para todos los roles. Solo USUARIO y ADMIN pueden crear.
+
+**Feature folder:** `src/features/caja-chica/` — `types/cajaChica.ts`, `services/cajaChicaService.ts`, `hooks/useCajaChica.ts`, `components/CajaChicaPDF.tsx`.
+
+**Tablas Supabase:**
+- `caja_chica` — cabecera
+- `caja_chica_detalle` — líneas de gasto
+- `proyecto.monto_caja_chica` — campo que define el fondo por empresa (configurado por ADMIN)
+
+**Campos de `caja_chica`:**
+- `id`, `codigo` (auto: CC-MM-YYYY-NNN), `proyecto_id` (FK), `responsable_id` (UUID FK)
+- `periodo_desde`, `periodo_hasta` (dates)
+- `monto_asignado` — fondo total de la empresa
+- `saldo_anterior` — sobrante de la caja chica anterior (se acumula)
+- `transferencia` — `monto_asignado - saldo_anterior` (lo que se repone)
+- `total_gastos` — recalculado por trigger al insertar/editar/eliminar detalles
+- `saldo_actual` — `monto_asignado - total_gastos`
+- `cuenta_bbva` (text, nullable)
+- `estado`: `'Pendiente'` | `'En Revision'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'`
+- `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `fecha_creacion`
+
+**Campos de `caja_chica_detalle`:**
+- `id`, `caja_chica_id` (FK, CASCADE), `fecha`, `area_id` (FK a tabla `area` — código de costos)
+- `proveedor`, `tipo_documento` (FACTURA/RECIBO/BOLETA/PLLA-MOV/TICKET/OTRO)
+- `numero_documento`, `detalle`, `monto`, `archivo_path`
+
+**Supabase Storage:** bucket `caja-chica-documentos` — comprobantes por gasto.
+
+**Flujo:** Pendiente → En Revision → Autorizado / Rechazado / Devuelto (sin paso de Evaluado).
+
+**Lógica de saldo acumulable:** Al crear nueva caja chica, `getSaldoAnterior(proyectoId)` busca la última autorizada del mismo proyecto y toma su `saldo_actual`. La transferencia = fondo - saldo anterior (solo se repone lo gastado).
+
+**CajaChicaPDF** (`@react-pdf/renderer`, landscape A4): título, header (código, responsable, empresa, período, cuenta), resumen financiero (saldo anterior, transferencia, monto asignado, saldo actual, pendiente a reembolsar), tabla de gastos con columna de código de costos (área), total + saldo, dos firmas (responsable + aprobador).
+
+**Dropdown de áreas:** consulta directo la tabla `area` (no `area_usuario`) para mostrar todas las áreas disponibles como código de costos.
+
+**Triggers:**
+- `trg_caja_chica_codigo` — genera código automático CC-MM-YYYY-NNN
+- `trg_recalc_caja_chica` — recalcula `total_gastos` y `saldo_actual` al modificar detalles
+- `trg_recalc_arendir_total` — recalcula `total_reembolso` en A Rendir al modificar detalles
+- `trg_recalc_reembolso_total` — recalcula `total_reembolso` en Reembolso al modificar detalles
+
+---
+
+## UI Label Mapping (Empresa / Centro de costo)
+
+Las etiquetas visibles en la UI usan nombres de negocio distintos a los nombres técnicos:
+- **"Empresa"** en la UI = tabla `proyecto` en la BD
+- **"Centro de costo"** en la UI = tabla `proyecto_partida` en la BD
+- Variables, tipos, imports y queries siguen usando `proyecto` / `partida` internamente
+
+---
+
 ## Proyecto Partidas
 
-Un proyecto puede subdividirse en partidas (ej: COPISAC → HITO, JOMY, OP-ADM). Cada partida tiene su propio presupuesto en PEN y USD.
+Un proyecto (empresa) puede subdividirse en partidas (centros de costo, ej: COPISAC → HITO, JOMY, OP-ADM). Cada partida tiene su propio presupuesto en PEN y USD.
 
 **Tabla `proyecto_partida`:** `id`, `proyecto_id` (FK), `nombre`, `presupuesto_pen` (numeric), `presupuesto_usd` (numeric), `estado` (text, default 'Activo'), `fecha_creacion`. RLS: SELECT para authenticated, INSERT/UPDATE/DELETE solo ADMIN (`EXISTS (SELECT 1 FROM usuario_rol WHERE usuario = auth.uid() AND rol = 1)`). FK `ON DELETE SET NULL` para no afectar solicitudes existentes.
 
@@ -425,3 +488,5 @@ Página `/areas` — visible para **ADMIN (1)** y **APROBADOR (9)**.
 **Página:** `src/pages/AreasConsumoPage.tsx` — barra de totales globales, cards por área con barra de progreso relativa al área que más gasta, desglose por módulo (OC, RxH, A Rendir, Reembolso) con montos PEN y USD.
 
 **Sidebar:** item "Áreas" con ícono `Building2`, roles [1, 9].
+
+**Sidebar:** item "Caja Chica" con ícono `Wallet`, roles ALL (todos los roles ven el listado, solo USUARIO y ADMIN crean).

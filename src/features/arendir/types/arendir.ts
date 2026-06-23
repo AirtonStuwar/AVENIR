@@ -34,6 +34,9 @@ export interface SolicitudARendir {
   fecha_creacion: string | null
   plan_contable_id: number | null
   usuario_evaluador: string | null
+  fecha_pago: string | null
+  cuenta_pago_id: number | null
+  usuario_pago: string | null
   // joins
   proyecto?: { id: number; nombre: string } | null
   proyecto_partida?: { id: number; nombre: string } | null
@@ -58,6 +61,7 @@ export type SolicitudARendirInsert = Omit<SolicitudARendir,
   'id' | 'codigo' | 'fecha_creacion' | 'total_reembolso' | 'numero_pago' |
   'usuario_aprobador' | 'fecha_aprobacion' | 'comentario' | 'detalles' |
   'plan_contable_id' | 'usuario_evaluador' | 'plan_contable' |
+  'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago' |
   'beneficiario_nombre' | 'beneficiario_email' | 'beneficiario_dni' |
   'beneficiario_cargo' | 'aprobador_nombre' | 'evaluador_nombre'
 >

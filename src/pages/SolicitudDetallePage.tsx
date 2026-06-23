@@ -15,6 +15,8 @@ import SolicitudModal from '../features/solicitud/components/SolicitudModal'
 import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import EvaluarModal from '../features/solicitud/components/EvaluarModal'
+import PagoModal from '../features/solicitud/components/PagoModal'
+import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
 import { OrdenCompraPDF } from '../features/solicitud/components/OrdenCompraPDF'
 import EncuestaProveedorForm from '../features/proveedor/components/EncuestaProveedorForm'
@@ -122,6 +124,7 @@ export default function SolicitudDetallePage() {
 
   // Evaluar modal
   const [evaluarOpen,    setEvaluarOpen]    = useState(false)
+  const [pagoOpen,       setPagoOpen]       = useState(false)
 
   // Firma modal
   const [firmaOpen,      setFirmaOpen]      = useState(false)
@@ -212,6 +215,7 @@ export default function SolicitudDetallePage() {
   const canAprobar   = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canRechazar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canEncuestar    = isAprobado && !isRxH && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canMarcarPagado = isAprobado && !solicitud?.fecha_pago && userRole === ROLES.VISUALIZADOR
   const canEditFactura  = !isRxH && (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const showFacturaCard = !isRxH && (canEdit || !!solicitud?.numero_factura || !!solicitud?.motivo_factura || !!solicitud?.fecha_emision_factura || archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF'))
 
@@ -386,6 +390,14 @@ export default function SolicitudDetallePage() {
   }
 
 
+  const handleConfirmPago = async (cuentaId: number, fechaPago: string) => {
+    if (!solicitud?.id || !user?.id) return
+    await marcarPagado('solicitud', solicitud.id, cuentaId, fechaPago, user.id)
+    toast.success('Solicitud marcada como pagada')
+    setPagoOpen(false)
+    await reload(id!)
+  }
+
   const handleAprobar = () => {
     if (!solicitud) return
     executeWithFirma('aprobar')
@@ -538,6 +550,17 @@ export default function SolicitudDetallePage() {
                 : <FileDown size={13} />}
               Descargar OC
             </button>
+          )}
+          {canMarcarPagado && (
+            <button onClick={() => setPagoOpen(true)} disabled={actioning}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+              Marcar pagado
+            </button>
+          )}
+          {solicitud?.fecha_pago && (
+            <span className="flex items-center gap-1 h-8 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
+              Pagado {new Date(solicitud.fecha_pago).toLocaleDateString('es-PE')}
+            </span>
           )}
           {canDuplicar && (
             <button onClick={handleDuplicar} disabled={duplicando || actioning}
@@ -1072,6 +1095,13 @@ export default function SolicitudDetallePage() {
         variant={confirmCfg.variant}
         onConfirm={handleConfirmOk}
         onCancel={() => setPendingAction(null)}
+      />
+
+      <PagoModal
+        open={pagoOpen}
+        proyectoId={solicitud?.proyecto_id ?? null}
+        onConfirm={handleConfirmPago}
+        onCancel={() => setPagoOpen(false)}
       />
 
       <EvaluarModal

@@ -88,6 +88,9 @@ export interface Solicitud {
   detraccion_id:    number | null
   monto_detraccion: number | null
   proyecto_partida_id: number | null
+  fecha_pago: string | null
+  cuenta_pago_id: number | null
+  usuario_pago: string | null
   proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null; presupuesto?: number | null } | null
   proyecto_partida?: { id: number; nombre: string; presupuesto_pen: number; presupuesto_usd: number } | null
   detraccion?: Detraccion | null
@@ -139,6 +142,9 @@ export type SolicitudInsert = Omit<
   | 'monto_detraccion'       // calculado al marcar Evaluado
   | 'proyecto_partida_id'    // opcional según si el proyecto tiene partidas
   | 'proyecto_partida'       // join, no se inserta
+  | 'fecha_pago'             // lo marca contabilidad
+  | 'cuenta_pago_id'         // lo marca contabilidad
+  | 'usuario_pago'           // lo marca contabilidad
   | 'detalles'               // se reemplaza por SolicitudDetalleInsert[]
 > & {
     detalles?: SolicitudDetalleInsert[]

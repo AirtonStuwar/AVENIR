@@ -4,6 +4,7 @@ import ProyectosTable            from '../features/proyecto/components/Proyectos
 import ProyectoModal             from '../features/proyecto/components/ProyectoModal'
 import ProyectoDeleteDialog      from '../features/proyecto/components/ProyectoDeleteDialog'
 import ProyectoPartidasPanel     from '../features/proyecto/components/ProyectoPartidasPanel'
+import CuentasBancariasPanel    from '../features/proyecto/components/CuentasBancariasPanel'
 import { getConsumoByProyectos } from '../features/proyecto/services/proyectoService'
 import { useAuthStore }          from '../store/authStore'
 import type { Proyecto }         from '../features/proyecto/types/proyecto'
@@ -32,11 +33,13 @@ export default function ProyectosPage() {
   const [deleteOpen,     setDeleteOpen]     = useState(false)
   const [deleteTarget,   setDeleteTarget]   = useState<Proyecto | null>(null)
   const [partidasTarget, setPartidasTarget] = useState<Proyecto | null>(null)
+  const [cuentasTarget,  setCuentasTarget]  = useState<Proyecto | null>(null)
 
   const handleCreate   = () => { setEditTarget(null); setModalOpen(true) }
   const handleEdit     = (p: Proyecto) => { setEditTarget(p); setModalOpen(true) }
   const handleDelete   = (p: Proyecto) => { setDeleteTarget(p); setDeleteOpen(true) }
   const handlePartidas = (p: Proyecto) => { setPartidasTarget(p) }
+  const handleCuentas  = (p: Proyecto) => { setCuentasTarget(p) }
 
   const handleModalSubmit = async (data: Parameters<typeof create>[0]) => {
     if (editTarget) await update(editTarget.id, data)
@@ -51,7 +54,7 @@ export default function ProyectosPage() {
           totalPages={totalPages} loading={loading}
           consumo={canVerConsumo ? consumo : undefined}
           onEdit={handleEdit} onDelete={handleDelete} onToggle={toggleEstado}
-          onCreate={handleCreate} onPartidas={handlePartidas}
+          onCreate={handleCreate} onPartidas={handlePartidas} onCuentas={handleCuentas}
           onSearch={setSearch} onFilter={setEstadoFilter}
           onPageChange={setPage} onRefresh={refresh}
         />
@@ -67,6 +70,10 @@ export default function ProyectosPage() {
           proyecto={partidasTarget}
           mostrarConsumo={canVerConsumo}
           onClose={() => setPartidasTarget(null)}
+        />
+        <CuentasBancariasPanel
+          proyecto={cuentasTarget}
+          onClose={() => setCuentasTarget(null)}
         />
       </div>
     </div>
