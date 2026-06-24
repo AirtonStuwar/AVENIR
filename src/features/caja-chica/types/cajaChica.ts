@@ -11,17 +11,30 @@ export interface CajaChica {
   total_gastos: number
   saldo_actual: number
   cuenta_bbva: string | null
-  estado: 'Pendiente' | 'En Revision' | 'Autorizado' | 'Rechazado' | 'Devuelto'
+  estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto'
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
   comentario: string | null
+  plan_contable_id: number | null
+  usuario_evaluador: string | null
+  fecha_pago: string | null
+  cuenta_pago_id: number | null
+  usuario_pago: string | null
   fecha_creacion: string | null
   // joins
   proyecto?: { id: number; nombre: string } | null
+  plan_contable?: {
+    id: number
+    tipo_gasto_costo: string | null
+    codigo_starsoft: string | null
+    nombre_cuenta_contable: string | null
+    partida_presupuestal: string | null
+  } | null
   // enriched
   responsable_nombre?: string | null
   responsable_email?: string | null
   aprobador_nombre?: string | null
+  evaluador_nombre?: string | null
   detalles?: CajaChicaDetalle[]
 }
 
@@ -44,7 +57,9 @@ export interface CajaChicaDetalle {
 export type CajaChicaInsert = Omit<CajaChica,
   'id' | 'codigo' | 'fecha_creacion' | 'total_gastos' | 'saldo_actual' |
   'usuario_aprobador' | 'fecha_aprobacion' | 'comentario' | 'detalles' |
-  'proyecto' | 'responsable_nombre' | 'responsable_email' | 'aprobador_nombre'
+  'plan_contable_id' | 'usuario_evaluador' | 'plan_contable' |
+  'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago' |
+  'proyecto' | 'responsable_nombre' | 'responsable_email' | 'aprobador_nombre' | 'evaluador_nombre'
 >
 
 export type CajaChicaDetalleInsert = Omit<CajaChicaDetalle, 'id' | 'fecha_creacion' | 'area_nombre'>

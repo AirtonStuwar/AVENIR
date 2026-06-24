@@ -4,7 +4,7 @@ import type {
   CajaChicaFiltros, CajaChicaPaginado,
 } from '../types/cajaChica'
 
-const SEL = '*, proyecto:proyecto_id(id,nombre)'
+const SEL = '*, proyecto:proyecto_id(id,nombre), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)'
 
 // ── Enrich ────────────────────────────────────────────────────────
 
@@ -12,6 +12,7 @@ async function enrichCajaChica(rows: CajaChica[]): Promise<CajaChica[]> {
   const uids = [...new Set([
     ...rows.map(r => r.responsable_id),
     ...rows.map(r => r.usuario_aprobador),
+    ...rows.map(r => r.usuario_evaluador),
   ].filter(Boolean))] as string[]
 
   if (!uids.length) return rows
@@ -31,6 +32,7 @@ async function enrichCajaChica(rows: CajaChica[]): Promise<CajaChica[]> {
     responsable_nombre: r.responsable_id ? map[r.responsable_id]?.nombre ?? null : null,
     responsable_email: r.responsable_id ? map[r.responsable_id]?.correo ?? null : null,
     aprobador_nombre: r.usuario_aprobador ? map[r.usuario_aprobador]?.nombre ?? null : null,
+    evaluador_nombre: r.usuario_evaluador ? map[r.usuario_evaluador]?.nombre ?? null : null,
   }))
 }
 
@@ -148,6 +150,18 @@ export async function enviarCajaChica(id: number): Promise<void> {
   await updateCajaChica(id, { estado: 'En Revision' } as Partial<CajaChica>)
 }
 
+export async function marcarEvaluadoCajaChica(id: number, planContableId: number, evaluadorId: string): Promise<void> {
+  await updateCajaChica(id, {
+    estado: 'Evaluado',
+    plan_contable_id: planContableId,
+    usuario_evaluador: evaluadorId,
+  } as Partial<CajaChica>)
+}
+
+export async function devolverDesdeRevisionCajaChica(id: number, comentario: string): Promise<void> {
+  await updateCajaChica(id, { estado: 'Devuelto', comentario } as Partial<CajaChica>)
+}
+
 export async function autorizarCajaChica(id: number, aprobadorId: string): Promise<void> {
   await updateCajaChica(id, {
     estado: 'Autorizado',
@@ -177,6 +191,7 @@ export async function getSaldoAnterior(proyectoId: number): Promise<number> {
     .select('saldo_actual')
     .eq('proyecto_id', proyectoId)
     .eq('estado', 'Autorizado')
+    .not('fecha_pago', 'is', null)
     .order('periodo_hasta', { ascending: false })
     .limit(1)
   if (data && data.length > 0) return (data[0] as { saldo_actual: number }).saldo_actual

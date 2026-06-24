@@ -27,7 +27,7 @@ export async function getCuentasByProyecto(proyectoId: number): Promise<CuentaBa
 }
 
 export async function marcarPagado(
-  tabla: 'solicitud' | 'solicitud_arendir' | 'solicitud_reembolso',
+  tabla: 'solicitud' | 'solicitud_arendir' | 'solicitud_reembolso' | 'caja_chica',
   id: number,
   cuentaPagoId: number,
   fechaPago: string,

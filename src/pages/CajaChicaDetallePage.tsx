@@ -11,13 +11,18 @@ import { ROLES } from '../features/solicitud/types/solicitud'
 import {
   getCajaChicaById,
   createDetalleCajaChica, updateDetalleCajaChica, deleteDetalleCajaChica,
-  enviarCajaChica, autorizarCajaChica, rechazarCajaChica, devolverCajaChica,
+  enviarCajaChica, marcarEvaluadoCajaChica, devolverDesdeRevisionCajaChica,
+  autorizarCajaChica, rechazarCajaChica, devolverCajaChica,
   getAreas,
 } from '../features/caja-chica/services/cajaChicaService'
 import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
+import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
+import { getPlanContable } from '../features/solicitud/services/solicitudService'
+import type { PlanContable } from '../features/solicitud/types/solicitud'
 import { supabase } from '../api/supabase'
 import type { CajaChica, CajaChicaDetalle } from '../features/caja-chica/types/cajaChica'
 import { CajaChicaPDF } from '../features/caja-chica/components/CajaChicaPDF'
+import PagoModal from '../features/solicitud/components/PagoModal'
 import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import logoUrl from '../assets/avenir-logo.png'
@@ -73,6 +78,13 @@ export default function CajaChicaDetallePage() {
   // Modals
   const [rechazoOpen, setRechazoOpen] = useState(false)
   const [devolucionOpen, setDevolucionOpen] = useState(false)
+  const [devRevOpen, setDevRevOpen] = useState(false)
+  const [evaluarOpen, setEvaluarOpen] = useState(false)
+  const [pagoOpen, setPagoOpen] = useState(false)
+  const [planOpciones, setPlanOpciones] = useState<PlanContable[]>([])
+  const [planSearch, setPlanSearch] = useState('')
+  const [planSelected, setPlanSelected] = useState<PlanContable | null>(null)
+  const [planDropOpen, setPlanDropOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
 
   const loadData = async () => {
@@ -106,10 +118,14 @@ export default function CajaChicaDetallePage() {
   const isPendiente = cc.estado === 'Pendiente'
   const isDevuelto = cc.estado === 'Devuelto'
   const isEnRevision = cc.estado === 'En Revision'
+  const isEvaluado = cc.estado === 'Evaluado'
+  const isAutorizado = cc.estado === 'Autorizado'
   const isOwner = cc.responsable_id === user?.id
   const canEdit = (isPendiente || isDevuelto) && (isOwner || userRole === ROLES.ADMIN)
   const canEnviar = canEdit && detalles.length > 0
-  const canAprobar = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEnRevision
+  const canEvaluar = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
+  const canAprobar = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
+  const canMarcarPagado = isAutorizado && !cc.fecha_pago && userRole === ROLES.VISUALIZADOR
   const canShowPDF = !isPendiente && detalles.length > 0
 
   const totalGastos = detalles.reduce((s, d) => s + d.monto, 0)
@@ -236,6 +252,43 @@ export default function CajaChicaDetallePage() {
     })
   }
 
+  const handleOpenEvaluar = async () => {
+    setEvaluarOpen(true)
+    if (!planOpciones.length) {
+      const data = await getPlanContable()
+      setPlanOpciones(data)
+    }
+  }
+
+  const handleConfirmEvaluar = async () => {
+    if (!planSelected || !user?.id) { toast.error('Selecciona un plan contable'); return }
+    setActioning(true)
+    try {
+      await marcarEvaluadoCajaChica(cc.id, planSelected.id, user.id)
+      toast.success('Marcada como Evaluada')
+      setEvaluarOpen(false)
+      setPlanSelected(null)
+      setPlanSearch('')
+      await loadData()
+    } catch { toast.error('Error') }
+    finally { setActioning(false) }
+  }
+
+  const handleDevolverRevision = async (comentario: string) => {
+    setActioning(true)
+    try { await devolverDesdeRevisionCajaChica(cc.id, comentario); toast.success('Devuelta'); await loadData() }
+    catch { toast.error('Error') }
+    finally { setActioning(false); setDevRevOpen(false) }
+  }
+
+  const handleConfirmPago = async (cuentaId: number, fechaPago: string) => {
+    if (!user?.id) return
+    await marcarPagado('caja_chica', cc.id, cuentaId, fechaPago, user.id)
+    toast.success('Caja chica marcada como pagada')
+    setPagoOpen(false)
+    await loadData()
+  }
+
   const handleAutorizar = () => {
     setPendingAction({
       title: 'Autorizar caja chica',
@@ -287,11 +340,34 @@ export default function CajaChicaDetallePage() {
                 <Download size={13} /> PDF
               </button>
             )}
+            {canMarcarPagado && (
+              <button onClick={() => setPagoOpen(true)} disabled={actioning}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                Marcar pagado
+              </button>
+            )}
+            {cc.fecha_pago && (
+              <span className="flex items-center gap-1 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
+                Pagado {new Date(cc.fecha_pago).toLocaleDateString('es-PE')}
+              </span>
+            )}
             {canEnviar && (
               <button onClick={handleEnviar} disabled={actioning}
                 className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-sm font-medium hover:bg-[#002D5C] disabled:opacity-50 transition-all">
                 <Send size={14} /> Enviar a revisión
               </button>
+            )}
+            {canEvaluar && (
+              <>
+                <button onClick={handleOpenEvaluar} disabled={actioning}
+                  className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 transition-colors">
+                  Evaluar
+                </button>
+                <button onClick={() => setDevRevOpen(true)} disabled={actioning}
+                  className="flex items-center gap-1.5 h-9 px-4 rounded-xl border border-amber-300 text-amber-700 text-sm font-medium hover:bg-amber-50 disabled:opacity-50 transition-all">
+                  <RotateCcw size={14} /> Devolver
+                </button>
+              </>
             )}
             {canAprobar && (
               <>
@@ -507,10 +583,69 @@ export default function CajaChicaDetallePage() {
       </div>
 
       {/* Modals */}
+      <PagoModal
+        open={pagoOpen}
+        proyectoId={cc.proyecto_id}
+        onConfirm={handleConfirmPago}
+        onCancel={() => setPagoOpen(false)}
+      />
       <RechazoModal open={rechazoOpen} title="Rechazar caja chica"
         codigo={cc.codigo} onClose={() => setRechazoOpen(false)} onConfirm={handleRechazar} variant="red" />
       <RechazoModal open={devolucionOpen} title="Devolver caja chica"
         codigo={cc.codigo} onClose={() => setDevolucionOpen(false)} onConfirm={handleDevolver} variant="amber" />
+      <RechazoModal open={devRevOpen} title="Devolver desde revisión"
+        codigo={cc.codigo} onClose={() => setDevRevOpen(false)} onConfirm={handleDevolverRevision} variant="amber" />
+
+      {/* Evaluar modal inline */}
+      {evaluarOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEvaluarOpen(false)} />
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-800">Evaluar Caja Chica</h2>
+              <p className="text-xs text-gray-400">{cc.codigo}</p>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm text-gray-600">Selecciona el <span className="font-semibold">Plan Contable</span>:</p>
+              <div className="relative">
+                <input type="text" value={planSearch}
+                  onChange={e => { setPlanSearch(e.target.value); setPlanSelected(null); setPlanDropOpen(true) }}
+                  onFocus={() => setPlanDropOpen(true)}
+                  placeholder="Buscar tipo de gasto…"
+                  className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:bg-white" />
+                {planDropOpen && (
+                  <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                    {planOpciones
+                      .filter(p => !planSearch.trim() || (p.tipo_gasto_costo ?? '').toLowerCase().includes(planSearch.toLowerCase()) || (p.codigo_starsoft ?? '').toLowerCase().includes(planSearch.toLowerCase()))
+                      .slice(0, 40)
+                      .map(p => (
+                        <li key={p.id} onMouseDown={() => { setPlanSelected(p); setPlanSearch(p.tipo_gasto_costo ?? ''); setPlanDropOpen(false) }}
+                          className="px-4 py-2.5 cursor-pointer hover:bg-[#003D7D]/5">
+                          <p className="text-sm font-medium text-gray-800">{p.tipo_gasto_costo}</p>
+                          {p.codigo_starsoft && <p className="text-xs text-gray-400">{p.codigo_starsoft}</p>}
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+              {planSelected && (
+                <div className="bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-xs text-green-800">
+                  <span className="font-semibold">{planSelected.tipo_gasto_costo}</span> — {planSelected.codigo_starsoft}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+              <button onClick={() => setEvaluarOpen(false)}
+                className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
+              <button onClick={handleConfirmEvaluar} disabled={!planSelected || actioning}
+                className="px-4 py-2 rounded-xl bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-40">
+                {actioning ? 'Guardando…' : 'Marcar evaluado'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmModal
         open={!!pendingAction} title={pendingAction?.title ?? ''}
         message={pendingAction?.message ?? ''}

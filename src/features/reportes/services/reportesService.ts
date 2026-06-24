@@ -10,7 +10,7 @@ export interface ReporteFiltros {
 }
 
 export interface ReporteRow {
-  tipo:           'OC' | 'RxH' | 'A Rendir' | 'Reembolso'
+  tipo:           'OC' | 'RxH' | 'A Rendir' | 'Reembolso' | 'Caja Chica'
   codigo:         string | null
   fecha_solicitud: string | null
   fecha_requerida: string | null
@@ -350,13 +350,75 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
   })
 }
 
+async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
+  const { fechaDesde, fechaHasta, proyectoId } = filtros
+
+  let q = supabase
+    .from('caja_chica')
+    .select('id, codigo, responsable_id, proyecto_id, total_gastos, monto_asignado, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre)')
+    .eq('estado', 'Autorizado')
+    .gte('fecha_aprobacion', fechaDesde)
+    .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
+
+  if (proyectoId) q = q.eq('proyecto_id', proyectoId)
+  const { data, error } = await q.order('fecha_aprobacion')
+  if (error) throw error
+
+  const rows = (data ?? []) as unknown as {
+    id: number; codigo: string | null; responsable_id: string | null
+    total_gastos: number; monto_asignado: number
+    fecha_aprobacion: string | null; fecha_creacion: string | null; fecha_pago: string | null
+    proyecto: { nombre: string } | null
+  }[]
+
+  if (!rows.length) return []
+  const userMap = await enrichUsers(rows.map(r => r.responsable_id))
+
+  return rows.map(r => {
+    const u = r.responsable_id ? (userMap[r.responsable_id] ?? null) : null
+    return {
+      tipo:            'Caja Chica',
+      codigo:          r.codigo,
+      fecha_solicitud: r.fecha_creacion,
+      fecha_requerida: null,
+      fecha_aprobada:  r.fecha_aprobacion,
+      fecha_emision:   null,
+      requerido_por:   u?.nombre ?? null,
+      area:            u?.area ?? null,
+      beneficiario:    u?.nombre ?? null,
+      documento:       null,
+      ruc:             u?.dni ?? null,
+      proyecto:        r.proyecto?.nombre ?? null,
+      partida:         null,
+      concepto:        'Rendición de caja chica',
+      moneda:          'PEN',
+      total_usd:       0,
+      total_pen:       r.total_gastos,
+      detraccion:      0,
+      retencion:       0,
+      girar_usd:       0,
+      girar_pen:       r.total_gastos,
+      banco:           null,
+      cuenta:          null,
+      correo:          u?.correo ?? null,
+      fecha_pago:      r.fecha_pago,
+      arc_contrato:    false,
+      arc_sustento:    false,
+      arc_cotizacion:  false,
+      arc_factura:     false,
+      arc_otros:       false,
+    } satisfies ReporteRow
+  })
+}
+
 export async function getReporteData(filtros: ReporteFiltros): Promise<ReporteRow[]> {
-  const [solis, arendir, reembolso] = await Promise.all([
+  const [solis, arendir, reembolso, cajaChica] = await Promise.all([
     fetchSolicitudes(filtros),
     fetchARendir(filtros),
     fetchReembolso(filtros),
+    fetchCajaChica(filtros),
   ])
-  return [...solis, ...arendir, ...reembolso].sort((a, b) =>
+  return [...solis, ...arendir, ...reembolso, ...cajaChica].sort((a, b) =>
     (a.fecha_aprobada ?? '').localeCompare(b.fecha_aprobada ?? '')
   )
 }
@@ -367,7 +429,8 @@ const TIPO_COLOR: Record<string, string> = {
   'OC':        'DDEEFF',
   'RxH':       'E8F5E9',
   'A Rendir':  'FFF8E1',
-  'Reembolso': 'FCE4EC',
+  'Reembolso':   'FCE4EC',
+  'Caja Chica':  'F3E5F5',
 }
 
 const fmtDate = (s: string | null) =>
