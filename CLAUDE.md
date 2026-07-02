@@ -34,7 +34,7 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `VISUALIZADOR = 10` — read-only
 - `USUARIO = 11` — can create requests
 
-**Data access pattern:** Feature-level service files (`*Service.ts`) wrap Supabase queries. Custom hooks (`useSolicitudes`, `useProyectos`) own local state for pagination and filters, call the services, and expose data + handlers to page components. `useSolicitudes` automatically syncs `role` and `userId` from the auth store into query filters via a `useEffect`. El hook expone `setProyectoFilter` para filtrar por proyecto desde `SolicitudesPage` (aplica a todos los roles).
+**Data access pattern:** Feature-level service files (`*Service.ts`) wrap Supabase queries. Custom hooks (`useSolicitudes`, `useProyectos`) own local state for pagination and filters, call the services, and expose data + handlers to page components. `useSolicitudes` automatically syncs `role` and `userId` from the auth store into query filters via a `useEffect`. El hook expone `setProyectoFilter` para filtrar por proyecto (aplica a todos los roles) y `setPagoFilter` (`'pendiente' | 'pagado' | null`) para filtrar por estado de pago — solo visible para VISUALIZADOR en `SolicitudesPage`.
 
 **Routing** (`App.tsx`):
 - `/login` — public
@@ -46,7 +46,7 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `/caja-chica`, `/caja-chica/nueva`, `/caja-chica/:id` — Módulo Caja Chica, also behind `ProtectedRoute`
 - Catch-all redirects to `/dashboard`
 
-**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `proyecto_partida`, `area_usuario`, `area`, `usuario`, `proveedor`, `encuesta_proveedor`, `plan_contable_brash`, `detraccion`, `solicitud_arendir`, `solicitud_arendir_detalle`, `solicitud_reembolso`, `solicitud_reembolso_detalle`, `caja_chica`, `caja_chica_detalle`.
+**Key Supabase tables:** `usuario_rol`, `solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_tipo`, `solicitud_forma_pago`, `estado_soli`, `proyecto`, `proyecto_partida`, `area_usuario`, `area`, `usuario`, `proveedor`, `encuesta_proveedor`, `plan_contable_brash`, `detraccion`, `solicitud_arendir`, `solicitud_arendir_detalle`, `solicitud_reembolso`, `solicitud_reembolso_detalle`, `caja_chica`, `caja_chica_detalle`, `cuenta_bancaria`.
 
 El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no se usa ni se escribe. La columna puede seguir existiendo en la BD sin afectar nada.
 
@@ -177,7 +177,14 @@ Run `NOTIFY pgrst, 'reload schema'` if the join stops working after schema chang
 - `detraccion_id` — FK to `detraccion.id` (nullable, solo OC, asignado por EVALUADOR)
 - `monto_detraccion` — monto calculado
 
+**`solicitud` columns added for pago:**
+- `fecha_pago` (date, nullable) — fecha en que Contabilidad (VISUALIZADOR) marcó como pagado
+- `cuenta_pago_id` (FK → `cuenta_bancaria`, nullable) — cuenta bancaria usada para el pago
+- `usuario_pago` (UUID FK, nullable) — quien marcó el pago
+
 All above fields are excluded from `SolicitudInsert`.
+
+**Tipos de solicitud visibles en el dropdown de creación:** solo `PAGO A PROVEEDORES`, `POLIZAS Y SEGUROS` y `Recibo por Honorarios`. Los tipos `A RENDIR`, `CAJA CHICA` y `REEMBOLSO` están ocultos porque tienen módulos propios.
 
 **Tabla `detraccion`:** 6 conceptos del sistema SPOT-SUNAT. Campos: `id`, `codigo` (ej. '022'), `concepto`, `porcentaje` (numeric), `monto_minimo` (numeric: 700 o 400 soles según concepto). RLS: SELECT for authenticated users. Service: `getDetracciones()` returns all rows. La detracción es **solo informativa** — no altera el total de la solicitud; se guarda para reportes.
 
@@ -216,6 +223,7 @@ Gestión de **rendición de gastos con adelantos**. Un empleado solicita un adel
 - `usuario_evaluador` (uuid, nullable), `plan_contable_id` (FK → `plan_contable_brash`, nullable)
 - `comentario` (text, nullable) — motivo de rechazo o devolución
 - `fecha_creacion` (timestamp)
+- `fecha_pago` (date, nullable), `cuenta_pago_id` (FK → `cuenta_bancaria`, nullable), `usuario_pago` (UUID FK, nullable)
 
 **Campos de `solicitud_arendir_detalle`:**
 - `id`, `solicitud_arendir_id` (FK), `fecha_documento` (date)
@@ -253,8 +261,12 @@ Evaluado
 - USUARIO/ADMIN en Pendiente o Devuelto: "Enviar a revisión"
 - EVALUADOR/ADMIN en En Revision: "Evaluar" (abre `EvaluarARendirModal` para asignar plan contable → Evaluado), "Devolver" (modal comentario → Devuelto)
 - APROBADOR/ADMIN en Evaluado: "Autorizar" (abre `FirmaModal`, sube `firma_aprobador`, genera PDF → Autorizado), "Devolver" (modal comentario), "Rechazar" (modal comentario)
+- VISUALIZADOR en Autorizado (sin `fecha_pago`): "Marcar pagado" (abre `PagoModal`)
 - Todos desde En Revision en adelante: "Descargar PDF"
 - Si estado es Rechazado o Devuelto: alerta visible con el motivo (`comentario`)
+- Badge "Pagado dd/mm/yyyy" en header cuando `fecha_pago` está presente
+
+**Edición de gastos desde el detalle:** `ARendirDetallePage` permite agregar, editar y eliminar líneas de `solicitud_arendir_detalle` directamente (no solo durante el wizard). El total se recalcula automáticamente via trigger `trg_recalc_arendir_total`.
 
 **ARendirPDF** (`@react-pdf/renderer`, formato landscape A4): header con título y logo, grilla de datos generales (código, beneficiario, DNI, cargo, proyecto, importe adelanto, fecha rendición — **sin banco ni número de cuenta**), tabla de líneas de gasto, fila de balance (amarillo), fila de total a reembolsar (azul), sección de dos firmas (beneficiario + aprobador).
 
@@ -332,6 +344,7 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 - `banco`, `numero_cuenta`, `documento_sustento_path` (nullable)
 - `estado`: `'Pendiente'` | `'En Revision'` | `'Evaluado'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'`
 - `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `plan_contable_id`, `usuario_evaluador`, `fecha_creacion`
+- `fecha_pago` (date, nullable), `cuenta_pago_id` (FK → `cuenta_bancaria`, nullable), `usuario_pago` (UUID FK, nullable)
 
 **Flujo de estados:** idéntico a A Rendir (Pendiente → En Revision → Evaluado → Autorizado/Rechazado/Devuelto).
 
@@ -339,6 +352,57 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 - Sin campo `importe` (adelanto) — solo `total_reembolso`
 - Sin `numero_pago`
 - El wizard y detalle tienen la misma estructura pero sin la lógica de balance adelanto vs gasto
+
+`ReembolsoDetallePage` también permite editar gastos inline y tiene botón "Marcar pagado" para VISUALIZADOR en estado Autorizado (igual que `ARendirDetallePage`).
+
+---
+
+---
+
+## Estado de Pago
+
+Funcionalidad que permite a **Contabilidad (VISUALIZADOR)** marcar un registro como pagado, seleccionando la cuenta bancaria desde la que se realizó el desembolso.
+
+**Aplica a:** `solicitud` (Aprobado), `solicitud_arendir` (Autorizado), `solicitud_reembolso` (Autorizado), `caja_chica` (Autorizado).
+
+**Campos en cada tabla:** `fecha_pago` (date), `cuenta_pago_id` (FK → `cuenta_bancaria`), `usuario_pago` (UUID FK). Excluidos de los tipos Insert.
+
+**`PagoModal`** (`src/features/solicitud/components/PagoModal.tsx`) — modal con selector de fecha y dropdown de cuentas bancarias agrupadas por tipo ("Cuentas generales" / "Por centro de costo"). Solo abre cuando: rol = VISUALIZADOR AND estado = Aprobado/Autorizado AND `fecha_pago IS NULL`.
+
+**`marcarPagado(tabla, id, cuentaPagoId, fechaPago, usuarioPagoId)`** en `src/features/solicitud/services/cuentaBancariaService.ts` — actualiza los 3 campos en la tabla indicada.
+
+**Visualización:** badge verde "Pagado dd/mm/yyyy" en header del detalle; en tablas de listado, badge junto al badge de estado (verde = pagado, naranja = por pagar).
+
+**Filtro en `SolicitudesPage`:** dropdown "Por pagar / Pagados" visible solo para VISUALIZADOR. Implementado via `pagoFilter` en `SolicitudFiltros` y `setPagoFilter` en `useSolicitudes`.
+
+---
+
+## Cuentas Bancarias
+
+Catálogo de cuentas bancarias por empresa, administrado por ADMIN desde la página de Empresas.
+
+**Tabla `cuenta_bancaria`:** `id`, `proyecto_id` (FK → proyecto), `proyecto_partida_id` (FK → proyecto_partida, nullable), `banco` (BBVA/INTERBANK/BCP/SCOTIABANK/BANBIF/PICHINCHA), `moneda` ('PEN'/'USD'), `tipo` (text), `numero_cuenta` (text), `cci` (text, nullable), `concepto` (text, nullable), `estado` ('Activo'/'Inactivo').
+
+**`CuentasBancariasPanel`** (`src/features/proyecto/components/CuentasBancariasPanel.tsx`) — slide-in desde `ProyectosPage` (botón tarjeta CreditCard por empresa). CRUD completo: listar, crear, editar, eliminar. Disponible solo para ADMIN.
+
+**`getCuentasByProyecto(proyectoId)`** en `cuentaBancariaService.ts` — retorna cuentas activas del proyecto con join de `proyecto_partida(nombre)`. Usado por `PagoModal` para mostrar las opciones de pago.
+
+**21 cuentas cargadas** para: COPISAC, Costazul, Mixxo, Park View, Tinto Magdalena, Parque Fátima.
+
+---
+
+## Power BI
+
+El proyecto puede conectarse a Power BI usando la conexión directa a PostgreSQL de Supabase.
+
+**Parámetros de conexión:**
+- Servidor: `db.gjdixdpprltvujcijvhb.supabase.co`
+- Puerto: `5432`
+- Base de datos: `postgres`
+- Usuario: `postgres` (o un usuario de solo lectura)
+- Modo: DirectQuery o Import
+
+Las tablas y vistas de Supabase son accesibles directamente. Power BI puede leer `solicitud`, `solicitud_arendir`, `solicitud_reembolso`, `caja_chica`, `proyecto`, etc. para generar reportes y dashboards externos.
 
 ---
 
@@ -368,16 +432,18 @@ Consolidación de registros aprobados/autorizados de todos los módulos en un Ex
 - **OC y RxH** — `solicitud` con `estado = 'Aprobado'`. Subtotal de `solicitud_detalle`; IGV 18% solo para OC. Distingue OC vs RxH por `solicitud_tipo.nombre === 'Recibo por Honorarios'`.
 - **A Rendir** — `solicitud_arendir` con `estado = 'Autorizado'`. Monto = `total_reembolso`.
 - **Reembolso** — `solicitud_reembolso` con `estado = 'Autorizado'`. Monto = `total_reembolso`.
+- **Caja Chica** — `caja_chica` con `estado = 'Autorizado'`. Monto = `total_gastos`. Color: púrpura.
 
-**`ReporteRow` interface:** `tipo`, `codigo`, `fecha_solicitud`, `fecha_requerida`, `fecha_aprobada`, `fecha_emision`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para A Rendir/Reembolso), `ruc` (RUC para OC/RxH, DNI para A Rendir/Reembolso), `proyecto`, `partida`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`.
+**`ReporteRow` interface:** `tipo` (`'OC'|'RxH'|'A Rendir'|'Reembolso'|'Caja Chica'`), `codigo`, `fecha_solicitud`, `fecha_requerida`, `fecha_aprobada`, `fecha_emision`, `fecha_pago`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para otros), `ruc` (RUC para OC/RxH, DNI para A Rendir/Reembolso/Caja Chica), `proyecto`, `partida`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`, `archivo_contrato`, `archivo_sustento`, `archivo_cotizacion`, `archivo_factura`, `archivo_otros`.
 
 **Detracción en reportes:** `detraccion` siempre en S/ (SUNAT), sin importar la moneda de la solicitud. `girar_usd` descuenta la detracción en dólares: `total - Math.round(total × porcentaje / 100)`. `girar_pen` descuenta detracción y retención en soles.
 
 **`exportarReporteExcel(rows, filtros, proyectoNombre)`:** ExcelJS workbook con 1 hoja "Reporte":
 - Fila 1: título mergeado, fondo `#003D7D`, fuente blanca.
-- Fila 2: 24 cabeceras (incluye 4 fechas: F.SOLICITUD, F.REQUERIDA, F.APROBADA, F.EMISIÓN; más CENTRO DE COSTO después de EMPRESA), fondo `#1F497D`, fuente blanca bold, freeze panes 1-2. Columna RUC/DNI muestra RUC para OC/RxH y DNI para A Rendir/Reembolso.
-- Filas de datos: coloreadas por tipo (OC=azul tenue, RxH=verde tenue, A Rendir=amarillo tenue, Reembolso=rosa tenue).
-- Última fila: "TOTALES" mergeada en columnas 1-15, sumas de columnas numéricas (16-21), fondo `#D9E1F2`.
+- Fila 2: **30 cabeceras** — #, MÓDULO, CÓDIGO, F.SOLICITUD, F.REQUERIDA, F.APROBADA, F.EMISIÓN, REQUERIDO POR, ÁREA, BENEFICIARIO, DOCUMENTO, RUC/DNI, EMPRESA, CENTRO DE COSTO, CONCEPTO, TOTAL $, TOTAL S/., DETRACCIÓN, RETENCIÓN, GIRAR $, GIRAR S/., BANCO, CUENTA/CCI, CORREO, **F.PAGO**, CONTRATO, SUSTENTO, COTIZACIÓN, FACTURA, OTROS. Fondo `#1F497D`, fuente blanca bold, freeze panes 1-2.
+- Columnas CONTRATO/SUSTENTO/COTIZACIÓN/FACTURA/OTROS muestran `'SI'` o vacío según si existe archivo adjunto.
+- Filas de datos: coloreadas por tipo (OC=azul tenue, RxH=verde tenue, A Rendir=amarillo tenue, Reembolso=rosa tenue, Caja Chica=púrpura tenue).
+- Última fila: "TOTALES" mergeada en columnas 1-15, sumas de columnas numéricas, fondo `#D9E1F2`.
 - Descarga automática como blob `Reporte_{fechaDesde}_{fechaHasta}.xlsx`.
 
 **PostgREST cast pattern en el servicio:** los tipos de retorno de Supabase usan `as unknown as MyType[]` cuando el tipo inferido no coincide con la estructura esperada (joins de FK que PostgREST puede devolver como array o null según el esquema).
@@ -411,8 +477,11 @@ Fondo rotativo de efectivo por empresa para gastos menores (agua, luz, insumos, 
 - `total_gastos` — recalculado por trigger al insertar/editar/eliminar detalles
 - `saldo_actual` — `monto_asignado - total_gastos`
 - `cuenta_bbva` (text, nullable)
-- `estado`: `'Pendiente'` | `'En Revision'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'`
+- `estado`: `'Pendiente'` | `'En Revision'` | `'Evaluado'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'`
 - `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `fecha_creacion`
+- `plan_contable_id` (FK → `plan_contable_brash`, nullable) — asignado por EVALUADOR
+- `usuario_evaluador` (UUID FK, nullable)
+- `fecha_pago` (date, nullable), `cuenta_pago_id` (FK → `cuenta_bancaria`, nullable), `usuario_pago` (UUID FK, nullable)
 
 **Campos de `caja_chica_detalle`:**
 - `id`, `caja_chica_id` (FK, CASCADE), `fecha`, `area_id` (FK a tabla `area` — código de costos)
@@ -421,9 +490,28 @@ Fondo rotativo de efectivo por empresa para gastos menores (agua, luz, insumos, 
 
 **Supabase Storage:** bucket `caja-chica-documentos` — comprobantes por gasto.
 
-**Flujo:** Pendiente → En Revision → Autorizado / Rechazado / Devuelto (sin paso de Evaluado).
+**Flujo:** Pendiente → En Revision → **Evaluado** (plan contable, EVALUADOR) → Autorizado (APROBADOR) / Rechazado / Devuelto.
 
-**Lógica de saldo acumulable:** Al crear nueva caja chica, `getSaldoAnterior(proyectoId)` busca la última autorizada del mismo proyecto y toma su `saldo_actual`. La transferencia = fondo - saldo anterior (solo se repone lo gastado).
+```
+Pendiente
+  ↓ USUARIO/ADMIN → enviar a revisión
+En Revision
+  ├─ EVALUADOR/ADMIN → marcarEvaluadoCajaChica(id, planId, userId) → Evaluado
+  └─ EVALUADOR/ADMIN → devolverDesdeRevisionCajaChica(id, comentario) → Devuelto
+Evaluado
+  ├─ APROBADOR/ADMIN → autorizarCajaChica → Autorizado ✅
+  ├─ APROBADOR/ADMIN → rechazarCajaChica → Rechazado ❌
+  └─ APROBADOR/ADMIN → devolver → Devuelto
+Autorizado
+  └─ VISUALIZADOR → marcarPagado → badge Pagado
+```
+
+**Acciones en `CajaChicaDetallePage`:**
+- VISUALIZADOR en Autorizado (sin `fecha_pago`): "Marcar pagado" (abre `PagoModal`)
+- Badge "Pagado dd/mm/yyyy" en header cuando `fecha_pago` está presente
+- Botón PDF disponible desde En Revision en adelante
+
+**Lógica de saldo acumulable:** Al crear nueva caja chica, `getSaldoAnterior(proyectoId)` busca la última caja chica del mismo proyecto que tenga `fecha_pago IS NOT NULL` (pagada) y toma su `saldo_actual`. La transferencia = fondo - saldo anterior (solo se repone lo gastado). Solo cajas pagadas aportan saldo — una autorizada sin pagar no cuenta.
 
 **CajaChicaPDF** (`@react-pdf/renderer`, landscape A4): título, header (código, responsable, empresa, período, cuenta), resumen financiero (saldo anterior, transferencia, monto asignado, saldo actual, pendiente a reembolsar), tabla de gastos con columna de código de costos (área), total + saldo, dos firmas (responsable + aprobador).
 
@@ -452,7 +540,11 @@ Un proyecto (empresa) puede subdividirse en partidas (centros de costo, ej: COPI
 
 **Tabla `proyecto_partida`:** `id`, `proyecto_id` (FK), `nombre`, `presupuesto_pen` (numeric), `presupuesto_usd` (numeric), `estado` (text, default 'Activo'), `fecha_creacion`. RLS: SELECT para authenticated, INSERT/UPDATE/DELETE solo ADMIN (`EXISTS (SELECT 1 FROM usuario_rol WHERE usuario = auth.uid() AND rol = 1)`). FK `ON DELETE SET NULL` para no afectar solicitudes existentes.
 
-**CRUD:** `src/features/proyecto/services/proyectoService.ts` — `getPartidasByProyecto`, `createPartida`, `updatePartida`, `deletePartida`. Panel: `ProyectoPartidasPanel.tsx` (slide-in desde `ProyectosPage`).
+**CRUD partidas:** `src/features/proyecto/services/proyectoService.ts` — `getPartidasByProyecto`, `createPartida`, `updatePartida`, `deletePartida`. Panel: `ProyectoPartidasPanel.tsx` (slide-in desde `ProyectosPage`).
+
+**`ProyectosPage`** tiene dos paneles slide-in adicionales:
+- `ProyectoPartidasPanel` — gestión de centros de costo (centros de costo/partidas)
+- `CuentasBancariasPanel` — gestión de cuentas bancarias (icono tarjeta, solo ADMIN)
 
 **Integración con solicitudes:** `proyecto_partida_id` (nullable FK) en `solicitud`, `solicitud_arendir`, `solicitud_reembolso`. Seleccionar partida es **obligatorio** cuando el proyecto tiene partidas. Los 3 wizards (`SolicitudNuevaPage`, `ARendirNuevaPage`, `ReembolsoNuevaPage`) cargan partidas con `useEffect` al cambiar proyecto y muestran dropdown condicional.
 
@@ -468,6 +560,8 @@ Funcionalidad que calcula el monto consumido vs presupuesto por proyecto y parti
 - Solicitudes aprobadas (OC con IGV 18%, RxH sin IGV) agrupadas por `proyecto_id` / `proyecto_partida_id`
 - A Rendir autorizados (`total_reembolso`)
 - Reembolso autorizados (`total_reembolso`)
+
+> Caja Chica **no** se incluye actualmente en el consumo de presupuesto ni en Gasto por Área.
 
 **Dónde se muestra:**
 - **`ProyectosTable`** — columna "Consumido" con barra de progreso (verde <80%, amarillo 80-100%, rojo >100%). Solo si `consumo` prop está definida.
