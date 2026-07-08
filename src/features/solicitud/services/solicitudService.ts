@@ -14,7 +14,7 @@ const SOL_SEL = [
   'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
   'numero_factura, monto_total, plan_contable_id, usuario_evaluador, moneda',
   'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
-  'detraccion_id, monto_detraccion, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago',
+  'detraccion_id, monto_detraccion, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, detraccion_pagada, fecha_pago_detraccion',
   'proyecto:proyecto_id(id,nombre,ruc,direccion,presupuesto)',
   'proyecto_partida:proyecto_partida_id(id,nombre,presupuesto_pen,presupuesto_usd)',
   'detraccion:detraccion_id(id,codigo,concepto,porcentaje,monto_minimo)',
@@ -224,6 +224,14 @@ export async function getPlanContable(): Promise<PlanContable[]> {
     .order('tipo_gasto_costo')
   if (error) throw error
   return (data ?? []) as PlanContable[]
+}
+
+export async function marcarDetraccionPagada(id: number, fechaPago: string): Promise<void> {
+  const { error } = await supabase
+    .from('solicitud')
+    .update({ detraccion_pagada: true, fecha_pago_detraccion: fechaPago })
+    .eq('id', id)
+  if (error) throw error
 }
 
 export async function getDetracciones(): Promise<Detraccion[]> {

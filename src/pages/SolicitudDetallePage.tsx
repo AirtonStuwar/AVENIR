@@ -7,7 +7,7 @@ import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
   enviarARevision, cancelarSolicitud, marcarEvaluado, devolverSolicitud, aprobarSolicitud, rechazarSolicitud,
   getArchivosBySolicitud, getArchivoUrl,
-  updateSolicitud, duplicarSolicitud, uploadFirma, getUsuarioById,
+  updateSolicitud, duplicarSolicitud, uploadFirma, getUsuarioById, marcarDetraccionPagada,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
@@ -123,8 +123,11 @@ export default function SolicitudDetallePage() {
   const [confirmCfg,     setConfirmCfg]     = useState<ConfirmCfg>({ title: '', message: '', confirmLabel: 'Confirmar', variant: 'blue' })
 
   // Evaluar modal
-  const [evaluarOpen,    setEvaluarOpen]    = useState(false)
-  const [pagoOpen,       setPagoOpen]       = useState(false)
+  const [evaluarOpen,        setEvaluarOpen]        = useState(false)
+  const [pagoOpen,           setPagoOpen]           = useState(false)
+  const [detPagoOpen,        setDetPagoOpen]        = useState(false)
+  const [detFechaPago,       setDetFechaPago]       = useState('')
+  const [savingDetPago,      setSavingDetPago]      = useState(false)
 
   // Firma modal
   const [firmaOpen,      setFirmaOpen]      = useState(false)
@@ -215,7 +218,9 @@ export default function SolicitudDetallePage() {
   const canAprobar   = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canRechazar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canEncuestar    = isAprobado && !isRxH && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const canMarcarPagado = isAprobado && !solicitud?.fecha_pago && userRole === ROLES.VISUALIZADOR
+  const canMarcarPagado        = isAprobado && !solicitud?.fecha_pago && userRole === ROLES.VISUALIZADOR
+  const canMarcarDetraccionPag = isAprobado && !!solicitud?.detraccion_id && !solicitud?.detraccion_pagada
+                                 && (userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN)
   const canEditFactura  = !isRxH && (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const showFacturaCard = !isRxH && (canEdit || !!solicitud?.numero_factura || !!solicitud?.motivo_factura || !!solicitud?.fecha_emision_factura || archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF'))
 
@@ -396,6 +401,22 @@ export default function SolicitudDetallePage() {
     toast.success('Solicitud marcada como pagada')
     setPagoOpen(false)
     await reload(id!)
+  }
+
+  const handleConfirmDetraccionPago = async () => {
+    if (!solicitud?.id || !detFechaPago) return
+    setSavingDetPago(true)
+    try {
+      await marcarDetraccionPagada(solicitud.id, detFechaPago)
+      toast.success('Detracción marcada como pagada')
+      setDetPagoOpen(false)
+      setDetFechaPago('')
+      await reload(id!)
+    } catch {
+      toast.error('Error al marcar la detracción como pagada')
+    } finally {
+      setSavingDetPago(false)
+    }
   }
 
   const handleAprobar = () => {
@@ -1018,11 +1039,32 @@ export default function SolicitudDetallePage() {
         {/* ── DETRACCIÓN ── */}
         {!isRxH && solicitud.detraccion && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2 flex-wrap">
               <CheckCircle size={15} className="text-amber-600" />
               <h2 className="text-sm font-semibold text-amber-700 uppercase tracking-wide">Detracción</h2>
-              <span className="ml-auto text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full">
+              <span className="text-xs font-semibold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full">
                 {solicitud.detraccion.codigo} — {solicitud.detraccion.porcentaje}%
+              </span>
+              <span className="ml-auto flex items-center gap-2">
+                {solicitud.detraccion_pagada ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                    <CheckCircle size={11} /> Det. Pagada {solicitud.fecha_pago_detraccion
+                      ? new Intl.DateTimeFormat('es-PE', { month: '2-digit', year: 'numeric' }).format(new Date(solicitud.fecha_pago_detraccion + 'T00:00:00'))
+                      : ''}
+                  </span>
+                ) : isAprobado && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">
+                    Por pagar al Banco de la Nación
+                  </span>
+                )}
+                {canMarcarDetraccionPag && (
+                  <button
+                    onClick={() => { setDetFechaPago(''); setDetPagoOpen(true) }}
+                    className="flex items-center gap-1.5 h-7 px-3 rounded-xl bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
+                  >
+                    Marcar detracción pagada
+                  </button>
+                )}
               </span>
             </div>
             <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1055,6 +1097,39 @@ export default function SolicitudDetallePage() {
                 </p>
               </div>
             </div>
+
+            {/* Mini-modal marcar detracción pagada */}
+            {detPagoOpen && (
+              <div className="border-t border-amber-100 bg-amber-50 px-6 py-4 flex flex-wrap items-end gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    Fecha de pago al Banco de la Nación *
+                  </label>
+                  <input
+                    type="date"
+                    value={detFechaPago}
+                    onChange={e => setDetFechaPago(e.target.value)}
+                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setDetPagoOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-all"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmDetraccionPago}
+                    disabled={!detFechaPago || savingDetPago}
+                    className="px-4 py-2 rounded-xl bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-all flex items-center gap-2"
+                  >
+                    {savingDetPago ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : null}
+                    Confirmar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

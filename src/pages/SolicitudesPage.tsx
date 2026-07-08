@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Send, ThumbsUp, X, Loader2, Download } from 'lucide-react'
+import { Send, ThumbsUp, X, Loader2, Download, FileSpreadsheet } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import SolicitudesTable from '../features/solicitud/components/SolicitudesTable'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
@@ -127,6 +127,75 @@ export default function SolicitudesPage() {
     toast.success(`Excel generado con ${selected.length} solicitud${selected.length > 1 ? 'es' : ''}`)
   }
 
+  // ── Excel SPOT Detracciones ───────────────────────────────────
+  const canExportDetracciones = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
+  const selectedConDetraccion = data.filter(s => selectedIds.has(s.id) && s.detraccion_id !== null)
+
+  const handleExportDetracciones = async () => {
+    const solicitudesDetr = data.filter(s => selectedIds.has(s.id) && s.detraccion_id !== null)
+    if (solicitudesDetr.length === 0) {
+      toast.error('Ninguna solicitud seleccionada tiene detracción')
+      return
+    }
+
+    const sinFecha = solicitudesDetr.filter(s => !s.fecha_emision_factura)
+    if (sinFecha.length > 0) {
+      toast.error(`${sinFecha.length} solicitud(es) no tienen fecha de emisión de factura: ${sinFecha.map(s => s.codigo ?? `#${s.id}`).join(', ')}`)
+      return
+    }
+
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Detracciones SPOT')
+
+    // Cabecera
+    const headers = [
+      'RUC DEL PROVEEDOR', 'TIPO DE DOCUMENTO', 'SERIE', 'NUMERO',
+      'FECHA DE EMISION', 'IMPORTE TOTAL', 'PORCENTAJE DETRACCIÓN',
+      'IMPORTE DETRACCIÓN', 'CODIGO DE SERVICIO',
+      'PERIODO TRIBUTARIO', 'OBSERVACION',
+    ]
+    const headerRow = ws.addRow(headers)
+    headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F497D' } }
+    ws.columns = [
+      { width: 18 }, { width: 20 }, { width: 10 }, { width: 14 },
+      { width: 16 }, { width: 16 }, { width: 22 }, { width: 18 }, { width: 22 }, { width: 18 }, { width: 20 },
+    ]
+
+    for (const s of solicitudesDetr) {
+      const fechaEmision = new Date(s.fecha_emision_factura! + 'T00:00:00')
+      const [serie, numero] = s.numero_factura?.includes('-')
+        ? s.numero_factura.split('-')
+        : ['', s.numero_factura ?? '']
+      const periodoTributario = fechaEmision.toLocaleDateString('es-PE', { month: '2-digit', year: 'numeric' })
+      const importeTotal = s.monto_total ?? 0
+
+      ws.addRow([
+        s.ruc ?? '',
+        '01',
+        serie,
+        numero,
+        fechaEmision.toLocaleDateString('es-PE'),
+        importeTotal,
+        s.detraccion?.porcentaje ?? '',
+        Math.round(s.monto_detraccion ?? 0),
+        s.detraccion?.codigo ?? '',
+        periodoTributario,
+        '',
+      ])
+    }
+
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `detracciones_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`Excel SPOT generado con ${solicitudesDetr.length} registro(s)`)
+  }
+
   // ── Cancelar individual ───────────────────────────────────────
   const canCancelFromList = userRole === ROLES.ADMIN || userRole === ROLES.USUARIO
 
@@ -199,6 +268,16 @@ export default function SolicitudesPage() {
               className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-teal-600 text-white text-xs font-semibold hover:bg-teal-700 disabled:opacity-50 transition-colors"
             >
               <Download size={12} /> Descargar Excel ({selectedIds.size})
+            </button>
+          )}
+
+          {canExportDetracciones && selectedConDetraccion.length > 0 && (
+            <button
+              onClick={handleExportDetracciones}
+              disabled={bulkLoading}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 disabled:opacity-50 transition-colors"
+            >
+              <FileSpreadsheet size={12} /> Excel Detracciones ({selectedConDetraccion.length})
             </button>
           )}
 
