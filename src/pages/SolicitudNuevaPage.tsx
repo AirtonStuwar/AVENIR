@@ -279,7 +279,7 @@ export default function SolicitudNuevaPage() {
   }
 
   const subtotal     = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-  const igv          = subtotal * 0.18
+  const igv          = isRxH ? 0 : subtotal * 0.18
   const totalGeneral = subtotal + igv
 
   const inp = (err?: string) => (err ? INPUT_ERR : INPUT)
@@ -711,15 +711,19 @@ export default function SolicitudNuevaPage() {
                         </td>
                         <td />
                       </tr>
-                      <tr>
-                        <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV (18%)</td>
-                        <td className="px-5 py-2 text-right text-sm text-gray-600">
-                          S/ {igv.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td />
-                      </tr>
+                      {!isRxH && (
+                        <tr>
+                          <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV (18%)</td>
+                          <td className="px-5 py-2 text-right text-sm text-gray-600">
+                            S/ {igv.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td />
+                        </tr>
+                      )}
                       <tr className="border-t border-gray-200">
-                        <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">Total general:</td>
+                        <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">
+                          {isRxH ? 'Total:' : 'Total general:'}
+                        </td>
                         <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">
                           S/ {totalGeneral.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
                         </td>
@@ -824,7 +828,7 @@ export default function SolicitudNuevaPage() {
                         : 'bg-white text-gray-600 border-gray-200 hover:border-green-400 hover:text-green-700'
                     }`}
                   >
-                    Sí aplica — subiré la constancia
+                    Sí tiene — subiré la constancia
                   </button>
                   <button
                     onClick={() => setAplicaSuspension(false)}
@@ -834,7 +838,7 @@ export default function SolicitudNuevaPage() {
                         : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
                     }`}
                   >
-                    No aplica
+                    No tiene
                   </button>
                 </div>
                 {aplica_suspension === null && (

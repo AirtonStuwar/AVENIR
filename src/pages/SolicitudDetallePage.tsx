@@ -657,7 +657,7 @@ export default function SolicitudDetallePage() {
             {isRxH && solicitud.aplica_suspension !== null && (
               <InfoField
                 label="Suspensión retención"
-                value={solicitud.aplica_suspension ? 'Sí aplica — constancia adjunta' : 'No aplica'}
+                value={solicitud.aplica_suspension ? 'Sí tiene — constancia adjunta' : 'No tiene'}
               />
             )}
           </div>
