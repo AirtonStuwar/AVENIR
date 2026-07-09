@@ -223,8 +223,6 @@ export default function SolicitudNuevaPage() {
         const nueva = await createSolicitud({
           ...payload,
           motivo_factura: null,
-          fecha_emision_factura: null,
-          fecha_vencimiento_factura: null,
           usuario_creador: user?.id ?? null,
         })
         setSolicitudId(nueva.id)

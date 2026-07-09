@@ -251,7 +251,7 @@ export default function SolicitudesTable({
                     />
                   </th>
                 )}
-                {['Código', 'Razón social', 'RUC', 'Empresa', 'Fecha pedido', 'Venc. Factura', 'Creado por', 'Área', 'Estado', ''].map(h => (
+                {['Código', 'Razón social', 'RUC', 'Empresa', 'Fecha pedido', 'Vencimiento', 'Creado por', 'Área', 'Estado', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -394,7 +394,7 @@ export default function SolicitudesTable({
                     <p className="text-xs text-gray-700">{fmtDate(s.fecha_pedido)}</p>
                   </div>
                   <div>
-                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Venc. Factura</p>
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Vencimiento</p>
                     {s.fecha_vencimiento_factura
                       ? <p className="text-xs font-medium text-orange-700">{fmtDate(s.fecha_vencimiento_factura)}</p>
                       : <p className="text-xs text-gray-300">—</p>
