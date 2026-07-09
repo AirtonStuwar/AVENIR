@@ -90,8 +90,10 @@ export default function SolicitudNuevaPage() {
   )
   const [fecha_pedido,    setFechaPedido]    = useState('')
   const [fecha_requerida, setFechaRequerida] = useState('')
-  const [numero_rxh,       setNumeroRxh]       = useState('')
-  const [periodo_servicio, setPeriodoServicio]  = useState('')
+  const [numero_rxh,              setNumeroRxh]              = useState('')
+  const [periodo_servicio,        setPeriodoServicio]         = useState('')
+  const [fecha_emision_rxh,       setFechaEmisionRxh]        = useState('')
+  const [fecha_vencimiento_rxh,   setFechaVencimientoRxh]    = useState('')
   const [aplica_suspension, setAplicaSuspension] = useState<boolean | null>(null)
   const [tipoCambio,        setTipoCambio]       = useState<number | null>(null)
 
@@ -209,6 +211,8 @@ export default function SolicitudNuevaPage() {
         moneda,
         numero_rxh: isRxH ? (numero_rxh || null) : null,
         periodo_servicio: isRxH && periodo_servicio ? periodo_servicio + '-01' : null,
+        fecha_emision_factura: isRxH ? (fecha_emision_rxh || null) : null,
+        fecha_vencimiento_factura: isRxH ? (fecha_vencimiento_rxh || null) : null,
       }
 
       if (solicitudId) {
@@ -530,6 +534,18 @@ export default function SolicitudNuevaPage() {
                         value={periodo_servicio}
                         onChange={(e) => { setPeriodoServicio(e.target.value); setErrors((x) => ({ ...x, periodo_servicio: '' })) }} />
                       {errors.periodo_servicio && <p className="mt-1 text-xs text-red-500">{errors.periodo_servicio}</p>}
+                    </div>
+                    <div>
+                      <label className={LABEL}>Fecha de emisión</label>
+                      <input className={INPUT} type="date"
+                        value={fecha_emision_rxh}
+                        onChange={e => setFechaEmisionRxh(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className={LABEL}>Fecha de vencimiento</label>
+                      <input className={INPUT} type="date"
+                        value={fecha_vencimiento_rxh}
+                        onChange={e => setFechaVencimientoRxh(e.target.value)} />
                     </div>
                   </div>
                 </div>

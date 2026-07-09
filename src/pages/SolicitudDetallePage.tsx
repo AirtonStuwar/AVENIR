@@ -654,6 +654,8 @@ export default function SolicitudDetallePage() {
             <InfoField label="Moneda"          value={solicitud.moneda === 'USD' ? '$ Dólares (USD)' : 'S/ Soles (PEN)'} />
             {isRxH && <InfoField label="N° Recibo (RxH)" value={solicitud.numero_rxh} />}
             {isRxH && <InfoField label="Período de servicio" value={solicitud.periodo_servicio ? new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' }).format(new Date(solicitud.periodo_servicio + 'T00:00:00')) : null} />}
+            {isRxH && <InfoField label="Fecha de emisión"     value={fmtDate(solicitud.fecha_emision_factura)} />}
+            {isRxH && <InfoField label="Fecha de vencimiento" value={fmtDate(solicitud.fecha_vencimiento_factura)} />}
             {isRxH && solicitud.aplica_suspension !== null && (
               <InfoField
                 label="Suspensión retención"
