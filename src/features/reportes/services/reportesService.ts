@@ -434,7 +434,7 @@ const TIPO_COLOR: Record<string, string> = {
 }
 
 const fmtDate = (s: string | null) =>
-  s ? new Intl.DateTimeFormat('es-PE').format(new Date(s)) : ''
+  s ? new Intl.DateTimeFormat('es-PE').format(new Date(s.includes('T') ? s : s + 'T00:00:00')) : ''
 
 const fmtNum = (n: number) =>
   n === 0 ? '' : n.toLocaleString('es-PE', { minimumFractionDigits: 2 })
