@@ -51,14 +51,16 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
     setDetraccionSel(null)
     setTcManual('')
     setLoading(true)
-    Promise.all([
-      getPlanContable(),
-      isOC ? getDetracciones() : Promise.resolve([]),
-      isOC && isUSD ? getTipoCambioUSD() : Promise.resolve(null),
-    ])
-      .then(([plan, det, tc]) => { setOpciones(plan); setDetracciones(det); if (tc) setTipoCambio(tc) })
-      .catch(() => toast.error('Error al cargar datos de evaluación'))
-      .finally(() => setLoading(false))
+    const loads: Promise<unknown>[] = [
+      getPlanContable().then(plan => setOpciones(plan)).catch(() => toast.error('Error al cargar plan contable')),
+      isOC
+        ? getDetracciones().then(det => setDetracciones(det)).catch(() => {})
+        : Promise.resolve(),
+      isOC && isUSD
+        ? getTipoCambioUSD().then(tc => { if (tc) setTipoCambio(tc) }).catch(() => {})
+        : Promise.resolve(),
+    ]
+    Promise.all(loads).finally(() => setLoading(false))
   }, [open, isOC, isUSD])
 
   // Cerrar dropdown al hacer clic fuera
