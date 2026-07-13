@@ -28,7 +28,7 @@ import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import logoUrl from '../assets/avenir-logo.png'
 
 const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-const fmtDate = (s: string | null) => s ? new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(s + 'T00:00:00')) : '—'
+const fmtDate = (s: string | null) => s ? new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(s.includes('T') ? s : s + 'T00:00:00')) : '—'
 
 const ESTADO_BADGE: Record<string, string> = {
   'Pendiente': 'bg-gray-100 text-gray-600',
@@ -348,7 +348,7 @@ export default function CajaChicaDetallePage() {
             )}
             {cc.fecha_pago && (
               <span className="flex items-center gap-1 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
-                Pagado {new Date(cc.fecha_pago).toLocaleDateString('es-PE')}
+                Pagado {fmtDate(cc.fecha_pago)}
               </span>
             )}
             {canEnviar && (

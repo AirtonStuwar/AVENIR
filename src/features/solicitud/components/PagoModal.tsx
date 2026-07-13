@@ -16,12 +16,16 @@ export default function PagoModal({ open, proyectoId, onConfirm, onCancel }: Pro
   const [loading, setLoading]     = useState(false)
   const [saving, setSaving]       = useState(false)
   const [cuentaId, setCuentaId]   = useState<number | null>(null)
-  const [fechaPago, setFechaPago] = useState(new Date().toISOString().slice(0, 10))
+  const localToday = () => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  const [fechaPago, setFechaPago] = useState(localToday())
 
   useEffect(() => {
     if (!open || !proyectoId) return
     setCuentaId(null)
-    setFechaPago(new Date().toISOString().slice(0, 10))
+    setFechaPago(localToday())
     setLoading(true)
     getCuentasByProyecto(proyectoId)
       .then(setCuentas)

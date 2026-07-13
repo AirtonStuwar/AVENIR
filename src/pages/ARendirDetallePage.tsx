@@ -566,7 +566,7 @@ export default function ARendirDetallePage() {
           )}
           {solicitud.fecha_pago && (
             <span className="flex items-center gap-1 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
-              Pagado {new Date(solicitud.fecha_pago).toLocaleDateString('es-PE')}
+              Pagado {fmtDate(solicitud.fecha_pago)}
             </span>
           )}
 

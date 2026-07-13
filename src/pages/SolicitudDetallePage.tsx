@@ -56,7 +56,7 @@ function InfoField({ label, value }: { label: string; value: string | number | n
 
 function fmtDate(d: string | null) {
   if (!d) return '—'
-  return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d + 'T00:00:00'))
+  return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d.includes('T') ? d : d + 'T00:00:00'))
 }
 
 function fmtMoney(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
@@ -580,7 +580,7 @@ export default function SolicitudDetallePage() {
           )}
           {solicitud?.fecha_pago && (
             <span className="flex items-center gap-1 h-8 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
-              Pagado {new Date(solicitud.fecha_pago).toLocaleDateString('es-PE')}
+              Pagado {fmtDate(solicitud.fecha_pago)}
             </span>
           )}
           {canDuplicar && (
