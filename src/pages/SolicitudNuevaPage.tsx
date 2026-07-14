@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, CheckCircle, Plus, Trash2, Pencil, Loader2 } from 'lucide-react'
+import { ArrowLeft, CheckCircle, Plus, Trash2, Pencil, Loader2, Search } from 'lucide-react'
 import { supabase } from '../api/supabase'
 import { getProyectos, getPartidasByProyecto, getConsumoByProyectos } from '../features/proyecto/services/proyectoService'
 import type { ProyectoPartida } from '../features/proyecto/types/proyecto'
@@ -14,13 +14,14 @@ import {
   deleteDetalle,
   getDetallesBySolicitud,
   getFormasPago,
+  getPlanContable,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
 import type { SolicitudArchivo } from '../features/solicitud/types/solicitud'
 import { useAuthStore } from '../store/authStore'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
-import type { SolicitudDetalle, SolicitudFormaPago } from '../features/solicitud/types/solicitud'
+import type { SolicitudDetalle, SolicitudFormaPago, PlanContable, SolicitudUpdate } from '../features/solicitud/types/solicitud'
 import { buscarRuc, getTipoCambioUSD } from '../features/solicitud/services/rucService'
 import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
 
@@ -56,6 +57,14 @@ export default function SolicitudNuevaPage() {
   const [fechaEmisionFactura,   setFechaEmisionFactura]   = useState('')
   const [fechaVencimFactura,    setFechaVencimFactura]    = useState('')
   const [savingFactura,         setSavingFactura]         = useState(false)
+
+  // Plan Contable (step 4)
+  const [planContableOpciones,  setPlanContableOpciones]  = useState<PlanContable[]>([])
+  const [planContableStep,      setPlanContableStep]      = useState<PlanContable | null>(null)
+  const [planContableSearch,    setPlanContableSearch]    = useState('')
+  const [planContableDropOpen,  setPlanContableDropOpen]  = useState(false)
+  const [loadingPlanContable,   setLoadingPlanContable]   = useState(false)
+
   const [savingForm,    setSavingForm]    = useState(false)
   const [errors,        setErrors]        = useState<Record<string, string>>({})
   const [rucLoading,    setRucLoading]    = useState(false)
@@ -252,6 +261,15 @@ export default function SolicitudNuevaPage() {
     if (step !== 'archivos' || moneda !== 'USD') return
     getTipoCambioUSD().then(setTipoCambio).catch(() => setTipoCambio(null))
   }, [step, moneda])
+
+  useEffect(() => {
+    if (step !== 'factura') return
+    setLoadingPlanContable(true)
+    getPlanContable()
+      .then(setPlanContableOpciones)
+      .catch(() => toast.error('Error al cargar plan contable'))
+      .finally(() => setLoadingPlanContable(false))
+  }, [step])
 
   const openAdd  = () => { setEditingDet(null); setModalOpen(true) }
   const openEdit = (d: SolicitudDetalle) => { setEditingDet(d); setModalOpen(true) }
@@ -789,17 +807,6 @@ export default function SolicitudNuevaPage() {
           // Para RxH que supera umbral: requiere seleccionar aplica/no aplica antes de continuar
           const puedeAvanzar = docsCompletos && (!superaUmbral || aplica_suspension !== null)
 
-          const handleFinalizar = async () => {
-            if (isRxH && solicitudId) {
-              try {
-                await updateSolicitud(solicitudId, {
-                  aplica_suspension: superaUmbral ? (aplica_suspension ?? false) : null,
-                })
-              } catch { /* no bloqueante */ }
-            }
-            navigate(`/solicitudes/${solicitudId}`)
-          }
-
           return (
           <>
             <div className="flex items-center gap-3 px-5 py-4 bg-blue-50 border border-blue-200 rounded-2xl">
@@ -886,117 +893,175 @@ export default function SolicitudNuevaPage() {
                 </span>
               </div>
               <button
-                onClick={() => isRxH ? handleFinalizar() : setStep('factura')}
+                onClick={async () => {
+                  if (isRxH && solicitudId) {
+                    try {
+                      await updateSolicitud(solicitudId, {
+                        aplica_suspension: superaUmbral ? (aplica_suspension ?? false) : null,
+                      })
+                    } catch { /* no bloqueante */ }
+                  }
+                  setStep('factura')
+                }}
                 disabled={!puedeAvanzar}
                 className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
-                {isRxH ? 'Finalizar →' : 'Continuar →'}
+                Continuar →
               </button>
             </div>
           </>
           )
         })()}
 
-        {/* ── STEP 4: FACTURA ── */}
-        {step === 'factura' && solicitudId && (() => {
-          const facturaValida = !!numeroFactura.trim() && !!motivoFacturaStep.trim() && !!fechaEmisionFactura && !!fechaVencimFactura
-          return (
+        {/* ── STEP 4: PLAN CONTABLE + FACTURA ── */}
+        {step === 'factura' && solicitudId && (
           <>
             <div className="flex items-center gap-3 px-5 py-4 bg-[#003D7D]/[0.05] border border-[#003D7D]/20 rounded-2xl">
               <CheckCircle size={20} className="text-[#003D7D] shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-[#003D7D]">Datos de la factura — obligatorio</p>
-                <p className="text-xs text-[#003D7D]/70">Completa todos los campos para finalizar la solicitud. Los archivos de factura son opcionales.</p>
+                <p className="text-sm font-semibold text-[#003D7D]">
+                  Plan contable{!isRxH ? ' y datos de factura' : ''}
+                </p>
+                <p className="text-xs text-[#003D7D]/70">
+                  Puedes completar o editar estos datos desde el detalle de la solicitud. El plan contable es obligatorio para enviar a revisión.
+                </p>
               </div>
             </div>
 
-            {/* Archivos de factura */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Archivos de factura</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Ambos son opcionales</p>
+            {/* Plan Contable */}
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-100 rounded-t-2xl">
+                <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Plan contable</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Requerido para enviar a revisión — puedes agregarlo después desde el detalle</p>
               </div>
-              <div className="p-6">
-                <SolicitudArchivos
-                  solicitudId={solicitudId}
-                  editable={true}
-                  onChange={setArchivos}
-                  tiposVisibles={['Factura XML', 'Factura PDF']}
-                />
+              <div className="px-6 py-5 relative">
+                <label className={LABEL}>Tipo de gasto / costo</label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={planContableSearch}
+                    onChange={e => { setPlanContableSearch(e.target.value); setPlanContableStep(null); setPlanContableDropOpen(true) }}
+                    onFocus={() => setPlanContableDropOpen(true)}
+                    onBlur={() => setTimeout(() => setPlanContableDropOpen(false), 150)}
+                    placeholder={loadingPlanContable ? 'Cargando…' : 'Buscar tipo de gasto…'}
+                    disabled={loadingPlanContable}
+                    className="w-full pl-8 pr-3 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50
+                      focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white
+                      disabled:opacity-50 transition-all"
+                  />
+                  {planContableDropOpen && (() => {
+                    const q = planContableSearch.trim().toLowerCase()
+                    const filt = planContableOpciones.filter(o =>
+                      !q
+                      || (o.tipo_gasto_costo      ?? '').toLowerCase().includes(q)
+                      || (o.nombre_cuenta_contable ?? '').toLowerCase().includes(q)
+                      || (o.codigo_starsoft        ?? '').toLowerCase().includes(q)
+                    )
+                    if (filt.length > 0) return (
+                      <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto divide-y divide-gray-50">
+                        {filt.map(op => (
+                          <li key={op.id}
+                            onMouseDown={() => { setPlanContableStep(op); setPlanContableSearch(op.tipo_gasto_costo ?? ''); setPlanContableDropOpen(false) }}
+                            className="px-4 py-2.5 cursor-pointer hover:bg-[#003D7D]/5 transition-colors">
+                            <p className="text-sm font-medium text-gray-800">{op.tipo_gasto_costo}</p>
+                            {op.codigo_starsoft && <p className="text-xs text-gray-400 mt-0.5">{op.codigo_starsoft}</p>}
+                          </li>
+                        ))}
+                      </ul>
+                    )
+                    if (q) return (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3">
+                        <p className="text-sm text-gray-400 italic">Sin resultados para "{q}"</p>
+                      </div>
+                    )
+                    return null
+                  })()}
+                </div>
+                {planContableStep && (
+                  <div className="mt-2 flex items-start gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl">
+                    <CheckCircle size={14} className="text-green-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-green-800">{planContableStep.tipo_gasto_costo}</p>
+                      {planContableStep.codigo_starsoft && <p className="text-xs text-green-600">{planContableStep.codigo_starsoft}</p>}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Datos de la factura */}
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100">
-                <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Datos de la factura</h2>
-                <p className="text-xs text-gray-400 mt-0.5">Todos los campos son obligatorios <span className="text-red-500">*</span></p>
-              </div>
-              <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className={LABEL}>N° de Factura <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    value={numeroFactura}
-                    onChange={e => setNumeroFactura(e.target.value)}
-                    placeholder="Ej: F001-00123"
-                    className={INPUT}
-                  />
+            {/* Factura (solo OC) */}
+            {!isRxH && (
+              <>
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100">
+                    <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Archivos de factura</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Ambos son opcionales</p>
+                  </div>
+                  <div className="p-6">
+                    <SolicitudArchivos
+                      solicitudId={solicitudId}
+                      editable={true}
+                      onChange={setArchivos}
+                      tiposVisibles={['Factura XML', 'Factura PDF']}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className={LABEL}>Motivo de la factura <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    value={motivoFacturaStep}
-                    onChange={e => setMotivoFacturaStep(e.target.value)}
-                    placeholder="Concepto o descripción de la factura"
-                    className={INPUT}
-                  />
+
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-100">
+                    <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Datos de la factura</h2>
+                    <p className="text-xs text-gray-400 mt-0.5">Opcionales — puedes completarlos desde el detalle de la solicitud</p>
+                  </div>
+                  <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className={LABEL}>N° de Factura</label>
+                      <input type="text" value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)}
+                        placeholder="Ej: F001-00123" className={INPUT} />
+                    </div>
+                    <div>
+                      <label className={LABEL}>Motivo de la factura</label>
+                      <input type="text" value={motivoFacturaStep} onChange={e => setMotivoFacturaStep(e.target.value)}
+                        placeholder="Concepto o descripción de la factura" className={INPUT} />
+                    </div>
+                    <div>
+                      <label className={LABEL}>Fecha de emisión</label>
+                      <input type="date" value={fechaEmisionFactura} onChange={e => setFechaEmisionFactura(e.target.value)} className={INPUT} />
+                    </div>
+                    <div>
+                      <label className={LABEL}>Fecha de vencimiento</label>
+                      <input type="date" value={fechaVencimFactura} onChange={e => setFechaVencimFactura(e.target.value)} className={INPUT} />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <label className={LABEL}>Fecha de emisión <span className="text-red-500">*</span></label>
-                  <input
-                    type="date"
-                    value={fechaEmisionFactura}
-                    onChange={e => setFechaEmisionFactura(e.target.value)}
-                    className={INPUT}
-                  />
-                </div>
-                <div>
-                  <label className={LABEL}>Fecha de vencimiento <span className="text-red-500">*</span></label>
-                  <input
-                    type="date"
-                    value={fechaVencimFactura}
-                    onChange={e => setFechaVencimFactura(e.target.value)}
-                    className={INPUT}
-                  />
-                </div>
-              </div>
-            </div>
+              </>
+            )}
 
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
               <button onClick={() => setStep('archivos')}
                 className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
                 ← Atrás
               </button>
-              {!facturaValida && (
-                <p className="mx-auto text-xs text-gray-400">Completa todos los campos obligatorios para finalizar.</p>
+              {!planContableStep && (
+                <p className="mx-auto text-xs text-amber-600 font-medium px-2">Sin plan contable — agrégalo desde el detalle antes de enviar a revisión</p>
               )}
               <button
                 onClick={async () => {
                   setSavingFactura(true)
                   try {
-                    await updateSolicitud(solicitudId, {
-                      numero_factura:            numeroFactura.trim()      || null,
-                      motivo_factura:            motivoFacturaStep.trim()  || null,
-                      fecha_emision_factura:     fechaEmisionFactura       || null,
-                      fecha_vencimiento_factura: fechaVencimFactura        || null,
-                    })
+                    const upd: SolicitudUpdate = { plan_contable_id: planContableStep?.id ?? null }
+                    if (!isRxH) {
+                      upd.numero_factura            = numeroFactura.trim()     || null
+                      upd.motivo_factura            = motivoFacturaStep.trim() || null
+                      upd.fecha_emision_factura     = fechaEmisionFactura      || null
+                      upd.fecha_vencimiento_factura = fechaVencimFactura       || null
+                    }
+                    await updateSolicitud(solicitudId, upd)
                   } catch { /* silencioso */ }
                   finally { setSavingFactura(false) }
-                  navigate('/solicitudes')
+                  navigate(`/solicitudes/${solicitudId}`)
                 }}
-                disabled={savingFactura || !facturaValida}
+                disabled={savingFactura}
                 className="px-6 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {savingFactura
@@ -1006,8 +1071,7 @@ export default function SolicitudNuevaPage() {
               </button>
             </div>
           </>
-          )
-        })()}
+        )}
       </div>
 
       {/* Modal agregar / editar detalle */}

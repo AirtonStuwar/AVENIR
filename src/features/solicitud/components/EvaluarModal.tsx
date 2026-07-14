@@ -12,6 +12,7 @@ interface Props {
   isOC?: boolean
   totalSolicitud?: number
   moneda?: 'PEN' | 'USD'
+  planContableActual?: PlanContable | null
   onConfirm: (planContableId: number, porcentajeRetencion?: number, detraccionId?: number, montoDetraccion?: number) => Promise<void>
   onCancel: () => void
 }
@@ -22,7 +23,7 @@ const OPCIONES_RETENCION = [
   { label: '8%', value: 8 },
 ]
 
-export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, totalSolicitud = 0, moneda = 'PEN', onConfirm, onCancel }: Props) {
+export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, totalSolicitud = 0, moneda = 'PEN', planContableActual, onConfirm, onCancel }: Props) {
   const [opciones,      setOpciones]      = useState<PlanContable[]>([])
   const [detracciones,  setDetracciones]  = useState<Detraccion[]>([])
   const [loading,       setLoading]       = useState(false)
@@ -44,8 +45,8 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
   // Cargar opciones al abrir
   useEffect(() => {
     if (!open) return
-    setSelected(null)
-    setSearch('')
+    setSelected(planContableActual ?? null)
+    setSearch(planContableActual?.tipo_gasto_costo ?? '')
     setDropOpen(false)
     setRetencion(null)
     setDetraccionSel(null)
@@ -61,7 +62,7 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
         : Promise.resolve(),
     ]
     Promise.all(loads).finally(() => setLoading(false))
-  }, [open, isOC, isUSD])
+  }, [open, isOC, isUSD, planContableActual])
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {

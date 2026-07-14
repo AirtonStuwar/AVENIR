@@ -88,7 +88,7 @@ The service caches estado IDs in memory to avoid repeated lookups (`estado_soli`
    - OC: Cotización y Sustento siempre obligatorios. Contrato obligatorio solo si total con IGV ≥ S/ 3,500 (para USD se convierte con TC SUNAT); opcional si < S/ 3,500. El TC se fetch automáticamente al entrar al Step 3 cuando `moneda === 'USD'`.
    - RxH: Sustento, Recibo Honorario (required). Si el subtotal ≥ S/ 1,500 (o equivalente en USD via tipo de cambio SUNAT), aparece toggle **"Suspensión de retenciones"** (Sí tiene / No tiene). Si "Sí tiene", también muestra tipo `Suspension` para subir el archivo. El botón "Continuar" queda bloqueado hasta que se elija una opción. Al finalizar guarda `aplica_suspension` en `solicitud`.
    - El TC se fetch en Step 3 para `moneda === 'USD'` (tanto OC como RxH).
-4. **Factura** (optional) — upload Factura XML y/o PDF; fill N° Factura, Motivo de factura, Fecha de emisión, Fecha de vencimiento. "Omitir y finalizar" skips saving.
+4. **Plan contable y Factura** — searchable combobox para Plan Contable (ambos OC y RxH); para OC también muestra archivos de factura (XML/PDF) y campos de datos de factura. Todo opcional en el wizard. "Finalizar" siempre habilitado; guarda `plan_contable_id` (si seleccionado) y datos de factura (si OC). Navega a `/solicitudes/:id` al finalizar. El plan contable es obligatorio antes de enviar a revisión.
 
 Step state is local to the page. The solicitud record is created at the end of Step 1; subsequent steps update it in place. Si el usuario abandona el wizard después del Step 1 o 2, puede completar documentos y datos de factura directamente desde el detalle de la solicitud (`/solicitudes/:id`).
 
@@ -144,10 +144,16 @@ Cada función de servicio en `dashboardService.ts` hace sus propias queries opti
 - Datos provienen de `proveedor` + `encuesta_proveedor` via `getProveedorConMetricas()` en `proveedorService.ts`.
 - `EncuestaProveedorForm` aparece en `SolicitudDetallePage` cuando la solicitud está **Aprobada** y el usuario es el creador o ADMIN. Permite crear o editar la encuesta de satisfacción del proveedor (4 criterios 1-5 + recomendaría + comentarios).
 
-**Plan Contable (`plan_contable_brash` table):** catalog table used by the EVALUADOR to categorize each solicitud. Fields: `id`, `tipo_gasto_costo`, `codigo_starsoft`, `cuenta_contable_2020_starsoft`, `nombre_cuenta_contable`, `partida_presupuestal`, `partida_presupuesta_n1`, `partida_presupuesta_n2`. RLS policy: SELECT for authenticated users. Service function: `getPlanContable()` returns all rows ordered by `tipo_gasto_costo`.
+**Plan Contable (`plan_contable_brash` table):** catalog table used to categorize each solicitud. Fields: `id`, `tipo_gasto_costo`, `codigo_starsoft`, `cuenta_contable_2020_starsoft`, `nombre_cuenta_contable`, `partida_presupuestal`, `partida_presupuesta_n1`, `partida_presupuesta_n2`. RLS policy: SELECT for authenticated users. Service function: `getPlanContable()` returns all rows ordered by `tipo_gasto_costo`.
 
-**EvaluarModal** (`src/features/solicitud/components/EvaluarModal.tsx`) — modal shown to EVALUADOR/ADMIN when marking a solicitud as Evaluado. Props: `isRxH?`, `isOC?`, `totalSolicitud?`, `moneda?` ('PEN'|'USD'). Contains:
-1. Searchable combobox for Plan Contable (mandatory). Filters across `tipo_gasto_costo`, `nombre_cuenta_contable`, `codigo_starsoft`.
+**Plan Contable asignado por el USUARIO** (solo módulo Solicitudes):
+- El usuario lo selecciona en **Step 4 del wizard** (searchable combobox). Es opcional para terminar el wizard, pero **obligatorio para enviar a revisión** (`canEnviar` verifica `!!solicitud.plan_contable_id`).
+- Si no lo selecciona en el wizard, puede agregarlo desde el **detalle de la solicitud** mientras esté en Pendiente (card editable con combobox + botón "Guardar plan contable"). `handleSavePlanContable` llama a `updateSolicitud` y luego `reload`.
+- El **EVALUADOR puede corregirlo** en `EvaluarModal` — el combobox se pre-llena con `planContableActual` (el valor ya guardado por el usuario). `onConfirm` sigue recibiendo el `planContableId` definitivo.
+- Aplica **solo a Solicitudes** (no a A Rendir, Reembolso ni Caja Chica — esos módulos no tienen `plan_contable_id`).
+
+**EvaluarModal** (`src/features/solicitud/components/EvaluarModal.tsx`) — modal shown to EVALUADOR/ADMIN when marking a solicitud as Evaluado. Props: `isRxH?`, `isOC?`, `totalSolicitud?`, `moneda?` ('PEN'|'USD'), `planContableActual?` (pre-fills from user's selection). Contains:
+1. Searchable combobox for Plan Contable (mandatory). Pre-filled with `planContableActual` when modal opens. EVALUADOR can correct the user's selection. Filters across `tipo_gasto_costo`, `nombre_cuenta_contable`, `codigo_starsoft`.
 2. **Retención IR** (only when `isRxH`): 3 pill buttons — 0% exonerado, 3%, 8%. Mandatory for RxH.
 3. **Tipo de cambio** (only when `isOC` AND `moneda === 'USD'`): input numérico pre-llenado con TC venta SUNAT (`getTipoCambioUSD()`), editable. Convierte el total a soles: `totalEnSoles = totalUSD × TC`. Muestra conversión inline.
 4. **Detracción** (only when `isOC` AND `totalEnSoles > d.monto_minimo` for at least one concept): pill buttons, one per detracción disponible. Optional — clicking same button deselects. Monto calculado en soles con `Math.round()` (sin decimales). Para USD muestra la fórmula completa: `($ total × TC × %)`.

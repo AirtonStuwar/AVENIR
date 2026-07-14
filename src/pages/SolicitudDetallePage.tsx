@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown, Search } from 'lucide-react'
 import { pdf } from '@react-pdf/renderer'
 import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
   enviarARevision, cancelarSolicitud, marcarEvaluado, devolverSolicitud, aprobarSolicitud, rechazarSolicitud,
   getArchivosBySolicitud, getArchivoUrl,
   updateSolicitud, duplicarSolicitud, uploadFirma, getUsuarioById, marcarDetraccionPagada,
+  getPlanContable,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
@@ -27,7 +28,7 @@ import { useAuthStore } from '../store/authStore'
 import { getConsumoByProyectos } from '../features/proyecto/services/proyectoService'
 import type { Consumo } from '../features/proyecto/services/proyectoService'
 import { getUserFirmaBlob, getUserFirmaUrl } from '../features/usuario/services/usuarioService'
-import type { Solicitud, SolicitudDetalle, SolicitudArchivo, SolicitudUpdate } from '../features/solicitud/types/solicitud'
+import type { Solicitud, SolicitudDetalle, SolicitudArchivo, SolicitudUpdate, PlanContable } from '../features/solicitud/types/solicitud'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import logoUrl from '../assets/avenir-logo.png'
 
@@ -111,6 +112,13 @@ export default function SolicitudDetallePage() {
   const [fechaEmisionFactura,  setFechaEmisionFactura]  = useState('')
   const [fechaVencimientoFactura, setFechaVencimientoFactura] = useState('')
   const [savingFactura,        setSavingFactura]        = useState(false)
+
+  // Plan contable (editable en Pendiente)
+  const [planContableEditOpciones, setPlanContableEditOpciones] = useState<PlanContable[]>([])
+  const [planContableEditSel,      setPlanContableEditSel]      = useState<PlanContable | null>(null)
+  const [planContableEditSearch,   setPlanContableEditSearch]   = useState('')
+  const [planContableEditDropOpen, setPlanContableEditDropOpen] = useState(false)
+  const [savingPlanContable,       setSavingPlanContable]       = useState(false)
 
   // Modales
   const [rechazoOpen,    setRechazoOpen]    = useState(false)
@@ -197,6 +205,26 @@ export default function SolicitudDetallePage() {
     getTipoCambioUSD().then(setTipoCambio).catch(() => {})
   }, [solicitud?.id, solicitud?.moneda, solicitud?.solicitud_tipo?.nombre])
 
+  // Plan contable — cargar opciones cuando el usuario puede editar
+  useEffect(() => {
+    const isOwner = solicitud?.usuario_creador === user?.id
+    const editable = solicitud?.estado_soli?.nombre === 'Pendiente'
+      && ((userRole === ROLES.USUARIO && isOwner) || userRole === ROLES.ADMIN)
+    if (!editable) return
+    getPlanContable().then(setPlanContableEditOpciones).catch(() => {})
+  }, [solicitud?.id, solicitud?.estado_soli?.nombre, userRole, solicitud?.usuario_creador, user?.id])
+
+  // Sincronizar selección actual desde solicitud
+  useEffect(() => {
+    if (solicitud?.plan_contable) {
+      setPlanContableEditSel(solicitud.plan_contable)
+      setPlanContableEditSearch(solicitud.plan_contable.tipo_gasto_costo ?? '')
+    } else {
+      setPlanContableEditSel(null)
+      setPlanContableEditSearch('')
+    }
+  }, [solicitud?.plan_contable_id])
+
   // ── Derived state ──────────────────────────────────────────────
   const nombre         = solicitud?.estado_soli?.nombre ?? ''
   const isPendiente    = nombre === 'Pendiente'
@@ -227,7 +255,8 @@ export default function SolicitudDetallePage() {
   const tieneDocsObligatorios = DOCS_OBLIGATORIOS.every(doc =>
     archivosSubidos.some(a => a.tipo_archivo === doc)
   )
-  const canEnviar    = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente && tieneDocsObligatorios
+  const tienePlanContable = !!solicitud?.plan_contable_id
+  const canEnviar    = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente && tieneDocsObligatorios && tienePlanContable
   const canCancelar  = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente
   const canEvaluar   = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canDevolver  = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
@@ -375,6 +404,20 @@ export default function SolicitudDetallePage() {
   }
 
   // ── Handlers de botones ───────────────────────────────────────
+  const handleSavePlanContable = async () => {
+    if (!planContableEditSel || !solicitud || !id) return
+    setSavingPlanContable(true)
+    try {
+      await updateSolicitud(solicitud.id, { plan_contable_id: planContableEditSel.id })
+      await reload(id)
+      toast.success('Plan contable guardado')
+    } catch {
+      toast.error('Error al guardar plan contable')
+    } finally {
+      setSavingPlanContable(false)
+    }
+  }
+
   const handleEnviar = () => {
     if (!solicitud) return
     executeWithFirma('enviar')
@@ -607,6 +650,11 @@ export default function SolicitudDetallePage() {
                 : <Copy size={13} />}
               Duplicar
             </button>
+          )}
+          {isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && tieneDocsObligatorios && !tienePlanContable && (
+            <span className="flex items-center gap-1 h-8 px-3 rounded-xl bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200">
+              Agrega el plan contable para enviar a revisión
+            </span>
           )}
           {canEnviar && (
             <button onClick={handleEnviar} disabled={actioning}
@@ -1002,57 +1050,129 @@ export default function SolicitudDetallePage() {
         )}
 
         {/* ── PLAN CONTABLE ── */}
-        {solicitud.plan_contable && (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-              <CheckCircle size={15} className="text-[#003D7D]" />
+        {(canEdit || !!solicitud.plan_contable_id) && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 rounded-t-2xl flex items-center gap-2">
+              <CheckCircle size={15} className={solicitud.plan_contable_id ? 'text-[#003D7D]' : 'text-gray-300'} />
               <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Plan contable</h2>
-              <span className="ml-auto text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full">
-                {solicitud.plan_contable.tipo_gasto_costo}
-              </span>
+              {solicitud.plan_contable && (
+                <span className="ml-auto text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-0.5 rounded-full">
+                  {solicitud.plan_contable.tipo_gasto_costo}
+                </span>
+              )}
+              {!solicitud.plan_contable_id && canEdit && (
+                <span className="ml-auto text-xs text-amber-600 font-semibold">Requerido para enviar a revisión</span>
+              )}
             </div>
-            <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-              <div>
-                <p className={LABEL}>Tipo de gasto / costo</p>
-                <p className="text-sm font-semibold text-gray-900">{solicitud.plan_contable.tipo_gasto_costo ?? '—'}</p>
+
+            {canEdit ? (
+              <div className="px-6 py-5 relative">
+                <label className={LABEL}>Tipo de gasto / costo</label>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={planContableEditSearch}
+                    onChange={e => { setPlanContableEditSearch(e.target.value); setPlanContableEditSel(null); setPlanContableEditDropOpen(true) }}
+                    onFocus={() => setPlanContableEditDropOpen(true)}
+                    onBlur={() => setTimeout(() => setPlanContableEditDropOpen(false), 150)}
+                    placeholder="Buscar tipo de gasto…"
+                    className="w-full pl-8 pr-3 py-2.5 text-sm rounded-xl border border-gray-200 bg-gray-50
+                      focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all"
+                  />
+                  {planContableEditDropOpen && (() => {
+                    const q = planContableEditSearch.trim().toLowerCase()
+                    const filt = planContableEditOpciones.filter(o =>
+                      !q
+                      || (o.tipo_gasto_costo      ?? '').toLowerCase().includes(q)
+                      || (o.nombre_cuenta_contable ?? '').toLowerCase().includes(q)
+                      || (o.codigo_starsoft        ?? '').toLowerCase().includes(q)
+                    )
+                    if (filt.length > 0) return (
+                      <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto divide-y divide-gray-50">
+                        {filt.map(op => (
+                          <li key={op.id}
+                            onMouseDown={() => { setPlanContableEditSel(op); setPlanContableEditSearch(op.tipo_gasto_costo ?? ''); setPlanContableEditDropOpen(false) }}
+                            className="px-4 py-2.5 cursor-pointer hover:bg-[#003D7D]/5 transition-colors">
+                            <p className="text-sm font-medium text-gray-800">{op.tipo_gasto_costo}</p>
+                            {op.codigo_starsoft && <p className="text-xs text-gray-400 mt-0.5">{op.codigo_starsoft}</p>}
+                          </li>
+                        ))}
+                      </ul>
+                    )
+                    if (q) return (
+                      <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3">
+                        <p className="text-sm text-gray-400 italic">Sin resultados para "{q}"</p>
+                      </div>
+                    )
+                    return null
+                  })()}
+                </div>
+                {planContableEditSel && (
+                  <div className="mt-2 flex items-start gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-xl">
+                    <CheckCircle size={14} className="text-green-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-green-800">{planContableEditSel.tipo_gasto_costo}</p>
+                      {planContableEditSel.codigo_starsoft && <p className="text-xs text-green-600">{planContableEditSel.codigo_starsoft}</p>}
+                    </div>
+                  </div>
+                )}
+                {planContableEditSel && planContableEditSel.id !== solicitud.plan_contable_id && (
+                  <button
+                    onClick={handleSavePlanContable}
+                    disabled={savingPlanContable}
+                    className="mt-3 px-4 py-2 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-50 transition-all"
+                  >
+                    {savingPlanContable
+                      ? <><span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> Guardando…</>
+                      : 'Guardar plan contable'}
+                  </button>
+                )}
               </div>
-              {solicitud.plan_contable.nombre_cuenta_contable && (
+            ) : solicitud.plan_contable && (
+              <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                 <div>
-                  <p className={LABEL}>Nombre cuenta contable</p>
-                  <p className="text-sm text-gray-700">{solicitud.plan_contable.nombre_cuenta_contable}</p>
+                  <p className={LABEL}>Tipo de gasto / costo</p>
+                  <p className="text-sm font-semibold text-gray-900">{solicitud.plan_contable.tipo_gasto_costo ?? '—'}</p>
                 </div>
-              )}
-              {solicitud.plan_contable.codigo_starsoft && (
-                <div>
-                  <p className={LABEL}>Código Starsoft</p>
-                  <p className="text-sm text-gray-700 font-mono">{solicitud.plan_contable.codigo_starsoft}</p>
-                </div>
-              )}
-              {solicitud.plan_contable.cuenta_contable_2020_starsoft && (
-                <div>
-                  <p className={LABEL}>Cuenta contable 2020</p>
-                  <p className="text-sm text-gray-700 font-mono">{solicitud.plan_contable.cuenta_contable_2020_starsoft}</p>
-                </div>
-              )}
-              {solicitud.plan_contable.partida_presupuestal && (
-                <div>
-                  <p className={LABEL}>Partida presupuestal</p>
-                  <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuestal}</p>
-                </div>
-              )}
-              {solicitud.plan_contable.partida_presupuesta_n1 && (
-                <div>
-                  <p className={LABEL}>Partida N1</p>
-                  <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuesta_n1}</p>
-                </div>
-              )}
-              {solicitud.plan_contable.partida_presupuesta_n2 && (
-                <div>
-                  <p className={LABEL}>Partida N2</p>
-                  <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuesta_n2}</p>
-                </div>
-              )}
-            </div>
+                {solicitud.plan_contable.nombre_cuenta_contable && (
+                  <div>
+                    <p className={LABEL}>Nombre cuenta contable</p>
+                    <p className="text-sm text-gray-700">{solicitud.plan_contable.nombre_cuenta_contable}</p>
+                  </div>
+                )}
+                {solicitud.plan_contable.codigo_starsoft && (
+                  <div>
+                    <p className={LABEL}>Código Starsoft</p>
+                    <p className="text-sm text-gray-700 font-mono">{solicitud.plan_contable.codigo_starsoft}</p>
+                  </div>
+                )}
+                {solicitud.plan_contable.cuenta_contable_2020_starsoft && (
+                  <div>
+                    <p className={LABEL}>Cuenta contable 2020</p>
+                    <p className="text-sm text-gray-700 font-mono">{solicitud.plan_contable.cuenta_contable_2020_starsoft}</p>
+                  </div>
+                )}
+                {solicitud.plan_contable.partida_presupuestal && (
+                  <div>
+                    <p className={LABEL}>Partida presupuestal</p>
+                    <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuestal}</p>
+                  </div>
+                )}
+                {solicitud.plan_contable.partida_presupuesta_n1 && (
+                  <div>
+                    <p className={LABEL}>Partida N1</p>
+                    <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuesta_n1}</p>
+                  </div>
+                )}
+                {solicitud.plan_contable.partida_presupuesta_n2 && (
+                  <div>
+                    <p className={LABEL}>Partida N2</p>
+                    <p className="text-sm text-gray-700">{solicitud.plan_contable.partida_presupuesta_n2}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1206,6 +1326,7 @@ export default function SolicitudDetallePage() {
         isOC={!isRxH}
         totalSolicitud={totalConIgv}
         moneda={(solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN'}
+        planContableActual={solicitud?.plan_contable ?? null}
         onConfirm={handleConfirmEvaluar}
         onCancel={() => setEvaluarOpen(false)}
       />

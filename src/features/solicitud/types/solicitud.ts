@@ -133,7 +133,7 @@ export type SolicitudInsert = Omit<
   | 'usuario_aprobador'    // se completa al aprobar
   | 'numero_factura'       // se registra al completar el proceso
   | 'monto_total'          // calculado al enviar a revisión
-  | 'plan_contable_id'       // lo asigna el evaluador al marcar Evaluado
+  | 'plan_contable_id'       // lo asigna el usuario en Step 4 del wizard (o desde el detalle en Pendiente); EVALUADOR puede corregirlo
   | 'usuario_evaluador'      // se registra al marcar Evaluado
   | 'numero_rxh'             // sólo aplica a Recibo por Honorarios
   | 'periodo_servicio'       // sólo aplica a Recibo por Honorarios
