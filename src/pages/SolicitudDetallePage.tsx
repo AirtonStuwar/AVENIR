@@ -17,6 +17,7 @@ import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import EvaluarModal from '../features/solicitud/components/EvaluarModal'
 import PagoModal from '../features/solicitud/components/PagoModal'
 import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
+import { getTipoCambioUSD } from '../features/solicitud/services/rucService'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
 import { OrdenCompraPDF } from '../features/solicitud/components/OrdenCompraPDF'
 import EncuestaProveedorForm from '../features/proveedor/components/EncuestaProveedorForm'
@@ -102,6 +103,7 @@ export default function SolicitudDetallePage() {
   // Consumo presupuesto (ADMIN + APROBADOR)
   const canVerConsumo = userRole === ROLES.ADMIN || userRole === ROLES.APROBADOR
   const [consumoData, setConsumoData] = useState<{ consumo: Consumo; presupuesto: { pen: number; usd: number }; label: string } | null>(null)
+  const [tipoCambio, setTipoCambio] = useState<number | null>(null)
 
   // Datos de factura
   const [numeroFactura,        setNumeroFactura]        = useState('')
@@ -188,6 +190,13 @@ export default function SolicitudDetallePage() {
       .catch(() => {})
   }, [canVerConsumo, solicitud?.proyecto_id, solicitud?.proyecto_partida_id])
 
+  // Tipo de cambio — solo para OC en USD (para umbral de contrato)
+  useEffect(() => {
+    const isOCSol = solicitud?.solicitud_tipo?.nombre !== 'Recibo por Honorarios'
+    if (!solicitud || !isOCSol || solicitud.moneda !== 'USD') return
+    getTipoCambioUSD().then(setTipoCambio).catch(() => {})
+  }, [solicitud?.id, solicitud?.moneda, solicitud?.solicitud_tipo?.nombre])
+
   // ── Derived state ──────────────────────────────────────────────
   const nombre         = solicitud?.estado_soli?.nombre ?? ''
   const isPendiente    = nombre === 'Pendiente'
@@ -202,12 +211,19 @@ export default function SolicitudDetallePage() {
   const canEdit      = isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const canDuplicar  = userRole === ROLES.USUARIO && isOwnSolicitud && (isAprobado || isCancelado || isRechazado)
   const canShowPDF   = !isRechazado && !isCancelado
-  const sustentoObligatorio   = !isRxH && (solicitud?.porcentaje_acumulado_contrato ?? 0) > 9
+  // Contrato requerido si total con IGV en soles >= S/ 3,500
+  const _solMoneda   = (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN'
+  const _tc          = _solMoneda === 'USD' ? (tipoCambio ?? 1) : 1
   const DOCS_OBLIGATORIOS     = isRxH
     ? ['Sustento', 'Recibo Honorario']
-    : sustentoObligatorio
-      ? ['Contrato', 'Cotizacion', 'Sustento']
-      : ['Contrato', 'Cotizacion']
+    : (() => {
+        // subtotal se calcula abajo, pero aquí usamos detalles directamente
+        const sub = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+        const totalIgvSoles = sub * 1.18 * _tc
+        return totalIgvSoles >= 3500
+          ? ['Contrato', 'Cotizacion', 'Sustento']
+          : ['Cotizacion', 'Sustento']
+      })()
   const tieneDocsObligatorios = DOCS_OBLIGATORIOS.every(doc =>
     archivosSubidos.some(a => a.tipo_archivo === doc)
   )
@@ -895,14 +911,16 @@ export default function SolicitudDetallePage() {
             : undefined}
           tiposOpcionales={isRxH
             ? (solicitud.aplica_suspension ? ['Suspension'] : [])
-            : (solicitud.porcentaje_acumulado_contrato ?? 0) <= 9 ? ['Sustento'] : []}
+            : DOCS_OBLIGATORIOS.includes('Contrato') ? [] : ['Contrato']}
         />
         {isPendiente && !tieneDocsObligatorios && (
           <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             <AlertCircle size={15} className="shrink-0" />
             {isRxH
               ? 'Para enviar a revisión debes adjuntar el Sustento y el PDF del Recibo por Honorarios.'
-              : 'Para enviar a revisión debes adjuntar los documentos obligatorios: Contrato, Cotización y Sustento.'}
+              : DOCS_OBLIGATORIOS.includes('Contrato')
+                ? 'Para enviar a revisión debes adjuntar: Contrato, Cotización y Sustento (monto supera S/ 3,500).'
+                : 'Para enviar a revisión debes adjuntar: Cotización y Sustento.'}
           </div>
         )}
 

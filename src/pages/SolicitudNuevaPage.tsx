@@ -249,9 +249,9 @@ export default function SolicitudNuevaPage() {
   }, [step, solicitudId])
 
   useEffect(() => {
-    if (step !== 'archivos' || !isRxH || moneda !== 'USD') return
+    if (step !== 'archivos' || moneda !== 'USD') return
     getTipoCambioUSD().then(setTipoCambio).catch(() => setTipoCambio(null))
-  }, [step, isRxH, moneda])
+  }, [step, moneda])
 
   const openAdd  = () => { setEditingDet(null); setModalOpen(true) }
   const openEdit = (d: SolicitudDetalle) => { setEditingDet(d); setModalOpen(true) }
@@ -764,27 +764,24 @@ export default function SolicitudNuevaPage() {
 
         {/* ── STEP 3: ARCHIVOS ── */}
         {step === 'archivos' && solicitudId && (() => {
-          const sustentoObligatorio = !isRxH && (porcentaje_acumulado_contrato ?? 0) > 9
 
           // Umbral suspensión: S/ 1,500. Para USD se convierte usando tipo de cambio.
           const subtotal = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
           const subtotalEnSoles = moneda === 'USD' && tipoCambio ? subtotal * tipoCambio : subtotal
           const superaUmbral = isRxH && subtotalEnSoles >= 1500
+          const totalConIgvEnSoles = subtotalEnSoles * 1.18
+          const requiereContrato = !isRxH && totalConIgvEnSoles >= 3500
 
           const tiposVisiblesRxH = aplica_suspension === true
             ? ['Sustento', 'Recibo Honorario', 'Suspension']
             : ['Sustento', 'Recibo Honorario']
 
-          const docsRequeridos = isRxH
-            ? tiposVisiblesRxH // Suspension es opcional, pero se incluye si aplica
-            : sustentoObligatorio
-              ? ['Contrato', 'Cotizacion', 'Sustento']
-              : ['Contrato', 'Cotizacion']
-
-          // Docs obligatorios reales (Suspension nunca es obligatorio)
+          // Docs obligatorios: para OC, Cotizacion y Sustento siempre; Contrato solo si monto >= S/ 3,500
           const docsObligatorios = isRxH
             ? ['Sustento', 'Recibo Honorario']
-            : docsRequeridos
+            : requiereContrato
+              ? ['Contrato', 'Cotizacion', 'Sustento']
+              : ['Cotizacion', 'Sustento']
 
           const docsCompletos = docsObligatorios.every(tipo =>
             archivos.some(a => a.tipo_archivo === tipo)
@@ -812,13 +809,9 @@ export default function SolicitudNuevaPage() {
                 <p className="text-xs text-blue-600">
                   {isRxH
                     ? 'Sustento y PDF del Recibo por Honorarios son obligatorios.'
-                    : <>
-                        Contrato y Cotización son siempre obligatorios.
-                        {sustentoObligatorio
-                          ? ' Sustento también es obligatorio (% acumulado > 9%).'
-                          : ' Sustento y Cuadro Comparativo son opcionales.'
-                        }
-                      </>
+                    : requiereContrato
+                      ? 'Contrato, Cotización y Sustento son obligatorios (monto supera S/ 3,500).'
+                      : 'Cotización y Sustento son obligatorios. Contrato es opcional (monto menor a S/ 3,500).'
                   }
                 </p>
               </div>
@@ -870,7 +863,7 @@ export default function SolicitudNuevaPage() {
                 : ['Contrato', 'Cotizacion', 'Sustento', 'Cuadro Comparativo']}
               tiposOpcionales={isRxH
                 ? (aplica_suspension === true ? ['Suspension'] : [])
-                : sustentoObligatorio ? [] : ['Sustento']}
+                : requiereContrato ? [] : ['Contrato']}
             />
 
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">

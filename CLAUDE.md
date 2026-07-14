@@ -61,7 +61,7 @@ El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no s
 - `firmas-usuario` — firma de perfil del usuario. Path determinista: `{userId}/firma.png`. Referenciado via `usuario.firma_path`.
 
 Tipos de archivo manejados por `SolicitudArchivos`:
-- OC requeridos: `Contrato`, `Cotizacion`, `Sustento`
+- OC requeridos: `Cotizacion`, `Sustento` siempre; `Contrato` solo cuando total con IGV en soles ≥ S/ 3,500 (para USD se convierte con TC SUNAT). Si el monto es menor, Contrato es opcional.
 - RxH requeridos: `Sustento`, `Recibo Honorario`
 - Opcionales: `Cuadro Comparativo`, `Factura XML`, `Factura PDF`, `Suspension` (solo cuando `aplica_suspension === true`)
 
@@ -85,8 +85,9 @@ The service caches estado IDs in memory to avoid repeated lookups (`estado_soli`
 1. **Datos generales** — form with all header fields (proveedor, bancarios, proyecto, porcentajes, fechas, condiciones)
 2. **Detalles** — line-item editor (descripción, cantidad, valor unitario)
 3. **Documentos** — upload de archivos según tipo:
-   - OC: Contrato, Cotización, Sustento (required), Cuadro Comparativo (optional)
-   - RxH: Sustento, Recibo Honorario (required). Si el subtotal ≥ S/ 1,500 (o equivalente en USD via tipo de cambio SUNAT), aparece toggle **"Suspensión de retenciones"** (Sí aplica / No aplica). Si "Sí aplica", también muestra tipo `Suspension` para subir el archivo. El botón "Continuar" queda bloqueado hasta que se elija una opción. Al finalizar guarda `aplica_suspension` en `solicitud`.
+   - OC: Cotización y Sustento siempre obligatorios. Contrato obligatorio solo si total con IGV ≥ S/ 3,500 (para USD se convierte con TC SUNAT); opcional si < S/ 3,500. El TC se fetch automáticamente al entrar al Step 3 cuando `moneda === 'USD'`.
+   - RxH: Sustento, Recibo Honorario (required). Si el subtotal ≥ S/ 1,500 (o equivalente en USD via tipo de cambio SUNAT), aparece toggle **"Suspensión de retenciones"** (Sí tiene / No tiene). Si "Sí tiene", también muestra tipo `Suspension` para subir el archivo. El botón "Continuar" queda bloqueado hasta que se elija una opción. Al finalizar guarda `aplica_suspension` en `solicitud`.
+   - El TC se fetch en Step 3 para `moneda === 'USD'` (tanto OC como RxH).
 4. **Factura** (optional) — upload Factura XML y/o PDF; fill N° Factura, Motivo de factura, Fecha de emisión, Fecha de vencimiento. "Omitir y finalizar" skips saving.
 
 Step state is local to the page. The solicitud record is created at the end of Step 1; subsequent steps update it in place. Si el usuario abandona el wizard después del Step 1 o 2, puede completar documentos y datos de factura directamente desde el detalle de la solicitud (`/solicitudes/:id`).
@@ -408,13 +409,29 @@ Las tablas y vistas de Supabase son accesibles directamente. Power BI puede leer
 
 **TypeScript config:** strict mode with `noUnusedLocals` and `noUnusedParameters` enabled — unused variables will cause build errors. Use `Omit<T, 'id' | 'fecha_creacion' | ...>` for insert/update types (see `SolicitudInsert` as the canonical example).
 
-**RUC lookup:** `rucService.ts` calls `/api/ruc?numero=<ruc>`. In development, `vite.config.ts` proxies this to `https://api.decolecta.com/v1/sunat/ruc` with a Bearer token. This proxy only runs in `dev` mode; a separate server-side solution is needed in production.
+**RUC lookup:** `rucService.ts` calls `/api/ruc?numero=<ruc>`. En dev, `vite.config.ts` proxea a `https://api.decolecta.com/v1/sunat/ruc`. En producción (Vercel), `api/ruc.ts` es una Edge Function que hace el mismo fetch con la API key del servidor.
 
-**Tipo de cambio SUNAT:** `getTipoCambioUSD()` en `rucService.ts` llama `/api/tipo-cambio`. `vite.config.ts` lo proxea a `https://api.decolecta.com/v1/tipo-cambio/sunat`. Respuesta: `{ buy_price: string, sell_price: string, base_currency, quote_currency, date }`. Se usa `sell_price` (precio de venta). Se consume en `SolicitudNuevaPage` Step 3 para calcular si un RxH en USD supera el umbral de S/ 1,500.
+**Tipo de cambio SUNAT:** `getTipoCambioUSD()` en `rucService.ts` llama `/api/tipo-cambio`. En dev, `vite.config.ts` proxea a `https://api.decolecta.com/v1/tipo-cambio/sunat`. En producción, `api/tipo-cambio.ts` es una Edge Function (Vercel). Respuesta: `{ buy_price, sell_price, base_currency, quote_currency, date }`. Se usa `sell_price`. Se consume en: Step 3 del wizard (RxH USD umbral S/1,500 + OC USD umbral S/3,500 para Contrato), `EvaluarModal` (detracción OC USD), `SolicitudDetallePage` (Contrato OC USD).
+
+**`api/` folder (Vercel Edge Functions):** `api/ruc.ts` y `api/tipo-cambio.ts` — proxies server-side hacia decolecta.com usando `DECOLECTA_API_KEY`. La variable de entorno debe estar configurada en Vercel → Settings → Environment Variables.
+
+**Formateo de fechas (timezone):** Todas las funciones `fmtDate` en el proyecto usan el patrón `s.includes('T') ? s : s + 'T00:00:00'` antes de pasarlo a `new Date()`. Esto evita que fechas tipo `"YYYY-MM-DD"` (sin hora) se parseen como UTC medianoche y aparezcan un día antes en Perú (UTC-5). **No usar** `new Date(dateString)` directamente con strings de solo fecha ni `new Date().toISOString().slice(0,10)` para defaults — usar la función local `localToday()` del `PagoModal`.
+
+**`EvaluarModal` carga de datos:** Usa `Promise.all` con handlers independientes por promesa (no un `.catch` global) para que un fallo del TC SUNAT no impida cargar el plan contable. Si `getTipoCambioUSD()` falla en producción, el campo TC aparece vacío y el evaluador lo ingresa manualmente.
+
+**`solicitud` columns added for detracción pago:**
+- `detraccion_pagada` — boolean, DEFAULT false, lo marca VISUALIZADOR/ADMIN
+- `fecha_pago_detraccion` — date nullable, fecha del pago al Banco de la Nación
+
+**Excel SPOT Detracciones (`SolicitudesPage`):** Botón "Excel Detracciones (N)" visible para VISUALIZADOR y ADMIN cuando la selección incluye solicitudes con `detraccion_id`. 11 columnas: RUC, TIPO DOC (01), SERIE, NUMERO, FECHA EMISION, IMPORTE TOTAL (monto_total), PORCENTAJE DETRACCIÓN, IMPORTE DETRACCIÓN (Math.round monto_detraccion), CODIGO SERVICIO, PERIODO TRIBUTARIO (MM/YYYY), OBSERVACION. Alerta si alguna solicitud no tiene `fecha_emision_factura`. SERIE/NUMERO se obtienen del `numero_factura` splitado por guion.
+
+**`SolicitudesTable`:** La columna se llama **"Vencimiento"** (era "Venc. Factura") — aplica a OC (fecha vencimiento factura) y RxH (fecha vencimiento recibo).
+
+**Campos RxH — `fecha_emision_factura` y `fecha_vencimiento_factura`:** Se capturan en Step 1 del wizard para RxH. El `createSolicitud` en Step 1 NO debe sobrescribir estos campos con null — se pasan desde el payload directamente. En `SolicitudDetallePage` se muestran con `InfoField` solo cuando `isRxH`.
 
 **Env vars** (`.env.local`):
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase client (`src/api/supabase.ts`)
-- `DECOLECTA_API_KEY` — RUC lookup y tipo de cambio SUNAT (dev proxy only; not exposed to the browser)
+- `DECOLECTA_API_KEY` — RUC lookup y tipo de cambio SUNAT (server-side: dev proxy + Vercel Edge Functions)
 
 ---
 
