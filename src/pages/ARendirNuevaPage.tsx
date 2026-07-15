@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { pdf } from '@react-pdf/renderer'
 import {
-  ChevronLeft, ChevronRight, Plus, Trash2, Upload, Loader2, Send,
+  ChevronLeft, ChevronRight, Plus, Trash2, Upload, Loader2, CheckCircle2,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { getProyectos, getPartidasByProyecto, getConsumoByProyectos } from '../features/proyecto/services/proyectoService'
@@ -13,21 +12,14 @@ import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuen
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import {
   createARendir,
-  enviarARendir,
   addDetalle,
   uploadSustento,
   uploadDetalleArchivo,
-  uploadFirmaARendir,
-  getArchivoUrl,
   recalcTotal,
   updateARendir,
 } from '../features/arendir/services/arendirService'
 import type { SolicitudARendir, ARendirDetalle } from '../features/arendir/types/arendir'
-import { ARendirPDF } from '../features/arendir/components/ARendirPDF'
-import FirmaModal from '../features/solicitud/components/FirmaModal'
-import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import { supabase } from '../api/supabase'
-import logoUrl from '../assets/avenir-logo.png'
 
 // ── Tipos locales ─────────────────────────────────────────────
 interface DetalleRow {
@@ -88,10 +80,6 @@ export default function ARendirNuevaPage() {
   // Step 2
   const [rows, setRows] = useState<DetalleRow[]>([newRow()])
 
-  // Firma modal
-  const [firmaOpen, setFirmaOpen] = useState(false)
-  const [firmaBlob, setFirmaBlob] = useState<Blob | null>(null)
-
   // Load proyectos
   useEffect(() => {
     getProyectos({ pageSize: 100 })
@@ -137,20 +125,32 @@ export default function ARendirNuevaPage() {
         await supabase.from('usuario').update({ dni: dniEdit || null }).eq('id', user.id)
       }
 
-      const sol = await createARendir({
-        beneficiario_id: user.id,
+      const payload = {
         proyecto_id: proyectoId ? Number(proyectoId) : null,
         proyecto_partida_id: partidaId ? Number(partidaId) : null,
         importe: Number(importe),
         moneda,
         fecha_rendicion: fechaRendicion || null,
-        estado: 'Pendiente',
         banco: banco || null,
         numero_cuenta: numeroCuenta || null,
-        documento_sustento_path: null,
-      })
+      }
 
-      // Upload sustento
+      let sol: SolicitudARendir
+
+      if (solicitudCreada) {
+        // Ya existe — solo actualizar, no duplicar
+        await updateARendir(solicitudCreada.id, payload)
+        sol = { ...solicitudCreada, ...payload }
+      } else {
+        sol = await createARendir({
+          ...payload,
+          beneficiario_id: user.id,
+          estado: 'Pendiente',
+          documento_sustento_path: null,
+        })
+      }
+
+      // Upload sustento si hay archivo nuevo
       if (sustentoFile) {
         const path = await uploadSustento(sustentoFile, sol.id)
         await updateARendir(sol.id, { documento_sustento_path: path })
@@ -184,34 +184,12 @@ export default function ARendirNuevaPage() {
 
   const totalDetalle = rows.reduce((acc, r) => acc + (parseFloat(r.importe) || 0), 0)
 
-  // ── Step 2: Guardar detalles y enviar ────────────────────────
-  async function handleEnviar() {
-    if (!solicitudCreada || !user?.id) return
-
-    // Intentar obtener firma del usuario
-    let blob: Blob | null = firmaBlob
-    if (!blob && usuarioProfile?.firma_path) {
-      try {
-        blob = await getUserFirmaBlob(usuarioProfile.firma_path)
-      } catch {
-        // no hay firma previa
-      }
-    }
-
-    if (!blob) {
-      setFirmaOpen(true)
-      return
-    }
-
-    await doEnviar(blob)
-  }
-
-  async function doEnviar(blob: Blob) {
+  // ── Step 2: Guardar detalles y finalizar ─────────────────────
+  async function handleFinalizar() {
     if (!solicitudCreada || !user?.id) return
     setSaving(true)
     try {
-      // Guardar detalles
-      const savedDetalles: ARendirDetalle[] = []
+      // Guardar detalles (omitir filas vacías)
       for (const row of rows) {
         if (!row.concepto && !row.importe) continue
         const det = await addDetalle({
@@ -224,59 +202,16 @@ export default function ARendirNuevaPage() {
           importe: parseFloat(row.importe) || 0,
           archivo_path: null,
         })
-
-        // Upload archivo de detalle
         if (row.file) {
           const path = await uploadDetalleArchivo(row.file, solicitudCreada.id, det.id)
           await supabase.from('solicitud_arendir_detalle').update({ archivo_path: path }).eq('id', det.id)
-          det.archivo_path = path
         }
-        savedDetalles.push(det)
       }
 
-      // Recalc total
       await recalcTotal(solicitudCreada.id)
 
-      // Subir firma usuario
-      const firmaPath = await uploadFirmaARendir(blob, solicitudCreada.id, 'firma_usuario')
-
-      // Generar PDF
-      let firmaUsuarioSrc: string | null = null
-      try {
-        firmaUsuarioSrc = await getArchivoUrl(firmaPath)
-      } catch { /* sin firma */ }
-
-      const enrichedSol: SolicitudARendir = {
-        ...solicitudCreada,
-        total_reembolso: totalDetalle,
-        beneficiario_nombre: usuarioProfile?.nombre_completo ?? null,
-        beneficiario_dni:    usuarioProfile?.dni ?? null,
-        beneficiario_cargo:  usuarioProfile?.cargo ?? null,
-      }
-
-      const pdfBlob = await pdf(
-        <ARendirPDF
-          solicitud={enrichedSol}
-          detalles={savedDetalles}
-          logoSrc={logoUrl}
-          firmaUsuarioSrc={firmaUsuarioSrc}
-          firmaAprobadorSrc={null}
-        />
-      ).toBlob()
-
-      // Descargar PDF
-      const url = URL.createObjectURL(pdfBlob)
-      const a   = document.createElement('a')
-      a.href    = url
-      a.download = `${solicitudCreada.codigo ?? `AR-${solicitudCreada.id}`}.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-
-      // Enviar a revisión
-      await enviarARendir(solicitudCreada.id)
-
-      toast.success('Solicitud enviada a revisión')
-      navigate('/arendir')
+      toast.success('Solicitud registrada — contabilidad marcará el pago cuando el dinero sea entregado')
+      navigate(`/arendir/${solicitudCreada.id}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al enviar')
     } finally {
@@ -670,28 +605,16 @@ export default function ARendirNuevaPage() {
               <ChevronLeft size={16} /> Anterior
             </button>
             <button
-              onClick={handleEnviar}
+              onClick={handleFinalizar}
               disabled={saving}
               className="flex items-center gap-2 h-10 px-6 rounded-xl bg-[#003D7D] text-white text-sm font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors"
             >
-              {saving ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              Enviar a revisión
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+              Finalizar
             </button>
           </div>
         </div>
       )}
-
-      {/* Firma modal */}
-      <FirmaModal
-        open={firmaOpen}
-        title="Firma del rendidor"
-        onClose={() => setFirmaOpen(false)}
-        onConfirm={async (blob) => {
-          setFirmaBlob(blob)
-          setFirmaOpen(false)
-          await doEnviar(blob)
-        }}
-      />
     </div>
   )
 }

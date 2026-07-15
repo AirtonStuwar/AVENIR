@@ -195,7 +195,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
   let q = supabase
     .from('solicitud_arendir')
     .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_rendicion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
-    .eq('estado', 'Autorizado')
+    .in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'])
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
 

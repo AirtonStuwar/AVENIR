@@ -3,22 +3,18 @@ import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { pdf } from '@react-pdf/renderer'
 import {
-  ChevronLeft, Loader2, FileText, CheckCircle2, XCircle,
-  RotateCcw, Download, ExternalLink, BookOpen,
-  Plus, Trash2, Pencil, Upload,
+  ChevronLeft, Loader2, CheckCircle2, Download, ExternalLink,
+  Plus, Trash2, Pencil, Upload, Send,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
-import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
 import {
   getARendirById,
-  enviarARendir,
-  marcarEvaluadoARendir,
-  devolverDesdeRevision,
-  autorizarARendir,
-  rechazarARendir,
-  devolverARendir,
+  aprobarARendir,
+  marcarPagadoARendir,
+  enviarRendicion,
+  cerrarRendicion,
   getArchivoUrl,
   uploadFirmaARendir,
   addDetalle,
@@ -26,11 +22,10 @@ import {
   deleteDetalle,
   uploadDetalleArchivo,
 } from '../features/arendir/services/arendirService'
-import { getPlanContable } from '../features/solicitud/services/solicitudService'
 import type { SolicitudARendir, ARendirDetalle } from '../features/arendir/types/arendir'
-import type { PlanContable } from '../features/solicitud/types/solicitud'
 import { ARendirPDF } from '../features/arendir/components/ARendirPDF'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
+import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import logoUrl from '../assets/avenir-logo.png'
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -49,11 +44,10 @@ function fmtDate(val: string | null) {
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   const map: Record<string, string> = {
     'Pendiente':   'bg-yellow-100 text-yellow-800',
-    'En Revision': 'bg-blue-100 text-blue-800',
-    'Evaluado':    'bg-purple-100 text-purple-800',
-    'Autorizado':  'bg-green-100 text-green-800',
-    'Rechazado':   'bg-red-100 text-red-800',
-    'Devuelto':    'bg-orange-100 text-orange-800',
+    'Aprobado':    'bg-emerald-100 text-emerald-800',
+    'Pagado':      'bg-blue-100 text-blue-800',
+    'En Revision': 'bg-purple-100 text-purple-800',
+    'Cerrado':     'bg-green-100 text-green-800',
   }
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -96,117 +90,6 @@ function ComentarioModal({ open, title, onConfirm, onCancel, loading }: Comentar
           <button
             onClick={() => onConfirm(comentario)}
             disabled={loading || !comentario.trim()}
-            className="flex-1 h-10 rounded-xl bg-[#003D7D] text-white text-sm font-semibold hover:bg-[#002D5C] disabled:opacity-50"
-          >
-            {loading ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Confirmar'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── EvaluarModal (A Rendir) ────────────────────────────────────
-interface EvaluarARendirModalProps {
-  open: boolean
-  onClose: () => void
-  onConfirm: (planId: number) => void
-  loading: boolean
-}
-
-function EvaluarARendirModal({ open, onClose, onConfirm, loading }: EvaluarARendirModalProps) {
-  const [search, setSearch]         = useState('')
-  const [planes, setPlanes]         = useState<PlanContable[]>([])
-  const [selected, setSelected]     = useState<PlanContable | null>(null)
-  const [dropOpen, setDropOpen]     = useState(false)
-  const [loadingPC, setLoadingPC]   = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    setLoadingPC(true)
-    getPlanContable()
-      .then(setPlanes)
-      .catch(() => toast.error('No se pudo cargar el plan contable'))
-      .finally(() => setLoadingPC(false))
-  }, [open])
-
-  if (!open) return null
-
-  const filtered = planes.filter(p => {
-    const q = search.trim().toLowerCase()
-    if (!q) return true
-    return (
-      (p.tipo_gasto_costo ?? '').toLowerCase().includes(q) ||
-      (p.nombre_cuenta_contable ?? '').toLowerCase().includes(q) ||
-      (p.codigo_starsoft ?? '').toLowerCase().includes(q)
-    )
-  })
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
-        {/* Header */}
-        <div className="rounded-t-2xl px-6 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">Asignar Plan Contable</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Selecciona la cuenta para esta A Rendir</p>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-4 space-y-3 pb-64">
-          {/* Search */}
-          <div className="relative">
-            <BookOpen size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={search}
-              onChange={e => { setSearch(e.target.value); setDropOpen(true) }}
-              onFocus={() => setDropOpen(true)}
-              placeholder="Buscar por tipo, cuenta o código…"
-              className="w-full h-10 pl-8 pr-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30"
-            />
-          </div>
-
-          {/* Selected preview */}
-          {selected && (
-            <div className="bg-[#003D7D]/[0.04] border border-[#003D7D]/20 rounded-xl px-4 py-2.5 text-sm">
-              <span className="font-semibold text-[#003D7D]">{selected.codigo_starsoft}</span>
-              {' — '}
-              <span className="text-gray-700">{selected.nombre_cuenta_contable}</span>
-            </div>
-          )}
-
-          {/* Dropdown */}
-          {dropOpen && (
-            <div className="absolute left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-xl z-10 max-h-56 overflow-y-auto mx-6">
-              {loadingPC ? (
-                <p className="px-4 py-3 text-sm text-gray-400">Cargando…</p>
-              ) : filtered.length === 0 ? (
-                <p className="px-4 py-3 text-sm text-gray-400">Sin resultados</p>
-              ) : filtered.slice(0, 60).map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => { setSelected(p); setDropOpen(false) }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-[#003D7D]/[0.04] transition-colors"
-                >
-                  <p className="text-xs font-semibold text-[#003D7D]">{p.codigo_starsoft} — {p.tipo_gasto_costo}</p>
-                  <p className="text-xs text-gray-600 mt-0.5 truncate">{p.nombre_cuenta_contable}</p>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="rounded-b-2xl px-6 py-4 border-t border-gray-100 flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={() => selected && onConfirm(selected.id)}
-            disabled={loading || !selected}
             className="flex-1 h-10 rounded-xl bg-[#003D7D] text-white text-sm font-semibold hover:bg-[#002D5C] disabled:opacity-50"
           >
             {loading ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Confirmar'}
@@ -305,11 +188,11 @@ export default function ARendirDetallePage() {
   }
 
   // Modales
-  const [evaluarOpen,  setEvaluarOpen]  = useState(false)
-  const [firmaOpen,    setFirmaOpen]    = useState(false)
-  const [rechazarOpen, setRechazarOpen] = useState(false)
-  const [devolverOpen, setDevolverOpen] = useState(false)
-  const [devRevOpen,   setDevRevOpen]   = useState(false)  // devolver desde En Revision
+  const [pagoOpen,      setPagoOpen]      = useState(false)
+  const [firmaOpen,     setFirmaOpen]     = useState(false)
+  const [aprobarOpen,   setAprobarOpen]   = useState(false)
+  const [aprobarComent, setAprobarComent] = useState('')
+  const [aprobarLoading, setAprobarLoading] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -325,130 +208,96 @@ export default function ARendirDetallePage() {
 
   // ── Acciones ───────────────────────────────────────────────────
 
-  async function handleEnviar() {
-    if (!solicitud) return
-    setActionLoading(true)
+  async function handleAprobar() {
+    if (!solicitud || !user?.id) return
+    setAprobarLoading(true)
     try {
-      await enviarARendir(solicitud.id)
-      toast.success('Enviada a revisión')
-      setSolicitud(prev => prev ? { ...prev, estado: 'En Revision' } : prev)
+      await aprobarARendir(solicitud.id, user.id, aprobarComent.trim() || undefined)
+      toast.success('Adelanto aprobado')
+      setAprobarOpen(false)
+      setAprobarComent('')
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
     } catch {
-      toast.error('Error al enviar')
+      toast.error('Error al aprobar')
     } finally {
-      setActionLoading(false)
+      setAprobarLoading(false)
     }
   }
 
-  async function handleEvaluar(planId: number) {
+  async function handleConfirmPago(cuentaId: number, fechaPago: string) {
+    if (!solicitud?.id || !user?.id) return
+    try {
+      await marcarPagadoARendir(solicitud.id, cuentaId, fechaPago, user.id)
+      toast.success('Marcado como pagado — el usuario puede ahora registrar sus gastos')
+      setPagoOpen(false)
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } catch (err) {
+      console.error('Error al marcar pagado:', err)
+      toast.error('Error al guardar — revisa la consola para más detalles')
+    }
+  }
+
+  async function handleEnviarRendicion(blob: Blob) {
     if (!solicitud || !user?.id) return
     setActionLoading(true)
     try {
-      await marcarEvaluadoARendir(solicitud.id, planId, user.id)
-      toast.success('A Rendir marcada como Evaluada')
-      // re-fetch para tener el plan_contable join
-      const updated = await getARendirById(solicitud.id)
-      setSolicitud(updated)
-      setEvaluarOpen(false)
-    } catch {
-      toast.error('Error al evaluar')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  async function handleDevolverRevision(comentario: string) {
-    if (!solicitud) return
-    setActionLoading(true)
-    try {
-      await devolverDesdeRevision(solicitud.id, comentario)
-      toast.success('Solicitud devuelta')
-      setSolicitud(prev => prev ? { ...prev, estado: 'Devuelto', comentario } : prev)
-      setDevRevOpen(false)
-    } catch {
-      toast.error('Error al devolver')
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  async function handleAutorizar(blob: Blob) {
-    if (!solicitud || !user?.id) return
-    setActionLoading(true)
-    try {
-      const firmaPath = await uploadFirmaARendir(blob, solicitud.id, 'firma_aprobador')
-
-      let firmaAprobadorSrc: string | null = null
-      try { firmaAprobadorSrc = await getArchivoUrl(firmaPath) } catch { /* noop */ }
-
+      const firmaPath = await uploadFirmaARendir(blob, solicitud.id, 'firma_usuario')
       let firmaUsuarioSrc: string | null = null
-      try {
-        const { data } = await import('../api/supabase').then(m =>
-          m.supabase.storage.from('arendir-documentos').list(`${solicitud.id}/firma_usuario`)
-        )
-        if (data && data.length > 0) {
-          firmaUsuarioSrc = await getArchivoUrl(`${solicitud.id}/firma_usuario/${data[0].name}`)
-        }
-      } catch { /* noop */ }
+      try { firmaUsuarioSrc = await getArchivoUrl(firmaPath) } catch { /* noop */ }
 
-      await autorizarARendir(solicitud.id, user.id)
+      await enviarRendicion(solicitud.id)
 
-      const enriched: SolicitudARendir = {
-        ...solicitud,
-        aprobador_nombre: usuarioProfile?.nombre_completo ?? null,
-      }
-
+      // Generar y descargar PDF
       const pdfBlob = await pdf(
         <ARendirPDF
-          solicitud={enriched}
+          solicitud={{ ...solicitud, beneficiario_nombre: usuarioProfile?.nombre_completo ?? solicitud.beneficiario_nombre }}
           detalles={detalles}
           logoSrc={logoUrl}
           firmaUsuarioSrc={firmaUsuarioSrc}
-          firmaAprobadorSrc={firmaAprobadorSrc}
+          firmaAprobadorSrc={null}
         />
       ).toBlob()
-
       const url = URL.createObjectURL(pdfBlob)
-      const a   = document.createElement('a')
-      a.href    = url
-      a.download = `${solicitud.codigo ?? `AR-${solicitud.id}`}_autorizado.pdf`
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${solicitud.codigo ?? `AR-${solicitud.id}`}_rendicion.pdf`
       a.click()
       URL.revokeObjectURL(url)
 
-      toast.success('Solicitud autorizada')
-      setSolicitud(prev => prev ? { ...prev, estado: 'Autorizado' } : prev)
+      toast.success('Rendición enviada a revisión')
+      setSolicitud(prev => prev ? { ...prev, estado: 'En Revision' } : prev)
       setFirmaOpen(false)
     } catch {
-      toast.error('Error al autorizar')
+      toast.error('Error al enviar rendición')
     } finally {
       setActionLoading(false)
     }
   }
 
-  async function handleRechazar(comentario: string) {
+  async function handleIniciarEnvioRendicion() {
     if (!solicitud) return
-    setActionLoading(true)
-    try {
-      await rechazarARendir(solicitud.id, comentario)
-      toast.success('Solicitud rechazada')
-      setSolicitud(prev => prev ? { ...prev, estado: 'Rechazado', comentario } : prev)
-      setRechazarOpen(false)
-    } catch {
-      toast.error('Error al rechazar')
-    } finally {
-      setActionLoading(false)
+    // Intentar usar firma de perfil del usuario
+    if (usuarioProfile?.firma_path) {
+      try {
+        const blob = await getUserFirmaBlob(usuarioProfile.firma_path)
+        await handleEnviarRendicion(blob)
+        return
+      } catch { /* no hay firma en perfil, abrir modal */ }
     }
+    setFirmaOpen(true)
   }
 
-  async function handleDevolver(comentario: string) {
-    if (!solicitud) return
+  async function handleCerrar() {
+    if (!solicitud || !user?.id) return
     setActionLoading(true)
     try {
-      await devolverARendir(solicitud.id, comentario)
-      toast.success('Solicitud devuelta')
-      setSolicitud(prev => prev ? { ...prev, estado: 'Devuelto', comentario } : prev)
-      setDevolverOpen(false)
+      await cerrarRendicion(solicitud.id, user.id)
+      toast.success('Rendición cerrada')
+      setSolicitud(prev => prev ? { ...prev, estado: 'Cerrado' } : prev)
     } catch {
-      toast.error('Error al devolver')
+      toast.error('Error al cerrar')
     } finally {
       setActionLoading(false)
     }
@@ -484,23 +333,18 @@ export default function ARendirDetallePage() {
   }
 
   // ── Role flags ─────────────────────────────────────────────────
-  const isAdmin     = userRole === ROLES.ADMIN
-  const isEvaluador = userRole === ROLES.EVALUADOR
-  const isAprobador = userRole === ROLES.APROBADOR
-  const isOwner     = solicitud?.beneficiario_id === user?.id
-  const canEditDet  = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
-    ['Pendiente', 'Devuelto'].includes(solicitud?.estado ?? '')
-  const canMarcarPagado = solicitud?.estado === 'Autorizado' && !solicitud?.fecha_pago && userRole === ROLES.VISUALIZADOR
+  const isAdmin        = userRole === ROLES.ADMIN
+  const isAprobador    = userRole === ROLES.APROBADOR
+  const isEvaluador    = userRole === ROLES.EVALUADOR
+  const isVisualizador = userRole === ROLES.VISUALIZADOR
+  const isOwner        = solicitud?.beneficiario_id === user?.id
 
-  const [pagoOpen, setPagoOpen] = useState(false)
-  const handleConfirmPago = async (cuentaId: number, fechaPago: string) => {
-    if (!solicitud?.id || !user?.id) return
-    await marcarPagado('solicitud_arendir', solicitud.id, cuentaId, fechaPago, user.id)
-    toast.success('Marcado como pagado')
-    setPagoOpen(false)
-    const sol = await getARendirById(Number(id))
-    setSolicitud(sol); setDetalles(sol.detalles ?? [])
-  }
+  const canAprobar        = solicitud?.estado === 'Pendiente' && (isAprobador || isAdmin)
+  const canEditDet        = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
+    ['Aprobado', 'Pagado'].includes(solicitud?.estado ?? '')
+  const canMarcarPagado   = solicitud?.estado === 'Aprobado' && (isVisualizador || isAdmin)
+  const canEnviarRendicion = solicitud?.estado === 'Pagado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
+  const canCerrar         = solicitud?.estado === 'En Revision' && (isVisualizador || isEvaluador || isAdmin)
 
   // ── Render ─────────────────────────────────────────────────────
   if (loading) {
@@ -547,8 +391,8 @@ export default function ARendirDetallePage() {
         {/* Acciones por rol y estado */}
         <div className="flex items-center gap-2 flex-wrap">
 
-          {/* PDF — visible desde En Revision en adelante */}
-          {solicitud.estado !== 'Pendiente' && (
+          {/* PDF — visible desde Pagado en adelante */}
+          {['Pagado', 'En Revision', 'Cerrado'].includes(solicitud.estado) && (
             <button
               onClick={handleDownloadPDF}
               className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
@@ -557,89 +401,72 @@ export default function ARendirDetallePage() {
             </button>
           )}
 
-          {/* Marcar pagado (VISUALIZADOR/Contabilidad) */}
-          {canMarcarPagado && (
-            <button onClick={() => setPagoOpen(true)} disabled={actionLoading}
-              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-              Marcar pagado
-            </button>
-          )}
+          {/* Badge pagado (fecha en que se entregó el dinero) */}
           {solicitud.fecha_pago && (
             <span className="flex items-center gap-1 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
-              Pagado {fmtDate(solicitud.fecha_pago)}
+              Dinero entregado {fmtDate(solicitud.fecha_pago)}
             </span>
           )}
 
-          {/* USUARIO/ADMIN: Enviar a revisión (Pendiente o Devuelto) */}
-          {(isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
-            ['Pendiente', 'Devuelto'].includes(solicitud.estado) && (
-            <button
-              onClick={handleEnviar}
-              disabled={actionLoading}
-              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors"
-            >
-              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
-              Enviar a revisión
+          {/* APROBADOR/ADMIN: Aprobar el adelanto (Pendiente) */}
+          {canAprobar && (
+            <button onClick={() => setAprobarOpen(true)} disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+              <CheckCircle2 size={13} /> Aprobar adelanto
             </button>
           )}
 
-          {/* EVALUADOR/ADMIN: Evaluar + Devolver (En Revision) */}
-          {(isEvaluador || isAdmin) && solicitud.estado === 'En Revision' && (
-            <>
-              <button
-                onClick={() => setEvaluarOpen(true)}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 transition-colors"
-              >
-                <BookOpen size={13} /> Evaluar
-              </button>
-              <button
-                onClick={() => setDevRevOpen(true)}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-orange-500 text-white text-xs font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors"
-              >
-                <RotateCcw size={13} /> Devolver
-              </button>
-            </>
+          {/* VISUALIZADOR/ADMIN: Marcar que el dinero fue entregado (Aprobado) */}
+          {canMarcarPagado && (
+            <button onClick={() => setPagoOpen(true)} disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
+              Marcar dinero entregado
+            </button>
           )}
 
-          {/* APROBADOR/ADMIN: Autorizar + Devolver + Rechazar (Evaluado) */}
-          {(isAprobador || isAdmin) && solicitud.estado === 'Evaluado' && (
-            <>
-              <button
-                onClick={() => setFirmaOpen(true)}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
-              >
-                <CheckCircle2 size={13} /> Autorizar
-              </button>
-              <button
-                onClick={() => setDevolverOpen(true)}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-orange-500 text-white text-xs font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors"
-              >
-                <RotateCcw size={13} /> Devolver
-              </button>
-              <button
-                onClick={() => setRechazarOpen(true)}
-                disabled={actionLoading}
-                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-red-500 text-white text-xs font-semibold hover:bg-red-600 disabled:opacity-50 transition-colors"
-              >
-                <XCircle size={13} /> Rechazar
-              </button>
-            </>
+          {/* USUARIO/ADMIN: Enviar rendición con firma (Pagado) */}
+          {canEnviarRendicion && (
+            <button
+              onClick={handleIniciarEnvioRendicion}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors"
+            >
+              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+              Enviar rendición
+            </button>
+          )}
+
+          {/* VISUALIZADOR/EVALUADOR/ADMIN: Cerrar rendición (En Revision) */}
+          {canCerrar && (
+            <button
+              onClick={handleCerrar}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+              Cerrar rendición
+            </button>
           )}
 
         </div>
       </div>
 
-      {/* Comentario (rechazo o devolución) */}
-      {solicitud.comentario && ['Rechazado', 'Devuelto'].includes(solicitud.estado) && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
-          <p className="text-xs font-semibold text-red-700 uppercase mb-1">
-            {solicitud.estado === 'Rechazado' ? 'Motivo de rechazo' : 'Motivo de devolución'}
+      {/* Info de estado Aprobado — aviso a contabilidad */}
+      {solicitud.estado === 'Aprobado' && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-5 py-4">
+          <p className="text-xs font-semibold text-emerald-700 uppercase mb-1">Adelanto aprobado</p>
+          <p className="text-sm text-emerald-800">
+            El adelanto fue aprobado por {solicitud.aprobador_nombre ?? 'el aprobador'}.
+            {(isVisualizador || isAdmin) ? ' Cuando entregues el dinero, haz clic en "Marcar dinero entregado".' : ' Contabilidad realizará el desembolso pronto.'}
           </p>
-          <p className="text-sm text-red-800">{solicitud.comentario}</p>
+        </div>
+      )}
+
+      {/* Info de estado Pagado — aviso al usuario */}
+      {solicitud.estado === 'Pagado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4">
+          <p className="text-xs font-semibold text-blue-700 uppercase mb-1">Dinero recibido</p>
+          <p className="text-sm text-blue-800">El adelanto fue entregado. Agrega los gastos realizados y luego haz clic en "Enviar rendición".</p>
         </div>
       )}
 
@@ -659,8 +486,7 @@ export default function ARendirDetallePage() {
             { label: 'Fecha solicitud',  value: fmtDate(solicitud.fecha_creacion) },
             { label: 'Banco',            value: solicitud.banco },
             { label: solicitud.banco === 'BBVA' ? 'Número de cuenta' : 'Número CCI', value: solicitud.numero_cuenta },
-            { label: 'Aprobador',        value: solicitud.aprobador_nombre },
-            ...(solicitud.evaluador_nombre ? [{ label: 'Evaluador', value: solicitud.evaluador_nombre }] : []),
+            ...(solicitud.estado === 'Cerrado' && solicitud.aprobador_nombre ? [{ label: 'Cerrado por', value: solicitud.aprobador_nombre }] : []),
           ].map(({ label, value }) => (
             <div key={label}>
               <p className="text-xs text-gray-400 uppercase font-semibold mb-0.5">{label}</p>
@@ -840,6 +666,45 @@ export default function ARendirDetallePage() {
         </div>
       )}
 
+      {/* Modal aprobar adelanto */}
+      {aprobarOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Aprobar adelanto</h2>
+            <p className="text-sm text-gray-600">
+              Monto solicitado: <span className="font-semibold">{fmtMoney(solicitud.importe, solicitud.moneda)}</span>
+            </p>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Comentario (opcional)</label>
+              <textarea
+                value={aprobarComent}
+                onChange={e => setAprobarComent(e.target.value)}
+                rows={3}
+                placeholder="Ej: Aprobado con cargo al proyecto X..."
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 resize-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setAprobarOpen(false); setAprobarComent('') }}
+                disabled={aprobarLoading}
+                className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAprobar}
+                disabled={aprobarLoading}
+                className="flex-1 h-10 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {aprobarLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                Aprobar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modales */}
       <PagoModal
         open={pagoOpen}
@@ -848,42 +713,11 @@ export default function ARendirDetallePage() {
         onCancel={() => setPagoOpen(false)}
       />
 
-      <EvaluarARendirModal
-        open={evaluarOpen}
-        onClose={() => setEvaluarOpen(false)}
-        onConfirm={handleEvaluar}
-        loading={actionLoading}
-      />
-
       <FirmaModal
         open={firmaOpen}
-        title="Firma del aprobador"
+        title="Firma del beneficiario"
         onClose={() => setFirmaOpen(false)}
-        onConfirm={handleAutorizar}
-      />
-
-      <ComentarioModal
-        open={devRevOpen}
-        title="Motivo de devolución (desde revisión)"
-        onConfirm={handleDevolverRevision}
-        onCancel={() => setDevRevOpen(false)}
-        loading={actionLoading}
-      />
-
-      <ComentarioModal
-        open={rechazarOpen}
-        title="Motivo de rechazo"
-        onConfirm={handleRechazar}
-        onCancel={() => setRechazarOpen(false)}
-        loading={actionLoading}
-      />
-
-      <ComentarioModal
-        open={devolverOpen}
-        title="Motivo de devolución"
-        onConfirm={handleDevolver}
-        onCancel={() => setDevolverOpen(false)}
-        loading={actionLoading}
+        onConfirm={handleEnviarRendicion}
       />
     </div>
   )

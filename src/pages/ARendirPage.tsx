@@ -14,11 +14,10 @@ import type { Proyecto } from '../features/proyecto/types/proyecto'
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   const map: Record<string, string> = {
     'Pendiente':   'bg-yellow-100 text-yellow-800',
-    'En Revision': 'bg-blue-100 text-blue-800',
-    'Evaluado':    'bg-purple-100 text-purple-800',
-    'Autorizado':  'bg-green-100 text-green-800',
-    'Rechazado':   'bg-red-100 text-red-800',
-    'Devuelto':    'bg-orange-100 text-orange-800',
+    'Aprobado':    'bg-emerald-100 text-emerald-800',
+    'Pagado':      'bg-blue-100 text-blue-800',
+    'En Revision': 'bg-purple-100 text-purple-800',
+    'Cerrado':     'bg-green-100 text-green-800',
   }
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -41,10 +40,10 @@ function fmtDate(val: string | null) {
 
 // ── Page ───────────────────────────────────────────────────────
 const ESTADOS_ARENDIR: Record<string, string[]> = {
-  default:      ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado', 'Rechazado', 'Devuelto'],
-  evaluador:    ['En Revision', 'Pendiente', 'Evaluado'],
-  aprobador:    ['Evaluado', 'Autorizado', 'Rechazado', 'Devuelto'],
-  visualizador: ['Evaluado', 'Autorizado'],
+  default:      ['Pendiente', 'Aprobado', 'Pagado', 'En Revision', 'Cerrado'],
+  aprobador:    ['Pendiente', 'Aprobado'],
+  evaluador:    ['En Revision', 'Cerrado'],
+  visualizador: ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'],
 }
 
 export default function ARendirPage() {
@@ -177,8 +176,8 @@ export default function ARendirPage() {
         >
           <option value="">Todos los estados</option>
           {(
-            userRole === ROLES.EVALUADOR    ? ESTADOS_ARENDIR.evaluador    :
             userRole === ROLES.APROBADOR    ? ESTADOS_ARENDIR.aprobador    :
+            userRole === ROLES.EVALUADOR    ? ESTADOS_ARENDIR.evaluador    :
             userRole === ROLES.VISUALIZADOR ? ESTADOS_ARENDIR.visualizador :
             ESTADOS_ARENDIR.default
           ).map(e => (
@@ -289,14 +288,7 @@ export default function ARendirPage() {
                       {fmtMoney(item.total_reembolso, item.moneda)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <div className="flex items-center justify-center gap-1">
-                        <EstadoBadge estado={item.estado} />
-                        {item.estado === 'Autorizado' && (
-                          item.fecha_pago
-                            ? <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">Pagado</span>
-                            : <span className="text-[10px] font-semibold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-200">Por pagar</span>
-                        )}
-                      </div>
+                      <EstadoBadge estado={item.estado} />
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {fmtDate(item.fecha_creacion)}

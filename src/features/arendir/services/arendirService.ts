@@ -37,15 +37,15 @@ export async function getARendir(filtros: ARendirFiltros = {}): Promise<ARendirP
   const { page = 1, pageSize = 10, role, userId, estado, proyectoId } = filtros
   let q = supabase.from('solicitud_arendir').select(SEL, { count: 'exact' })
   if (role === ROLES.USUARIO && userId) q = q.eq('beneficiario_id', userId)
-  if (role === ROLES.EVALUADOR && userId) {
-    q = q.or(`estado.eq.En Revision,usuario_evaluador.eq.${userId}`)
-  }
-  if (role === ROLES.VISUALIZADOR) {
-    if (estado) {
-      q = q.eq('estado', estado)
-    } else {
-      q = q.in('estado', ['Evaluado', 'Autorizado'])
-    }
+  if (role === ROLES.APROBADOR) {
+    if (estado) q = q.eq('estado', estado)
+    else q = q.in('estado', ['Pendiente', 'Aprobado'])
+  } else if (role === ROLES.EVALUADOR) {
+    if (estado) q = q.eq('estado', estado)
+    else q = q.in('estado', ['En Revision', 'Cerrado'])
+  } else if (role === ROLES.VISUALIZADOR) {
+    if (estado) q = q.eq('estado', estado)
+    else q = q.in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'])
   } else if (estado) {
     q = q.eq('estado', estado)
   }
@@ -83,48 +83,44 @@ export async function updateARendir(id: number, payload: Partial<SolicitudARendi
 }
 
 // ── Estado helpers ─────────────────────────────────────────────
-export async function enviarARendir(id: number): Promise<void> {
+
+/** APROBADOR/ADMIN: aprueba el adelanto → estado Aprobado */
+export async function aprobarARendir(
+  id: number,
+  usuarioId: string,
+  comentario?: string,
+): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Aprobado', usuario_aprobador: usuarioId, fecha_aprobacion: new Date().toISOString(), ...(comentario ? { comentario } : {}) })
+    .eq('id', id)
+  if (error) throw error
+}
+
+/** VISUALIZADOR/ADMIN: entregó el dinero → estado Pagado */
+export async function marcarPagadoARendir(
+  id: number,
+  cuentaPagoId: number,
+  fechaPago: string,
+  usuarioPagoId: string,
+): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Pagado', cuenta_pago_id: cuentaPagoId, fecha_pago: fechaPago, usuario_pago: usuarioPagoId })
+    .eq('id', id)
+  if (error) throw error
+}
+
+/** USUARIO/ADMIN: sube firma y envía la rendición → En Revision */
+export async function enviarRendicion(id: number): Promise<void> {
   const { error } = await supabase.from('solicitud_arendir')
     .update({ estado: 'En Revision' }).eq('id', id)
   if (error) throw error
 }
 
-/** EVALUADOR asigna plan contable → Evaluado */
-export async function marcarEvaluadoARendir(
-  id: number,
-  planContableId: number,
-  evaluadorId: string,
-): Promise<void> {
+/** VISUALIZADOR/EVALUADOR/ADMIN: cierra la rendición → Cerrado */
+export async function cerrarRendicion(id: number, usuarioId: string): Promise<void> {
   const { error } = await supabase.from('solicitud_arendir')
-    .update({ estado: 'Evaluado', plan_contable_id: planContableId, usuario_evaluador: evaluadorId })
+    .update({ estado: 'Cerrado', usuario_aprobador: usuarioId, fecha_aprobacion: new Date().toISOString() })
     .eq('id', id)
-  if (error) throw error
-}
-
-/** EVALUADOR devuelve desde En Revision */
-export async function devolverDesdeRevision(id: number, comentario: string): Promise<void> {
-  const { error } = await supabase.from('solicitud_arendir')
-    .update({ estado: 'Devuelto', comentario }).eq('id', id)
-  if (error) throw error
-}
-
-/** APROBADOR autoriza → Autorizado (requiere firma cargada antes) */
-export async function autorizarARendir(id: number, aprobadorId: string): Promise<void> {
-  const { error } = await supabase.from('solicitud_arendir')
-    .update({ estado: 'Autorizado', usuario_aprobador: aprobadorId, fecha_aprobacion: new Date().toISOString() })
-    .eq('id', id)
-  if (error) throw error
-}
-
-export async function rechazarARendir(id: number, comentario: string): Promise<void> {
-  const { error } = await supabase.from('solicitud_arendir')
-    .update({ estado: 'Rechazado', comentario }).eq('id', id)
-  if (error) throw error
-}
-
-export async function devolverARendir(id: number, comentario: string): Promise<void> {
-  const { error } = await supabase.from('solicitud_arendir')
-    .update({ estado: 'Devuelto', comentario }).eq('id', id)
   if (error) throw error
 }
 
@@ -205,12 +201,12 @@ export interface ARendirRow {
   proyecto_id: number | null
 }
 
-/** Devuelve todos los A Rendir autorizados para KPIs del dashboard */
+/** Devuelve A Rendir pagados/en revisión/cerrados para KPIs del dashboard */
 export async function getARendirAutorizados(): Promise<ARendirRow[]> {
   const { data, error } = await supabase
     .from('solicitud_arendir')
     .select('id, importe, moneda, total_reembolso, estado, proyecto_id')
-    .in('estado', ['Evaluado', 'Autorizado'])
+    .in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'])
   if (error) throw error
   return (data ?? []) as ARendirRow[]
 }

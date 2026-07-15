@@ -94,7 +94,7 @@ function montoSolicitudes(sols: SolicitudRow[], detalles: { solicitud_id: number
 function montoARendir(rows: ARendirRow[], moneda: 'PEN' | 'USD') {
   return rows
     .filter(r => (r.moneda ?? 'PEN') === moneda)
-    .reduce((sum, r) => sum + (r.total_reembolso ?? r.importe ?? 0), 0)
+    .reduce((sum, r) => sum + (r.importe ?? 0), 0)
 }
 
 function montoReembolso(rows: ReembolsoRow[], moneda: 'PEN' | 'USD') {
@@ -153,8 +153,9 @@ function AdminDashboard() {
   const montoTotal     = montoSolicitudes(solicitudes, detalles)
   const rxhAprobPEN    = montoSolicitudes(rxhAprobadas, detalles, 'PEN')
   const rxhAprobUSD    = montoSolicitudes(rxhAprobadas, detalles, 'USD')
-  const arendirPEN     = montoARendir(arendir, 'PEN')
-  const arendirUSD     = montoARendir(arendir, 'USD')
+  const arendirAprobado = arendir.filter(a => a.estado === 'Aprobado')
+  const arendirPEN      = montoARendir(arendirAprobado, 'PEN')
+  const arendirUSD      = montoARendir(arendirAprobado, 'USD')
   const reembolsoPEN   = montoReembolso(reembolso, 'PEN')
   const reembolsoUSD   = montoReembolso(reembolso, 'USD')
 
@@ -199,10 +200,10 @@ function AdminDashboard() {
 
         {/* KPIs A Rendir */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="A Rendir autorizado S/" value={fmtMoney(arendirPEN, 'PEN')} sub={`${arendir.filter(a => (a.moneda ?? 'PEN') === 'PEN').length} registros soles`} icon={<Receipt size={18} />} color="teal" onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir autorizado $" value={fmtMoney(arendirUSD, 'USD')} sub={`${arendir.filter(a => (a.moneda ?? 'PEN') === 'USD').length} registros dólares`} icon={<Receipt size={18} />} color="blue" onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir autorizados" value={arendir.length} sub="total autorizados" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir evaluados" value={arendir.filter(a => a.estado === 'Evaluado').length} sub="esperando autorización" icon={<FileText size={18} />} color="amber" alert={arendir.filter(a => a.estado === 'Evaluado').length > 0} onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir aprobado S/" value={fmtMoney(arendirPEN, 'PEN')} sub={`${arendir.filter(a => (a.moneda ?? 'PEN') === 'PEN').length} registros soles`} icon={<Receipt size={18} />} color="teal" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir aprobado $" value={fmtMoney(arendirUSD, 'USD')} sub={`${arendir.filter(a => (a.moneda ?? 'PEN') === 'USD').length} registros dólares`} icon={<Receipt size={18} />} color="blue" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir cerrados" value={arendir.filter(a => a.estado === 'Cerrado').length} sub="rendiciones finalizadas" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir en revisión" value={arendir.filter(a => a.estado === 'En Revision').length} sub="rendiciones pendientes de cierre" icon={<FileText size={18} />} color="amber" alert={arendir.filter(a => a.estado === 'En Revision').length > 0} onClick={() => navigate('/arendir')} />
         </div>
 
         {/* KPIs Reembolso */}
@@ -335,11 +336,13 @@ function AprobadorDashboard() {
   const reembolsoPEN       = montoReembolso(reembolso, 'PEN')
   const reembolsoUSD       = montoReembolso(reembolso, 'USD')
 
-  const arendirKpi     = proyectoFilter ? arendir.filter(a => a.proyecto_id === proyectoFilter) : arendir
-  const arendirKpiPEN  = montoARendir(arendirKpi, 'PEN')
-  const arendirKpiUSD  = montoARendir(arendirKpi, 'USD')
+  const arendirKpi        = proyectoFilter ? arendir.filter(a => a.proyecto_id === proyectoFilter) : arendir
+  const arendirPorPagar   = arendirKpi.filter(a => a.estado === 'Aprobado')
+  const arendirEnProceso  = arendirKpi.filter(a => ['Pagado', 'En Revision'].includes(a.estado))
+  const arendirKpiPEN     = montoARendir(arendirPorPagar, 'PEN')
+  const arendirKpiUSD     = montoARendir(arendirPorPagar, 'USD')
 
-  const arendirAuth    = arendir.filter(a => a.estado === 'Autorizado')
+  const arendirAuth    = arendir.filter(a => ['Pagado', 'En Revision', 'Cerrado'].includes(a.estado))
   const arendirAuthFil = proyectoFilter ? arendirAuth.filter(a => a.proyecto_id === proyectoFilter) : arendirAuth
   const arendirFilPEN  = montoARendir(arendirAuthFil, 'PEN')
   const arendirFilUSD  = montoARendir(arendirAuthFil, 'USD')
@@ -398,10 +401,10 @@ function AprobadorDashboard() {
 
         {/* KPIs A Rendir */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="A Rendir S/" value={fmtMoney(arendirKpiPEN, 'PEN')} sub="total autorizado soles" icon={<Receipt size={18} />} color="teal" onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir $" value={fmtMoney(arendirKpiUSD, 'USD')} sub="total autorizado dólares" icon={<Receipt size={18} />} color="blue" onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir pend. aprob." value={arendirKpi.filter(a => a.estado === 'Evaluado').length} sub="evaluados, esperan tu firma" icon={<Hourglass size={18} />} color="amber" alert={arendirKpi.filter(a => a.estado === 'Evaluado').length > 0} onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir autorizados" value={arendirKpi.filter(a => a.estado === 'Autorizado').length} sub="finalizados" icon={<CheckCircle size={18} />} color="green" />
+          <KpiCard label="A Rendir por pagar S/" value={fmtMoney(arendirKpiPEN, 'PEN')} sub={`${arendirPorPagar.filter(a => (a.moneda ?? 'PEN') === 'PEN').length} adelantos pendientes`} icon={<Hourglass size={18} />} color="amber" alert={arendirPorPagar.length > 0} onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir por pagar $" value={fmtMoney(arendirKpiUSD, 'USD')} sub={`${arendirPorPagar.filter(a => (a.moneda ?? 'PEN') === 'USD').length} adelantos pendientes`} icon={<Hourglass size={18} />} color="amber" alert={arendirPorPagar.filter(a => (a.moneda ?? 'PEN') === 'USD').length > 0} onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir en proceso" value={arendirEnProceso.length} sub="dinero entregado, rindiendo gastos" icon={<Receipt size={18} />} color="blue" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir cerrados" value={arendirKpi.filter(a => a.estado === 'Cerrado').length} sub="rendiciones finalizadas" icon={<CheckCircle size={18} />} color="green" />
         </div>
 
         {/* KPIs Reembolso */}
@@ -438,7 +441,7 @@ function AprobadorDashboard() {
                 <span className="font-semibold">{fmtMoney(montoAprobPEN, 'PEN')}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="opacity-75">A Rendir Autorizados</span>
+                <span className="opacity-75">A Rendir Aprobados</span>
                 <span className="font-semibold">{fmtMoney(arendirFilPEN, 'PEN')}</span>
               </div>
               <div className="flex justify-between text-sm">
@@ -462,7 +465,7 @@ function AprobadorDashboard() {
                 <span className="font-semibold">{fmtMoney(montoAprobUSD, 'USD')}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="opacity-75">A Rendir Autorizados</span>
+                <span className="opacity-75">A Rendir Aprobados</span>
                 <span className="font-semibold">{fmtMoney(arendirFilUSD, 'USD')}</span>
               </div>
               <div className="flex justify-between text-sm">
@@ -647,8 +650,12 @@ function VisualizadorDashboard() {
   const montoMes        = montoSolicitudes(ocVis.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk), detalles)
   const rxhVisPEN       = montoSolicitudes(rxhVis, detalles, 'PEN')
   const rxhVisUSD       = montoSolicitudes(rxhVis, detalles, 'USD')
-  const arendirPEN      = montoARendir(arendir, 'PEN')
-  const arendirUSD      = montoARendir(arendir, 'USD')
+  const arendirPorPagar   = arendir.filter(a => a.estado === 'Aprobado')
+  const arendirYaPagado   = arendir.filter(a => ['Pagado', 'En Revision', 'Cerrado'].includes(a.estado))
+  const arendirPorPagarPEN = montoARendir(arendirPorPagar, 'PEN')
+  const arendirPorPagarUSD = montoARendir(arendirPorPagar, 'USD')
+  const arendirPagadoPEN  = montoARendir(arendirYaPagado, 'PEN')
+  const arendirPagadoUSD  = montoARendir(arendirYaPagado, 'USD')
   const reembolsoPEN    = montoReembolso(reembolso, 'PEN')
   const reembolsoUSD    = montoReembolso(reembolso, 'USD')
 
@@ -668,10 +675,10 @@ function VisualizadorDashboard() {
 
         {/* KPIs A Rendir */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard label="A Rendir S/" value={fmtMoney(arendirPEN, 'PEN')} sub="total autorizado soles" icon={<Receipt size={18} />} color="teal" onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir $" value={fmtMoney(arendirUSD, 'USD')} sub="total autorizado dólares" icon={<Receipt size={18} />} color="blue" onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir autorizados" value={arendir.filter(a => a.estado === 'Autorizado').length} sub="total autorizados" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/arendir')} />
-          <KpiCard label="A Rendir en evaluación" value={arendir.filter(a => a.estado === 'Evaluado').length} sub="esperando autorización gerencia" icon={<Hourglass size={18} />} color="amber" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir por pagar S/" value={fmtMoney(arendirPorPagarPEN, 'PEN')} sub={`${arendirPorPagar.filter(a => (a.moneda ?? 'PEN') === 'PEN').length} pendientes de desembolso`} icon={<Hourglass size={18} />} color="amber" alert={arendirPorPagar.length > 0} onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir por pagar $" value={fmtMoney(arendirPorPagarUSD, 'USD')} sub={`${arendirPorPagar.filter(a => (a.moneda ?? 'PEN') === 'USD').length} pendientes de desembolso`} icon={<Hourglass size={18} />} color="amber" alert={arendirPorPagar.filter(a => (a.moneda ?? 'PEN') === 'USD').length > 0} onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir ya pagado S/" value={fmtMoney(arendirPagadoPEN, 'PEN')} sub={`${arendirYaPagado.filter(a => (a.moneda ?? 'PEN') === 'PEN').length} desembolsados`} icon={<CheckCircle size={18} />} color="teal" onClick={() => navigate('/arendir')} />
+          <KpiCard label="A Rendir ya pagado $" value={fmtMoney(arendirPagadoUSD, 'USD')} sub={`${arendirYaPagado.filter(a => (a.moneda ?? 'PEN') === 'USD').length} desembolsados`} icon={<CheckCircle size={18} />} color="blue" onClick={() => navigate('/arendir')} />
         </div>
 
         {/* KPIs Reembolso */}
