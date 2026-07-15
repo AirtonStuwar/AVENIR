@@ -198,6 +198,24 @@ export async function getSaldoAnterior(proyectoId: number): Promise<number> {
   return 0
 }
 
+// ── Dashboard helpers ────────────────────────────────────────────
+export interface CajaChicaRow {
+  id: number
+  total_gastos: number
+  estado: string
+  proyecto_id: number | null
+  fecha_pago: string | null
+}
+
+export async function getCajaChicaAutorizadas(): Promise<CajaChicaRow[]> {
+  const { data, error } = await supabase
+    .from('caja_chica')
+    .select('id, total_gastos, estado, proyecto_id, fecha_pago')
+    .eq('estado', 'Autorizado')
+  if (error) throw error
+  return (data ?? []) as CajaChicaRow[]
+}
+
 export async function getAreas(): Promise<{ id: number; nombre: string }[]> {
   const { data } = await supabase
     .from('area')

@@ -22,6 +22,7 @@ import ReembolsoPage from './pages/ReembolsoPage';
 import ReembolsoNuevaPage from './pages/ReembolsoNuevaPage';
 import ReembolsoDetallePage from './pages/ReembolsoDetallePage'
 import ReportesPage from './pages/ReportesPage';
+import PlanContableGastoPage from './pages/PlanContableGastoPage';
 import AreasConsumoPage from './pages/AreasConsumoPage';
 import CajaChicaPage from './pages/CajaChicaPage';
 import CajaChicaNuevaPage from './pages/CajaChicaNuevaPage';
@@ -82,6 +83,7 @@ function App() {
             <Route path="/reembolso/nueva" element={<ReembolsoNuevaPage />} />
             <Route path="/reembolso/:id"   element={<ReembolsoDetallePage />} />
             <Route path="/reportes"        element={<ReportesPage />} />
+            <Route path="/plan-contable"   element={<PlanContableGastoPage />} />
             <Route path="/areas"           element={<AreasConsumoPage />} />
             <Route path="/caja-chica"       element={<CajaChicaPage />} />
             <Route path="/caja-chica/nueva" element={<CajaChicaNuevaPage />} />

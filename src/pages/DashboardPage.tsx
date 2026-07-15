@@ -325,7 +325,7 @@ function AprobadorDashboard() {
   if (loading) return <Spinner />
   if (error || !data) return <ErrorState />
 
-  const { enCola, aprobadas, rechazadas, proyectos, detalles, arendir, reembolso } = data
+  const { enCola, aprobadas, rechazadas, proyectos, detalles, arendir, reembolso, cajaChica } = data
 
   const applyFilter = <T extends SolicitudRow>(list: T[]) =>
     proyectoFilter ? list.filter(s => s.proyecto_id === proyectoFilter) : list
@@ -351,6 +351,27 @@ function AprobadorDashboard() {
   const reembolsoAuthFil = proyectoFilter ? reembolsoAuth.filter(r => r.proyecto_id === proyectoFilter) : reembolsoAuth
   const reembolsoFilPEN  = montoReembolso(reembolsoAuthFil, 'PEN')
   const reembolsoFilUSD  = montoReembolso(reembolsoAuthFil, 'USD')
+
+  // ── Aprobado vs Pagado (gráficos) ─────────────────────────────
+  const solPagadas   = aprobadasFiltradas.filter(s => s.fecha_pago)
+  const arendirAprob = arendirKpi.filter(a => ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'].includes(a.estado))
+  const arendirPag   = arendirAprob.filter(a => a.fecha_pago)
+  const reembolsoPag = reembolsoAuthFil.filter(r => r.fecha_pago)
+  const cajaChicaFil = proyectoFilter ? cajaChica.filter(c => c.proyecto_id === proyectoFilter) : cajaChica
+  const cajaChicaPag = cajaChicaFil.filter(c => c.fecha_pago)
+
+  const pagosPEN = [
+    { modulo: 'Solicitudes', Aprobado: montoSolicitudes(aprobadasFiltradas, detalles, 'PEN'), Pagado: montoSolicitudes(solPagadas, detalles, 'PEN') },
+    { modulo: 'A Rendir',    Aprobado: montoARendir(arendirAprob, 'PEN'),                     Pagado: montoARendir(arendirPag, 'PEN') },
+    { modulo: 'Reembolso',   Aprobado: montoReembolso(reembolsoAuthFil, 'PEN'),               Pagado: montoReembolso(reembolsoPag, 'PEN') },
+    { modulo: 'Caja Chica',  Aprobado: cajaChicaFil.reduce((s, c) => s + (c.total_gastos ?? 0), 0), Pagado: cajaChicaPag.reduce((s, c) => s + (c.total_gastos ?? 0), 0) },
+  ]
+  const pagosUSD = [
+    { modulo: 'Solicitudes', Aprobado: montoSolicitudes(aprobadasFiltradas, detalles, 'USD'), Pagado: montoSolicitudes(solPagadas, detalles, 'USD') },
+    { modulo: 'A Rendir',    Aprobado: montoARendir(arendirAprob, 'USD'),                     Pagado: montoARendir(arendirPag, 'USD') },
+    { modulo: 'Reembolso',   Aprobado: montoReembolso(reembolsoAuthFil, 'USD'),               Pagado: montoReembolso(reembolsoPag, 'USD') },
+  ]
+  const hasPagosUSD = pagosUSD.some(d => d.Aprobado > 0 || d.Pagado > 0)
 
   const rxhAprob       = aprobadasFiltradas.filter(s => s.solicitud_tipo?.nombre === 'Recibo por Honorarios')
   const ocAprob        = aprobadasFiltradas.filter(s => s.solicitud_tipo?.nombre !== 'Recibo por Honorarios')
@@ -474,6 +495,38 @@ function AprobadorDashboard() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Gráficos Aprobado vs Pagado */}
+        <div className={`grid grid-cols-1 ${hasPagosUSD ? 'lg:grid-cols-2' : ''} gap-4`}>
+          <ChartCard title="Aprobado vs Pagado S/" subtitle="Monto aprobado y monto ya pagado por módulo (soles)">
+            {pagosPEN.every(d => d.Aprobado === 0 && d.Pagado === 0) ? <EmptyChart /> : (
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={pagosPEN}>
+                  <XAxis dataKey="modulo" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmtMoney(v, 'PEN')} width={72} />
+                  <Tooltip formatter={(v) => fmtMoneyFull(Number(v), 'PEN')} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="Aprobado" fill="#003D7D" radius={[6, 6, 0, 0]} maxBarSize={42} />
+                  <Bar dataKey="Pagado" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={42} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </ChartCard>
+          {hasPagosUSD && (
+            <ChartCard title="Aprobado vs Pagado $" subtitle="Monto aprobado y monto ya pagado por módulo (dólares)">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={pagosUSD}>
+                  <XAxis dataKey="modulo" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmtMoney(v, 'USD')} width={72} />
+                  <Tooltip formatter={(v) => fmtMoneyFull(Number(v), 'USD')} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="Aprobado" fill="#0D9488" radius={[6, 6, 0, 0]} maxBarSize={42} />
+                  <Bar dataKey="Pagado" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={42} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -1,10 +1,11 @@
 import { supabase } from '../../../api/supabase'
 import { getARendirAutorizados, type ARendirRow } from '../../arendir/services/arendirService'
 import { getReembolsoAutorizados, type ReembolsoRow } from '../../reembolso/services/reembolsoService'
+import { getCajaChicaAutorizadas, type CajaChicaRow } from '../../caja-chica/services/cajaChicaService'
 
-export type { ARendirRow, ReembolsoRow }
+export type { ARendirRow, ReembolsoRow, CajaChicaRow }
 
-const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, moneda, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre)'
+const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, moneda, fecha_pago, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre)'
 
 export interface SolicitudRow {
   id: number
@@ -16,6 +17,7 @@ export interface SolicitudRow {
   fecha_pedido: string | null
   monto_total: number | null
   moneda: string | null
+  fecha_pago: string | null
   estado_soli: { id: number; nombre: string; tipo: string | null } | null
   proyecto: { id: number; nombre: string } | null
   solicitud_tipo: { id: number; nombre: string } | null
@@ -75,10 +77,11 @@ export interface AprobadorData {
   detalles: DetalleRow[]
   arendir: ARendirRow[]
   reembolso: ReembolsoRow[]
+  cajaChica: CajaChicaRow[]
 }
 
 export async function getAprobadorData(): Promise<AprobadorData> {
-  const [solRes, proyRes, detRes, arendir, reembolso] = await Promise.all([
+  const [solRes, proyRes, detRes, arendir, reembolso, cajaChica] = await Promise.all([
     supabase
       .from('solicitud')
       .select(SOL_SELECT)
@@ -88,6 +91,7 @@ export async function getAprobadorData(): Promise<AprobadorData> {
     supabase.from('solicitud_detalle').select('solicitud_id, valor_total, cantidad, valor_unitario'),
     getARendirAutorizados(),
     getReembolsoAutorizados(),
+    getCajaChicaAutorizadas(),
   ])
   if (solRes.error) throw solRes.error
   if (proyRes.error) throw proyRes.error
@@ -102,6 +106,7 @@ export async function getAprobadorData(): Promise<AprobadorData> {
     detalles:  (detRes.data ?? []) as DetalleRow[],
     arendir,
     reembolso,
+    cajaChica,
   }
 }
 

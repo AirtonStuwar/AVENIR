@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Briefcase, LogOut, X, AlertCircle, Receipt, RefreshCw, BarChart2, Building2, Wallet } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Briefcase, LogOut, X, AlertCircle, Receipt, RefreshCw, BarChart2, Building2, Wallet, PieChart } from 'lucide-react';
 import { supabase } from '../../api/supabase';
 import { useAuthStore } from '../../store/authStore';
 
@@ -18,6 +18,7 @@ const menuItems = [
   { name: 'Empresas',    path: '/proyectos',   icon: Briefcase,  roles: [1] },
   { name: 'Áreas',       path: '/areas',       icon: Building2,  roles: [1, 9] },
   { name: 'Reportes',    path: '/reportes',    icon: BarChart2,  roles: [1, 10] },
+  { name: 'Plan Contable', path: '/plan-contable', icon: PieChart, roles: [1, 11] },
 ]
 
 const ROLE_LABELS: Record<number, string> = {

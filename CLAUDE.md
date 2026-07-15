@@ -473,6 +473,28 @@ Consolidación de registros aprobados/autorizados de todos los módulos en un Ex
 
 ---
 
+## Módulo Gasto por Plan Contable
+
+Página `/plan-contable` — visible para **ADMIN (1)** y **USUARIO (11)**. El USUARIO ve solo sus propias solicitudes; ADMIN ve todas.
+
+**Feature folder:** `src/features/plan-contable/services/planContableGastoService.ts` — sin types propios ni hooks.
+
+**`getGastoPorPlanContable(userId?)`** — consulta `solicitud` con `plan_contable_id IS NOT NULL`, filtra client-side por `estado_soli.nombre === 'Aprobado'`, suma `solicitud_detalle` por solicitud (OC con IGV 18%, RxH sin IGV) y agrupa por plan contable. Retorna `GastoPlanContable[]` con `pen`, `usd`, `cantidad` ordenado por monto desc. Solo cubre Solicitudes (no A Rendir/Reembolso/Caja Chica).
+
+**Página:** `src/pages/PlanContableGastoPage.tsx` — buscador de texto, dropdown de plan contable, tarjetas de totales (S/, $, # solicitudes), lista de cards con barra de progreso relativa al plan con mayor gasto.
+
+**Sidebar:** item "Plan Contable" con ícono `PieChart`, roles [1, 11].
+
+---
+
+## Gráficos Aprobado vs Pagado (Dashboard APROBADOR)
+
+El panel APROBADOR incluye dos `ChartCard` con `BarChart` (Recharts) comparando monto aprobado/autorizado vs monto ya pagado (`fecha_pago IS NOT NULL`) por módulo: Solicitudes, A Rendir, Reembolso y Caja Chica (solo S/). El gráfico USD se renderiza solo si hay datos en dólares. Respetan el filtro de empresa del panel.
+
+Para soportarlos: `SOL_SELECT` en `dashboardService.ts` incluye `fecha_pago`; `ARendirRow`, `ReembolsoRow` y el nuevo `CajaChicaRow` (helper `getCajaChicaAutorizadas()` en `cajaChicaService.ts`) incluyen `fecha_pago`; `AprobadorData` incluye `cajaChica`.
+
+---
+
 ## Módulo Caja Chica
 
 Fondo rotativo de efectivo por empresa para gastos menores (agua, luz, insumos, movilidad). El monto ya está aprobado de antemano; el usuario solo rinde los comprobantes.
