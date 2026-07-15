@@ -24,6 +24,8 @@ import type { Proyecto } from '../features/proyecto/types/proyecto'
 import type { SolicitudDetalle, SolicitudFormaPago, PlanContable, SolicitudUpdate } from '../features/solicitud/types/solicitud'
 import { buscarRuc, getTipoCambioUSD } from '../features/solicitud/services/rucService'
 import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
+import { getCuentasByProveedor } from '../features/proveedor/services/proveedorCuentaService'
+import type { ProveedorCuenta } from '../features/proveedor/types/proveedor'
 
 const INPUT =
   'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all'
@@ -89,6 +91,7 @@ export default function SolicitudNuevaPage() {
   const [banco,                        setBanco]                       = useState('')
   const [numero_cuenta,                setNumeroCuenta]                = useState('')
   const [cuenta_detracciones,          setCuentaDetracciones]          = useState('')
+  const [cuentasProveedor,             setCuentasProveedor]            = useState<ProveedorCuenta[]>([])
   const [forma_pago_id,                setFormaPagoId]                 = useState<number | null>(null)
   const [moneda,                       setMoneda]                       = useState<'PEN' | 'USD'>('PEN')
   const [porcentaje_contrato,          setPorcentajeContrato]           = useState<number | null>(100)
@@ -155,23 +158,29 @@ export default function SolicitudNuevaPage() {
 
   // ── RUC AUTOCOMPLETE ──────────────────────────────────────────
   useEffect(() => {
-    if (ruc.length !== 11) return
+    if (ruc.length !== 11) { setCuentasProveedor([]); return }
     let cancelled = false
     setRucLoading(true)
     setRucAutoFilled(false)
-    buscarRuc(ruc)
-      .then((data) => {
-        if (cancelled) return
-        setRazonSocial(data.razon_social)
-        setDireccion(data.direccion)
-        setRucAutoFilled(true)
-        setErrors((x) => ({ ...x, razon_social: '', ruc: '', direccion: '' }))
-      })
-      .catch(() => {
-        if (cancelled) return
-        toast.error('RUC no encontrado en SUNAT')
-      })
-      .finally(() => { if (!cancelled) setRucLoading(false) })
+    Promise.all([
+      buscarRuc(ruc),
+      getCuentasByProveedor(ruc).catch(() => [] as ProveedorCuenta[]),
+    ]).then(([sunatData, cuentas]) => {
+      if (cancelled) return
+      setRazonSocial(sunatData.razon_social)
+      setDireccion(sunatData.direccion)
+      setRucAutoFilled(true)
+      setErrors((x) => ({ ...x, razon_social: '', ruc: '', direccion: '' }))
+      setCuentasProveedor(cuentas)
+      if (cuentas.length === 1) {
+        setBanco(cuentas[0].banco)
+        setNumeroCuenta(cuentas[0].numero_cuenta)
+        setCuentaDetracciones(cuentas[0].cuenta_detracciones ?? '')
+      }
+    }).catch(() => {
+      if (cancelled) return
+      toast.error('RUC no encontrado en SUNAT')
+    }).finally(() => { if (!cancelled) setRucLoading(false) })
     return () => { cancelled = true }
   }, [ruc])
 
@@ -426,6 +435,35 @@ export default function SolicitudNuevaPage() {
               {/* Datos bancarios */}
               <div>
                 <SectionTitle>Datos bancarios</SectionTitle>
+
+                {/* Selector rápido cuando hay varias cuentas registradas */}
+                {cuentasProveedor.length > 1 && (
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {cuentasProveedor.map(c => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setBanco(c.banco)
+                          setNumeroCuenta(c.numero_cuenta)
+                          setCuentaDetracciones(c.cuenta_detracciones ?? '')
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
+                          banco === c.banco && numero_cuenta === c.numero_cuenta
+                            ? 'bg-[#003D7D] text-white border-[#003D7D]'
+                            : 'bg-white text-gray-600 border-gray-200 hover:border-[#003D7D]/40 hover:text-[#003D7D]'
+                        }`}
+                      >
+                        <span>{c.banco}</span>
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${c.moneda === 'USD' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {c.moneda === 'USD' ? '$' : 'S/'}
+                        </span>
+                        {c.descripcion && <span className="text-[10px] text-gray-400">{c.descripcion}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className={LABEL}>Banco</label>

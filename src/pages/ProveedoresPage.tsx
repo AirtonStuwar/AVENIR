@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Star, ThumbsUp, ThumbsDown, RefreshCw, Search } from 'lucide-react'
+import { Users, Star, ThumbsUp, ThumbsDown, RefreshCw, Search, CreditCard } from 'lucide-react'
 import { getProveedoresConMetricas } from '../features/proveedor/services/proveedorService'
 import type { ProveedorConMetricas } from '../features/proveedor/types/proveedor'
+import { useAuthStore } from '../store/authStore'
+import ProveedorCuentasPanel from '../features/proveedor/components/ProveedorCuentasPanel'
 
 function StarDisplay({ value }: { value: number | null }) {
   if (value === null) return <span className="text-xs text-gray-300">Sin evaluar</span>
@@ -28,10 +30,13 @@ function fmtDate(d: string | null) {
 }
 
 export default function ProveedoresPage() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const userRole  = useAuthStore(s => s.userRole)
+  const isAdmin   = userRole === 1
   const [data,    setData]    = useState<ProveedorConMetricas[]>([])
   const [loading, setLoading] = useState(true)
   const [search,  setSearch]  = useState('')
+  const [cuentasProveedor, setCuentasProveedor] = useState<ProveedorConMetricas | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -125,6 +130,7 @@ export default function ProveedoresPage() {
                   {['RUC', 'Razón social', 'Solicitudes', 'Evaluaciones', 'Puntuación', '% Recomendado', 'Última solicitud'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
+                  {isAdmin && <th className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide">Cuentas</th>}
                 </tr>
               </thead>
               <tbody>
@@ -176,6 +182,17 @@ export default function ProveedoresPage() {
                     <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                       {fmtDate(p.ultima_solicitud)}
                     </td>
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={e => { e.stopPropagation(); setCuentasProveedor(p) }}
+                          className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-[#003D7D]/10 text-[#003D7D]/50 hover:text-[#003D7D] transition-colors"
+                          title="Gestionar cuentas bancarias"
+                        >
+                          <CreditCard size={14} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -183,6 +200,14 @@ export default function ProveedoresPage() {
           </div>
         )}
       </div>
+
+      {cuentasProveedor && (
+        <ProveedorCuentasPanel
+          ruc={cuentasProveedor.ruc}
+          razonSocial={cuentasProveedor.razon_social}
+          onClose={() => setCuentasProveedor(null)}
+        />
+      )}
     </div>
   )
 }

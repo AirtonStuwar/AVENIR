@@ -35,3 +35,18 @@ export interface Encuesta {
 
 export type EncuestaInsert = Omit<Encuesta, 'id' | 'fecha_creacion'>
 export type EncuestaUpdate = Partial<Omit<Encuesta, 'id' | 'solicitud_id' | 'fecha_creacion'>>
+
+export interface ProveedorCuenta {
+  id:                  number
+  proveedor_ruc:       string
+  banco:               string
+  numero_cuenta:       string
+  moneda:              'PEN' | 'USD'
+  cuenta_detracciones: string | null
+  descripcion:         string | null
+  estado:              string
+  fecha_creacion:      string | null
+}
+
+export type ProveedorCuentaInsert = Omit<ProveedorCuenta, 'id' | 'fecha_creacion'>
+export type ProveedorCuentaUpdate = Partial<Omit<ProveedorCuenta, 'id' | 'proveedor_ruc' | 'fecha_creacion'>>
