@@ -85,10 +85,18 @@ function daysBetween(dateStr: string) {
   return Math.floor(diff / (1000 * 60 * 60 * 24))
 }
 
+// Total con IGV 18% para OC; RxH sin IGV (mismo criterio que presupuesto y reportes)
 function montoSolicitudes(sols: SolicitudRow[], detalles: { solicitud_id: number; valor_total: number | null; cantidad: number; valor_unitario: number }[], moneda?: 'PEN' | 'USD') {
   const filtered = moneda ? sols.filter(s => (s.moneda ?? 'PEN') === moneda) : sols
-  const ids = new Set(filtered.map(s => s.id))
-  return detalles.filter(d => ids.has(d.solicitud_id)).reduce((sum, d) => sum + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+  const subtotalBySol: Record<number, number> = {}
+  for (const d of detalles) {
+    subtotalBySol[d.solicitud_id] = (subtotalBySol[d.solicitud_id] ?? 0) + (d.valor_total ?? d.cantidad * d.valor_unitario)
+  }
+  return filtered.reduce((sum, s) => {
+    const subtotal = subtotalBySol[s.id] ?? 0
+    const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+    return sum + (isRxH ? subtotal : subtotal * 1.18)
+  }, 0)
 }
 
 function montoARendir(rows: ARendirRow[], moneda: 'PEN' | 'USD') {
@@ -171,8 +179,9 @@ function AdminDashboard() {
   const montoByProyecto: Record<string, number> = {}
   for (const s of solicitudes) {
     const nombre = s.proyecto?.nombre ?? 'Sin empresa'
-    const monto = detalles.filter(d => d.solicitud_id === s.id).reduce((acc, d) => acc + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-    montoByProyecto[nombre] = (montoByProyecto[nombre] ?? 0) + monto
+    const subtotal = detalles.filter(d => d.solicitud_id === s.id).reduce((acc, d) => acc + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+    const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+    montoByProyecto[nombre] = (montoByProyecto[nombre] ?? 0) + (isRxH ? subtotal : subtotal * 1.18)
   }
   const barProyecto = Object.entries(montoByProyecto).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a).slice(0, 5).map(([name, monto]) => ({
     name: name.length > 22 ? name.slice(0, 22) + '…' : name,
