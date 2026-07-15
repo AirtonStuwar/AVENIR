@@ -467,24 +467,40 @@ export default function SolicitudNuevaPage() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className={LABEL}>Banco</label>
-                    <select className={INPUT} value={banco} onChange={(e) => { setBanco(e.target.value); setNumeroCuenta('') }}>
-                      <option value="">Seleccionar banco</option>
-                      {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
-                    </select>
+                    {cuentasProveedor.length > 0 ? (
+                      <input
+                        className={`${INPUT} cursor-not-allowed opacity-70`}
+                        value={banco}
+                        readOnly
+                        placeholder="Selecciona una cuenta arriba"
+                      />
+                    ) : (
+                      <select className={INPUT} value={banco} onChange={(e) => { setBanco(e.target.value); setNumeroCuenta('') }}>
+                        <option value="">Seleccionar banco</option>
+                        {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    )}
                   </div>
                   <div>
                     <label className={LABEL}>{labelNumeroCuenta(banco)}</label>
                     <input
-                      className={INPUT}
-                      placeholder={placeholderNumeroCuenta(banco)}
+                      className={`${INPUT} ${cuentasProveedor.length > 0 ? 'cursor-not-allowed opacity-70' : ''}`}
+                      placeholder={cuentasProveedor.length > 0 ? 'Selecciona una cuenta arriba' : placeholderNumeroCuenta(banco)}
                       maxLength={maxLengthNumeroCuenta(banco)}
                       value={numero_cuenta}
-                      onChange={(e) => setNumeroCuenta(e.target.value.replace(/\D/g, ''))}
+                      readOnly={cuentasProveedor.length > 0}
+                      onChange={cuentasProveedor.length > 0 ? undefined : (e) => setNumeroCuenta(e.target.value.replace(/\D/g, ''))}
                     />
                   </div>
                   <div>
                     <label className={LABEL}>Cuenta detracciones (CCI)</label>
-                    <input className={INPUT} placeholder="Cuenta para detracciones" value={cuenta_detracciones} onChange={(e) => setCuentaDetracciones(e.target.value)} />
+                    <input
+                      className={`${INPUT} ${cuentasProveedor.length > 0 ? 'cursor-not-allowed opacity-70' : ''}`}
+                      placeholder="Cuenta para detracciones"
+                      value={cuenta_detracciones}
+                      readOnly={cuentasProveedor.length > 0}
+                      onChange={cuentasProveedor.length > 0 ? undefined : (e) => setCuentaDetracciones(e.target.value)}
+                    />
                   </div>
                 </div>
               </div>
