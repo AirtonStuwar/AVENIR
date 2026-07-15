@@ -18,7 +18,7 @@ import {
   recalcTotal,
   updateARendir,
 } from '../features/arendir/services/arendirService'
-import type { SolicitudARendir, ARendirDetalle } from '../features/arendir/types/arendir'
+import type { SolicitudARendir } from '../features/arendir/types/arendir'
 import { supabase } from '../api/supabase'
 
 // ── Tipos locales ─────────────────────────────────────────────

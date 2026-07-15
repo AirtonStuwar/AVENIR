@@ -56,50 +56,6 @@ function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   )
 }
 
-// ── Modal comentario ───────────────────────────────────────────
-interface ComentarioModalProps {
-  open: boolean
-  title: string
-  onConfirm: (comentario: string) => void
-  onCancel: () => void
-  loading: boolean
-}
-
-function ComentarioModal({ open, title, onConfirm, onCancel, loading }: ComentarioModalProps) {
-  const [comentario, setComentario] = useState('')
-  if (!open) return null
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-        <textarea
-          value={comentario}
-          onChange={e => setComentario(e.target.value)}
-          rows={4}
-          placeholder="Escribe un comentario..."
-          className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 resize-none"
-        />
-        <div className="flex gap-3">
-          <button
-            onClick={onCancel}
-            disabled={loading}
-            className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={() => onConfirm(comentario)}
-            disabled={loading || !comentario.trim()}
-            className="flex-1 h-10 rounded-xl bg-[#003D7D] text-white text-sm font-semibold hover:bg-[#002D5C] disabled:opacity-50"
-          >
-            {loading ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Confirmar'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Page ───────────────────────────────────────────────────────
 export default function ARendirDetallePage() {
   const { id } = useParams<{ id: string }>()
