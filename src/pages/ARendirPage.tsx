@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { useARendir } from '../features/arendir/hooks/useArendir'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
+import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
 import type { SolicitudARendir } from '../features/arendir/types/arendir'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
@@ -102,7 +103,7 @@ export default function ARendirPage() {
         s.beneficiario_dni ?? '',
         s.banco === 'BBVA' ? 'P' : 'I',
         s.numero_cuenta ?? '',
-        s.beneficiario_nombre ?? '',
+        sanitizeBBVA(s.beneficiario_nombre),
         s.total_reembolso ?? 0,
         'B',
         String(idx + 1).padStart(3, '0'),

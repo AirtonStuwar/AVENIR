@@ -953,6 +953,12 @@ export default function SolicitudDetallePage() {
         <SolicitudArchivos
           solicitudId={solicitud.id}
           editable={canEdit}
+          canDownloadAll={userRole === ROLES.VISUALIZADOR || userRole === ROLES.EVALUADOR}
+          zipName={
+            ([solicitud.razon_social, solicitud.numero_factura ?? solicitud.numero_rxh]
+              .filter(Boolean).join('_') || solicitud.codigo || `solicitud-${solicitud.id}`)
+              .replace(/[/\\:*?"<>|]/g, '-')
+          }
           onChange={setArchivosSubidos}
           tiposVisibles={isRxH
             ? ['Sustento', 'Recibo Honorario', ...(solicitud.aplica_suspension ? ['Suspension'] : [])]

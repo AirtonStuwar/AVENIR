@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
-import { CheckCircle, Eye, FileText, Trash2, Upload } from 'lucide-react'
+import JSZip from 'jszip'
+import { CheckCircle, Download, Eye, FileText, Trash2, Upload } from 'lucide-react'
 import {
   deleteArchivoSolicitud,
   getArchivosBySolicitud,
@@ -25,12 +26,15 @@ interface Props {
   onChange?: (archivos: SolicitudArchivo[]) => void
   tiposVisibles?: string[]   // si se indica, sólo muestra estos tipos de documento
   tiposOpcionales?: string[] // sobrescribe tipos que normalmente son obligatorios → los marca como opcionales
+  canDownloadAll?: boolean   // muestra el botón "Descargar todos" en el header
+  zipName?: string           // nombre del ZIP y la carpeta interna (ej. código de la solicitud)
 }
 
-export default function SolicitudArchivos({ solicitudId, editable, onChange, tiposVisibles, tiposOpcionales }: Props) {
+export default function SolicitudArchivos({ solicitudId, editable, onChange, tiposVisibles, tiposOpcionales, canDownloadAll, zipName }: Props) {
   const [archivos,  setArchivos]  = useState<SolicitudArchivo[]>([])
   const [loading,   setLoading]   = useState(true)
   const [uploading, setUploading] = useState<string | null>(null)
+  const [downloadingAll, setDownloadingAll] = useState(false)
   const refs = useRef<Record<string, HTMLInputElement | null>>({})
 
   useEffect(() => { loadArchivos() }, [solicitudId])
@@ -104,6 +108,38 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
 
   const tiposAMostrar: string[] = tiposVisibles ?? [...TIPOS]
 
+  // Solo documentos visibles (excluye firmas u otros tipos internos)
+  const descargables = archivos.filter(a => tiposAMostrar.includes(a.tipo_archivo ?? ''))
+
+  const handleDownloadAll = async () => {
+    if (descargables.length === 0) { toast.error('No hay documentos adjuntos'); return }
+    setDownloadingAll(true)
+    try {
+      const carpeta = zipName ?? `solicitud-${solicitudId}`
+      const zip = new JSZip()
+      const folder = zip.folder(carpeta)!
+      for (const archivo of descargables) {
+        const url  = await getArchivoUrl(archivo.archivo_path!)
+        const res  = await fetch(url)
+        const blob = await res.blob()
+        const ext  = (archivo.nombre_archivo ?? archivo.archivo_path ?? '').split('.').pop() || 'pdf'
+        folder.file(`${archivo.tipo_archivo ?? 'Documento'}.${ext}`, blob)
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const objUrl = URL.createObjectURL(zipBlob)
+      const link = document.createElement('a')
+      link.href = objUrl
+      link.download = `${carpeta}_documentos.zip`
+      link.click()
+      URL.revokeObjectURL(objUrl)
+      toast.success(`${descargables.length} documento${descargables.length !== 1 ? 's' : ''} descargado${descargables.length !== 1 ? 's' : ''} en ZIP`)
+    } catch {
+      toast.error('Error al descargar documentos')
+    } finally {
+      setDownloadingAll(false)
+    }
+  }
+
   // Un tipo es opcional si está en TIPOS_OPCIONALES O si el caller lo marcó como opcional
   const esOpcionalFn = (tipo: string) =>
     (TIPOS_OPCIONALES as readonly string[]).includes(tipo) ||
@@ -119,11 +155,25 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
         <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">
           Documentos requeridos
         </h2>
-        <span className="text-xs text-gray-400">
-          {nSubidos} subido{nSubidos !== 1 ? 's' : ''}
-          {nObligatorios > 0 && ` · ${nObligatorios} obligatorio${nObligatorios !== 1 ? 's' : ''}`}
-          {nOpcionales   > 0 && ` · ${nOpcionales} opcional${nOpcionales !== 1 ? 'es' : ''}`}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-gray-400">
+            {nSubidos} subido{nSubidos !== 1 ? 's' : ''}
+            {nObligatorios > 0 && ` · ${nObligatorios} obligatorio${nObligatorios !== 1 ? 's' : ''}`}
+            {nOpcionales   > 0 && ` · ${nOpcionales} opcional${nOpcionales !== 1 ? 'es' : ''}`}
+          </span>
+          {canDownloadAll && descargables.length > 0 && (
+            <button
+              onClick={handleDownloadAll}
+              disabled={downloadingAll}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors"
+            >
+              {downloadingAll
+                ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                : <Download size={13} />}
+              Descargar todos ({descargables.length})
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (

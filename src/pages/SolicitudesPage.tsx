@@ -13,6 +13,7 @@ import {
 } from '../features/solicitud/services/solicitudService'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
+import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
 import type { Solicitud } from '../features/solicitud/types/solicitud'
 
 export default function SolicitudesPage() {
@@ -103,7 +104,7 @@ export default function SolicitudesPage() {
         s.ruc ?? '',
         s.banco === 'BBVA' ? 'P' : 'I',
         s.numero_cuenta ?? '',
-        s.razon_social ?? '',
+        sanitizeBBVA(s.razon_social),
         s.monto_total ?? 0,
         'F',
         s.numero_factura ?? '',
