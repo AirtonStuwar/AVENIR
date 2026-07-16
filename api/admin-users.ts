@@ -46,9 +46,11 @@ export default async function handler(req: Request): Promise<Response> {
     return Response.json({ error: 'Faltan datos requeridos' }, { status: 400 })
   }
 
-  const origin = req.headers.get('origin') ?? ''
+  // Nunca confiar en el header Origin de la petición para el enlace de invitación
+  // (puede venir de localhost si se probó en local) — se fija la URL real de producción.
+  const siteUrl = process.env.SITE_URL ?? 'https://avenir-rose.vercel.app'
   const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${origin}/reset-password`,
+    redirectTo: `${siteUrl}/reset-password`,
   })
   if (inviteErr || !invited?.user) {
     return Response.json({ error: inviteErr?.message ?? 'Error al invitar usuario' }, { status: 400 })

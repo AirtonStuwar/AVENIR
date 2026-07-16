@@ -376,6 +376,8 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 
 **Env vars requeridas para `api/admin-users.ts`:** `SUPABASE_SERVICE_ROLE_KEY` (Settings → API en Supabase — **nunca** con prefijo `VITE_`, no debe llegar al bundle del cliente) y reutiliza `VITE_SUPABASE_URL`. Configurar en Vercel → Environment Variables.
 
+**`SITE_URL`** (opcional, con fallback hardcodeado a `https://avenir-rose.vercel.app`): la función **nunca** usa el header `Origin` de la petición para construir el `redirectTo` del enlace de invitación — si se prueba desde `localhost` u otro entorno, el enlace quedaría roto para el usuario real. Al comprar un dominio propio, actualizar esta variable en Vercel (o el fallback en el código) para que las invitaciones apunten al dominio nuevo.
+
 ---
 
 ## Estado de Pago
