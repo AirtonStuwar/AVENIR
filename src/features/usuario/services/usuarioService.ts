@@ -137,3 +137,47 @@ export async function crearUsuario(payload: {
   const data = await res.json()
   if (!res.ok) throw new Error(data.error ?? 'Error al crear usuario')
 }
+
+/** ADMIN: edita nombres, apellidos, cargo y DNI de cualquier usuario */
+export async function actualizarPerfilUsuario(usuarioId: string, data: {
+  nombres: string
+  apellidos: string
+  cargo?: string
+  dni?: string
+}): Promise<void> {
+  const { error } = await supabase
+    .from('usuario')
+    .update({ nombres: data.nombres, apellidos: data.apellidos, cargo: data.cargo ?? null, dni: data.dni ?? null })
+    .eq('id', usuarioId)
+  if (error) throw error
+}
+
+/** ADMIN: trae el estado (activo/desactivado) de todos los usuarios */
+export async function getEstadoUsuarios(): Promise<Record<string, boolean>> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('No autenticado')
+
+  const res = await fetch('/api/admin-users', {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error ?? 'Error al obtener estado de usuarios')
+  const map: Record<string, boolean> = {}
+  for (const e of data.estados as { id: string; banned: boolean }[]) map[e.id] = e.banned
+  return map
+}
+
+/** ADMIN: desactiva o reactiva el acceso de un usuario (no borra su historial) */
+export async function cambiarEstadoUsuario(usuarioId: string, action: 'ban' | 'unban'): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('No autenticado')
+
+  const res = await fetch('/api/admin-users', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify({ usuarioId, action }),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error ?? 'Error al cambiar estado')
+}
