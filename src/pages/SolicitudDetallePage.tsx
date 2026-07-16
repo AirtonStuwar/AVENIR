@@ -1090,9 +1090,12 @@ export default function SolicitudDetallePage() {
                     const q = planContableEditSearch.trim().toLowerCase()
                     const filt = planContableEditOpciones.filter(o =>
                       !q
-                      || (o.tipo_gasto_costo      ?? '').toLowerCase().includes(q)
-                      || (o.nombre_cuenta_contable ?? '').toLowerCase().includes(q)
-                      || (o.codigo_starsoft        ?? '').toLowerCase().includes(q)
+                      || (o.tipo_gasto_costo        ?? '').toLowerCase().includes(q)
+                      || (o.nombre_cuenta_contable   ?? '').toLowerCase().includes(q)
+                      || (o.codigo_starsoft          ?? '').toLowerCase().includes(q)
+                      || (o.partida_presupuestal     ?? '').toLowerCase().includes(q)
+                      || (o.partida_presupuesta_n1   ?? '').toLowerCase().includes(q)
+                      || (o.partida_presupuesta_n2   ?? '').toLowerCase().includes(q)
                     )
                     if (filt.length > 0) return (
                       <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto divide-y divide-gray-50">
@@ -1101,7 +1104,11 @@ export default function SolicitudDetallePage() {
                             onMouseDown={() => { setPlanContableEditSel(op); setPlanContableEditSearch(op.tipo_gasto_costo ?? ''); setPlanContableEditDropOpen(false) }}
                             className="px-4 py-2.5 cursor-pointer hover:bg-[#003D7D]/5 transition-colors">
                             <p className="text-sm font-medium text-gray-800">{op.tipo_gasto_costo}</p>
-                            {op.codigo_starsoft && <p className="text-xs text-gray-400 mt-0.5">{op.codigo_starsoft}</p>}
+                            {(op.codigo_starsoft || op.nombre_cuenta_contable || op.partida_presupuesta_n1) && (
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                {[op.codigo_starsoft, op.nombre_cuenta_contable, op.partida_presupuesta_n1].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
                           </li>
                         ))}
                       </ul>

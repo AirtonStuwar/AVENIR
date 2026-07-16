@@ -80,9 +80,12 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
   const q = search.trim().toLowerCase()
   const filtradas = opciones.filter(o =>
     !q
-    || (o.tipo_gasto_costo      ?? '').toLowerCase().includes(q)
-    || (o.nombre_cuenta_contable ?? '').toLowerCase().includes(q)
-    || (o.codigo_starsoft        ?? '').toLowerCase().includes(q)
+    || (o.tipo_gasto_costo        ?? '').toLowerCase().includes(q)
+    || (o.nombre_cuenta_contable   ?? '').toLowerCase().includes(q)
+    || (o.codigo_starsoft          ?? '').toLowerCase().includes(q)
+    || (o.partida_presupuestal     ?? '').toLowerCase().includes(q)
+    || (o.partida_presupuesta_n1   ?? '').toLowerCase().includes(q)
+    || (o.partida_presupuesta_n2   ?? '').toLowerCase().includes(q)
   )
 
   // Detracciones: comparar contra totalEnSoles (si es USD se convierte con TC)
@@ -176,8 +179,8 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
                       className="px-4 py-2.5 cursor-pointer hover:bg-[#003D7D]/5 transition-colors"
                     >
                       <p className="text-sm font-medium text-gray-800 leading-snug">{op.tipo_gasto_costo}</p>
-                      {op.codigo_starsoft && (
-                        <p className="text-xs text-gray-400 mt-0.5">{op.codigo_starsoft}</p>
+                      {(op.codigo_starsoft || op.nombre_cuenta_contable || op.partida_presupuesta_n1) && (
+                        <p className="text-xs text-gray-400 mt-0.5">{[op.codigo_starsoft, op.nombre_cuenta_contable, op.partida_presupuesta_n1].filter(Boolean).join(' · ')}</p>
                       )}
                     </li>
                   ))}
