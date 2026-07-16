@@ -107,16 +107,16 @@ export async function getConsumoByProyectos(proyectoIds: number[]): Promise<{
     else map[key].pen += amount
   }
 
-  // 1. Solicitudes aprobadas (OC + RxH)
+  // 1. Solicitudes (OC + RxH) — Aprobado + Observado (en corrección, pero ya comprometido)
   const { data: estadoData } = await supabase
-    .from('estado_soli').select('id').eq('nombre', 'Aprobado').maybeSingle()
-  const aprobadoId = estadoData?.id
+    .from('estado_soli').select('id').in('nombre', ['Aprobado', 'Observado'])
+  const estadoIds = (estadoData ?? []).map(e => e.id)
 
-  if (aprobadoId) {
+  if (estadoIds.length) {
     const { data: solData } = await supabase
       .from('solicitud')
       .select('id, proyecto_id, proyecto_partida_id, moneda, solicitud_tipo:tipo_id(nombre)')
-      .eq('estado_id', aprobadoId)
+      .in('estado_id', estadoIds)
       .in('proyecto_id', proyectoIds)
 
     const sols = (solData ?? []) as unknown as {
@@ -147,28 +147,54 @@ export async function getConsumoByProyectos(proyectoIds: number[]): Promise<{
     }
   }
 
-  // 2. A Rendir autorizados
+  // 2. A Rendir — todo lo ya aprobado por el APROBADOR (dinero comprometido/entregado)
   const { data: arData } = await supabase
     .from('solicitud_arendir')
-    .select('proyecto_id, proyecto_partida_id, total_reembolso, moneda')
-    .eq('estado', 'Autorizado')
+    .select('proyecto_id, proyecto_partida_id, importe, total_reembolso, estado, moneda')
+    .in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado', 'Observado'])
     .in('proyecto_id', proyectoIds)
 
-  for (const r of (arData ?? []) as { proyecto_id: number; proyecto_partida_id: number | null; total_reembolso: number; moneda: string | null }[]) {
-    add(porProyecto, r.proyecto_id, r.moneda ?? 'PEN', r.total_reembolso)
-    if (r.proyecto_partida_id) add(porPartida, r.proyecto_partida_id, r.moneda ?? 'PEN', r.total_reembolso)
+  for (const r of (arData ?? []) as { proyecto_id: number; proyecto_partida_id: number | null; importe: number; total_reembolso: number; estado: string; moneda: string | null }[]) {
+    // Antes de rendir gastos (Aprobado) el monto comprometido es el adelanto; ya rendido, el total rendido
+    const monto = r.estado === 'Aprobado' ? r.importe : r.total_reembolso
+    add(porProyecto, r.proyecto_id, r.moneda ?? 'PEN', monto)
+    if (r.proyecto_partida_id) add(porPartida, r.proyecto_partida_id, r.moneda ?? 'PEN', monto)
   }
 
-  // 3. Reembolso autorizados
+  // 3. Reembolso — Autorizado + Observado (en corrección, pero ya comprometido)
   const { data: reData } = await supabase
     .from('solicitud_reembolso')
     .select('proyecto_id, proyecto_partida_id, total_reembolso, moneda')
-    .eq('estado', 'Autorizado')
+    .in('estado', ['Autorizado', 'Observado'])
     .in('proyecto_id', proyectoIds)
 
   for (const r of (reData ?? []) as { proyecto_id: number; proyecto_partida_id: number | null; total_reembolso: number; moneda: string | null }[]) {
     add(porProyecto, r.proyecto_id, r.moneda ?? 'PEN', r.total_reembolso)
     if (r.proyecto_partida_id) add(porPartida, r.proyecto_partida_id, r.moneda ?? 'PEN', r.total_reembolso)
+  }
+
+  // 4. Caja Chica — Autorizado (fondo ya gastado/comprometido)
+  const { data: ccData } = await supabase
+    .from('caja_chica')
+    .select('proyecto_id, total_gastos')
+    .eq('estado', 'Autorizado')
+    .in('proyecto_id', proyectoIds)
+
+  for (const r of (ccData ?? []) as { proyecto_id: number; total_gastos: number }[]) {
+    add(porProyecto, r.proyecto_id, 'PEN', r.total_gastos)
+  }
+
+  // 5. Devolución de Cliente — Autorizado + Observado (egreso comprometido)
+  const { data: dcData } = await supabase
+    .from('devolucion_cliente')
+    .select('proyecto_id, proyecto_partida_id, monto, moneda')
+    .in('estado', ['Autorizado', 'Observado'])
+    .in('proyecto_id', proyectoIds)
+
+  for (const r of (dcData ?? []) as { proyecto_id: number | null; proyecto_partida_id: number | null; monto: number; moneda: string | null }[]) {
+    if (!r.proyecto_id) continue
+    add(porProyecto, r.proyecto_id, r.moneda ?? 'PEN', r.monto)
+    if (r.proyecto_partida_id) add(porPartida, r.proyecto_partida_id, r.moneda ?? 'PEN', r.monto)
   }
 
   return { porProyecto, porPartida }

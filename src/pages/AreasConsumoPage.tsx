@@ -12,6 +12,8 @@ const MODULOS = [
   { key: 'rxh', label: 'RxH', color: 'bg-green-500' },
   { key: 'arendir', label: 'A Rendir', color: 'bg-amber-500' },
   { key: 'reembolso', label: 'Reembolso', color: 'bg-pink-500' },
+  { key: 'cajachica', label: 'Caja Chica', color: 'bg-purple-500' },
+  { key: 'devolucion', label: 'Devolución', color: 'bg-teal-500' },
 ] as const
 
 export default function AreasConsumoPage() {
@@ -38,7 +40,7 @@ export default function AreasConsumoPage() {
         <Building2 size={20} className="text-[#003D7D]" />
         <div className="flex-1">
           <h1 className="text-base font-semibold text-gray-900">Gasto por Área</h1>
-          <p className="text-xs text-gray-400">Consolidado de OC, RxH, A Rendir y Reembolso aprobados/autorizados</p>
+          <p className="text-xs text-gray-400">Consolidado de OC, RxH, A Rendir, Reembolso, Caja Chica y Devolución aprobados/autorizados</p>
         </div>
         <button onClick={load} disabled={loading}
           className="h-9 w-9 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 disabled:opacity-50 transition-colors">
@@ -114,7 +116,7 @@ export default function AreasConsumoPage() {
                   </div>
 
                   {/* Module breakdown */}
-                  <div className="px-5 py-3 grid grid-cols-4 gap-2">
+                  <div className="px-5 py-3 grid grid-cols-3 md:grid-cols-6 gap-2">
                     {MODULOS.map(m => {
                       const pen = a[`${m.key}_pen` as keyof AreaConsumo] as number
                       const usd = a[`${m.key}_usd` as keyof AreaConsumo] as number

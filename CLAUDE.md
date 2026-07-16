@@ -640,12 +640,14 @@ Un proyecto (empresa) puede subdividirse en partidas (centros de costo, ej: COPI
 
 Funcionalidad que calcula el monto consumido vs presupuesto por proyecto y partida. Solo visible para **ADMIN (1)** y **APROBADOR (9)**.
 
-**`getConsumoByProyectos(proyectoIds)`** en `proyectoService.ts` — retorna `{ porProyecto, porPartida }` con `Consumo = { pen: number; usd: number }`. Suma:
-- Solicitudes aprobadas (OC con IGV 18%, RxH sin IGV) agrupadas por `proyecto_id` / `proyecto_partida_id`
-- A Rendir autorizados (`total_reembolso`)
-- Reembolso autorizados (`total_reembolso`)
+**`getConsumoByProyectos(proyectoIds)`** en `proyectoService.ts` — retorna `{ porProyecto, porPartida }` con `Consumo = { pen: number; usd: number }`. Suma, todo agrupado por `proyecto_id` / `proyecto_partida_id`:
+- Solicitudes con estado `Aprobado` o `Observado` (OC con IGV 18%, RxH sin IGV) — Observado cuenta porque ya fue aprobada, solo está en corrección tras ser devuelta por contabilidad
+- A Rendir con estado `Aprobado`, `Pagado`, `En Revision`, `Cerrado` u `Observado` (todo lo ya aprobado por el APROBADOR) — usa `importe` (adelanto) mientras está en `Aprobado`, y `total_reembolso` (gasto real) en los demás estados
+- Reembolso con estado `Autorizado` u `Observado`
+- Caja Chica con estado `Autorizado` (`total_gastos`, siempre en soles)
+- Devolución de Cliente con estado `Autorizado` u `Observado` (`monto`)
 
-> Caja Chica **no** se incluye actualmente en el consumo de presupuesto ni en Gasto por Área.
+`getConsumoByAreas()` en `areaConsumoService.ts` sigue exactamente el mismo criterio de estados por módulo, agrupado por área del creador/beneficiario/responsable en vez de por proyecto. Incluye los 6 módulos: OC, RxH, A Rendir, Reembolso, Caja Chica, Devolución.
 
 **Dónde se muestra:**
 - **`ProyectosTable`** — columna "Consumido" con barra de progreso (verde <80%, amarillo 80-100%, rojo >100%). Solo si `consumo` prop está definida.

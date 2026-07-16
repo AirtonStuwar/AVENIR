@@ -11,6 +11,9 @@ export interface AreaConsumo {
   arendir_usd: number
   reembolso_pen: number
   reembolso_usd: number
+  cajachica_pen: number
+  devolucion_pen: number
+  devolucion_usd: number
   total_pen: number
   total_usd: number
 }
@@ -34,22 +37,23 @@ export async function getConsumoByAreas(): Promise<AreaConsumo[]> {
         area_id: areaId, area_nombre: nombre,
         oc_pen: 0, oc_usd: 0, rxh_pen: 0, rxh_usd: 0,
         arendir_pen: 0, arendir_usd: 0, reembolso_pen: 0, reembolso_usd: 0,
+        cajachica_pen: 0, devolucion_pen: 0, devolucion_usd: 0,
         total_pen: 0, total_usd: 0,
       })
     }
     return areas.get(areaId)!
   }
 
-  // 2. Solicitudes aprobadas (OC + RxH)
+  // 2. Solicitudes (OC + RxH) — Aprobado + Observado (en corrección, pero ya comprometido)
   const { data: estadoData } = await supabase
-    .from('estado_soli').select('id').eq('nombre', 'Aprobado').maybeSingle()
-  const aprobadoId = estadoData?.id
+    .from('estado_soli').select('id').in('nombre', ['Aprobado', 'Observado'])
+  const estadoIds = (estadoData ?? []).map(e => e.id)
 
-  if (aprobadoId) {
+  if (estadoIds.length) {
     const { data: solData } = await supabase
       .from('solicitud')
       .select('id, usuario_creador, moneda, solicitud_tipo:tipo_id(nombre)')
-      .eq('estado_id', aprobadoId)
+      .in('estado_id', estadoIds)
 
     const sols = (solData ?? []) as unknown as {
       id: number; usuario_creador: string | null; moneda: string | null
@@ -86,26 +90,27 @@ export async function getConsumoByAreas(): Promise<AreaConsumo[]> {
     }
   }
 
-  // 3. A Rendir autorizados
+  // 3. A Rendir — todo lo ya aprobado por el APROBADOR (dinero comprometido/entregado)
   const { data: arData } = await supabase
     .from('solicitud_arendir')
-    .select('beneficiario_id, total_reembolso, moneda')
-    .eq('estado', 'Autorizado')
+    .select('beneficiario_id, importe, total_reembolso, estado, moneda')
+    .in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado', 'Observado'])
 
-  for (const r of (arData ?? []) as { beneficiario_id: string | null; total_reembolso: number; moneda: string | null }[]) {
+  for (const r of (arData ?? []) as { beneficiario_id: string | null; importe: number; total_reembolso: number; estado: string; moneda: string | null }[]) {
     if (!r.beneficiario_id) continue
     const ua = userAreaMap[r.beneficiario_id]
     if (!ua) continue
     const a = getArea(ua.id, ua.nombre)
-    if ((r.moneda ?? 'PEN') === 'USD') a.arendir_usd += r.total_reembolso
-    else a.arendir_pen += r.total_reembolso
+    const monto = r.estado === 'Aprobado' ? r.importe : r.total_reembolso
+    if ((r.moneda ?? 'PEN') === 'USD') a.arendir_usd += monto
+    else a.arendir_pen += monto
   }
 
-  // 4. Reembolso autorizados
+  // 4. Reembolso — Autorizado + Observado (en corrección, pero ya comprometido)
   const { data: reData } = await supabase
     .from('solicitud_reembolso')
     .select('beneficiario_id, total_reembolso, moneda')
-    .eq('estado', 'Autorizado')
+    .in('estado', ['Autorizado', 'Observado'])
 
   for (const r of (reData ?? []) as { beneficiario_id: string | null; total_reembolso: number; moneda: string | null }[]) {
     if (!r.beneficiario_id) continue
@@ -116,10 +121,39 @@ export async function getConsumoByAreas(): Promise<AreaConsumo[]> {
     else a.reembolso_pen += r.total_reembolso
   }
 
+  // 5. Caja Chica autorizada (fondo ya gastado/comprometido)
+  const { data: ccData } = await supabase
+    .from('caja_chica')
+    .select('responsable_id, total_gastos')
+    .eq('estado', 'Autorizado')
+
+  for (const r of (ccData ?? []) as { responsable_id: string | null; total_gastos: number }[]) {
+    if (!r.responsable_id) continue
+    const ua = userAreaMap[r.responsable_id]
+    if (!ua) continue
+    const a = getArea(ua.id, ua.nombre)
+    a.cajachica_pen += r.total_gastos
+  }
+
+  // 6. Devolución de Cliente — Autorizado + Observado (egreso comprometido)
+  const { data: dcData } = await supabase
+    .from('devolucion_cliente')
+    .select('creador_id, monto, moneda')
+    .in('estado', ['Autorizado', 'Observado'])
+
+  for (const r of (dcData ?? []) as { creador_id: string | null; monto: number; moneda: string | null }[]) {
+    if (!r.creador_id) continue
+    const ua = userAreaMap[r.creador_id]
+    if (!ua) continue
+    const a = getArea(ua.id, ua.nombre)
+    if ((r.moneda ?? 'PEN') === 'USD') a.devolucion_usd += r.monto
+    else a.devolucion_pen += r.monto
+  }
+
   // Calculate totals
   for (const a of areas.values()) {
-    a.total_pen = a.oc_pen + a.rxh_pen + a.arendir_pen + a.reembolso_pen
-    a.total_usd = a.oc_usd + a.rxh_usd + a.arendir_usd + a.reembolso_usd
+    a.total_pen = a.oc_pen + a.rxh_pen + a.arendir_pen + a.reembolso_pen + a.cajachica_pen + a.devolucion_pen
+    a.total_usd = a.oc_usd + a.rxh_usd + a.arendir_usd + a.reembolso_usd + a.devolucion_usd
   }
 
   return [...areas.values()].sort((a, b) => (b.total_pen + b.total_usd) - (a.total_pen + a.total_usd))
