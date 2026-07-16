@@ -17,6 +17,7 @@ const ESTADO_COLOR: Record<string, string> = {
   'Aprobado':                'bg-green-100 text-green-800',
   'Rechazado':               'bg-red-100 text-red-800',
   'Cancelado':               'bg-gray-100 text-gray-500',
+  'Observado':               'bg-amber-100 text-amber-800',
 }
 
 interface Props {

@@ -473,6 +473,22 @@ Consolidación de registros aprobados/autorizados de todos los módulos en un Ex
 
 ---
 
+## Estado Observado (devolución por contabilidad)
+
+El **VISUALIZADOR** (y ADMIN) tiene botón **"Devolver"** en el estado previo al pago de los 5 módulos (Solicitud Aprobado, A Rendir Aprobado, Reembolso Autorizado, Caja Chica Autorizado, Devolución Autorizado). Al devolver con **motivo obligatorio**, el registro pasa a estado **`Observado`** (badge ámbar en todos los listados/detalles).
+
+**Flujo Observado:** el creador ve una alerta ámbar con el motivo, puede corregir (documentos, detalles, datos de factura — según módulo) y hace clic en **"Reenviar a contabilidad"**, que regresa el registro **directo** a Aprobado/Autorizado **sin pasar de nuevo por evaluador ni aprobador** (conserva `usuario_aprobador`/`fecha_aprobacion`).
+
+**Restricción clave:** en Observado los **datos bancarios (banco, número de cuenta) NO son editables**. En Solicitudes esto se logra ocultando el botón "Editar" del header (solo visible en Pendiente); en los demás módulos no existe UI de edición de cabecera fuera del wizard.
+
+**Implementación:**
+- `estado_soli` tiene fila `Observado` (tipo Proceso). CHECK constraints de `solicitud_arendir`, `solicitud_reembolso` y `devolucion_cliente` incluyen `'Observado'` (caja_chica no tiene CHECK).
+- Servicios: `observarSolicitud`/`reenviarAContabilidad` (solicitud), `devolverARendir` (ahora → Observado)/`reenviarContabilidadARendir`, `observarReembolso`/`reenviarContabilidadReembolso`, `observarCajaChica`/`reenviarContabilidadCajaChica`, `devolverDevolucion` (→ Observado)/`reenviarContabilidadDevolucion`.
+- En Reembolso y Caja Chica el handler `handleDevolver` de la página de detalle hace branch: estado Autorizado → observar (contabilidad); estados anteriores → Devuelto (aprobador/evaluador). En Solicitud el branch es isAprobado → observar.
+- El motivo se guarda en `comentario` (`comentario_gerencia` en solicitud).
+
+---
+
 ## Módulo Devolución de Cliente
 
 Registro de devoluciones de dinero a clientes (egreso). Sin líneas de detalle: un solo monto por registro.

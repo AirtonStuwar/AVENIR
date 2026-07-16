@@ -19,6 +19,8 @@ import {
   autorizarReembolso,
   rechazarReembolso,
   devolverReembolso,
+  observarReembolso,
+  reenviarContabilidadReembolso,
   getArchivoUrlReembolso,
   uploadFirmaReembolso,
   addDetalleReembolso,
@@ -53,6 +55,7 @@ function EstadoBadge({ estado }: { estado: SolicitudReembolso['estado'] }) {
     'Autorizado':  'bg-green-100 text-green-800',
     'Rechazado':   'bg-red-100 text-red-800',
     'Devuelto':    'bg-orange-100 text-orange-800',
+    'Observado':   'bg-amber-100 text-amber-800',
   }
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -285,8 +288,9 @@ export default function ReembolsoDetallePage() {
   const isAprobador = userRole === ROLES.APROBADOR
   const isOwner     = solicitud?.beneficiario_id === user?.id
   const canEditDet  = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
-    ['Pendiente', 'Devuelto'].includes(solicitud?.estado ?? '')
+    ['Pendiente', 'Devuelto', 'Observado'].includes(solicitud?.estado ?? '')
   const canMarcarPagado = solicitud?.estado === 'Autorizado' && !solicitud?.fecha_pago && userRole === ROLES.VISUALIZADOR
+  const canReenviarConta = solicitud?.estado === 'Observado' && (isAdmin || (userRole === ROLES.USUARIO && isOwner))
 
   const [pagoOpen, setPagoOpen] = useState(false)
   const handleConfirmPago = async (cuentaId: number, fechaPago: string) => {
@@ -394,10 +398,30 @@ export default function ReembolsoDetallePage() {
     finally { setActionLoading(false) }
   }
 
+  async function handleReenviarContabilidad() {
+    if (!solicitud) return
+    setActionLoading(true)
+    try {
+      await reenviarContabilidadReembolso(solicitud.id)
+      toast.success('Reenviado a contabilidad')
+      setSolicitud(prev => prev ? { ...prev, estado: 'Autorizado' } : prev)
+    } catch { toast.error('Error al reenviar') }
+    finally { setActionLoading(false) }
+  }
+
   async function handleDevolver(comentario: string) {
     if (!solicitud) return
     setActionLoading(true)
     try {
+      // Desde Autorizado (contabilidad) → Observado; desde Evaluado (aprobador) → Devuelto
+      if (solicitud.estado === 'Autorizado') {
+        await observarReembolso(solicitud.id, comentario)
+        toast.success('Observado — el solicitante puede corregir y reenviar')
+        setSolicitud(prev => prev ? { ...prev, estado: 'Observado', comentario } : prev)
+        setDevolverOpen(false)
+        setActionLoading(false)
+        return
+      }
       await devolverReembolso(solicitud.id, comentario)
       toast.success('Solicitud devuelta')
       setSolicitud(prev => prev ? { ...prev, estado: 'Devuelto', comentario } : prev)
@@ -475,15 +499,29 @@ export default function ReembolsoDetallePage() {
           )}
 
           {canMarcarPagado && (
-            <button onClick={() => setPagoOpen(true)} disabled={actionLoading}
-              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-              Marcar pagado
-            </button>
+            <>
+              <button onClick={() => setPagoOpen(true)} disabled={actionLoading}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                Marcar pagado
+              </button>
+              <button onClick={() => setDevolverOpen(true)} disabled={actionLoading}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
+                <RotateCcw size={13} /> Devolver
+              </button>
+            </>
           )}
           {solicitud.fecha_pago && (
             <span className="flex items-center gap-1 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
               Pagado {fmtDate(solicitud.fecha_pago)}
             </span>
+          )}
+
+          {canReenviarConta && (
+            <button onClick={handleReenviarContabilidad} disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
+              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+              Reenviar a contabilidad
+            </button>
           )}
 
           {(isAdmin || (userRole === ROLES.USUARIO && isOwner)) &&
@@ -526,6 +564,17 @@ export default function ReembolsoDetallePage() {
           )}
         </div>
       </div>
+
+      {/* Alerta de observación — contabilidad encontró un error */}
+      {solicitud.estado === 'Observado' && solicitud.comentario && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
+          <p className="text-xs font-semibold text-amber-700 uppercase mb-1">Observado por contabilidad</p>
+          <p className="text-sm text-amber-800">{solicitud.comentario}</p>
+          {canReenviarConta && (
+            <p className="text-xs text-amber-600 mt-1">Corrige lo indicado y haz clic en "Reenviar a contabilidad" — no pasa de nuevo por aprobación.</p>
+          )}
+        </div>
+      )}
 
       {/* Comentario rechazo/devolución */}
       {solicitud.comentario && ['Rechazado', 'Devuelto'].includes(solicitud.estado) && (

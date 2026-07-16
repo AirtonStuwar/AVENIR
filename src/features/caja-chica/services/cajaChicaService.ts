@@ -183,6 +183,16 @@ export async function devolverCajaChica(id: number, comentario: string): Promise
   await updateCajaChica(id, { estado: 'Devuelto', comentario } as Partial<CajaChica>)
 }
 
+/** VISUALIZADOR/ADMIN: encontró un error antes de pagar → estado Observado */
+export async function observarCajaChica(id: number, comentario: string): Promise<void> {
+  await updateCajaChica(id, { estado: 'Observado', comentario } as Partial<CajaChica>)
+}
+
+/** USUARIO/ADMIN: tras corregir → regresa directo a Autorizado (sin re-aprobación) */
+export async function reenviarContabilidadCajaChica(id: number): Promise<void> {
+  await updateCajaChica(id, { estado: 'Autorizado' } as Partial<CajaChica>)
+}
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 export async function getSaldoAnterior(proyectoId: number): Promise<number> {

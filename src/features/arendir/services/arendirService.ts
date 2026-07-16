@@ -96,6 +96,22 @@ export async function aprobarARendir(
   if (error) throw error
 }
 
+/** VISUALIZADOR/ADMIN: encontró un error antes de pagar → estado Observado */
+export async function devolverARendir(id: number, comentario: string): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Observado', comentario })
+    .eq('id', id)
+  if (error) throw error
+}
+
+/** USUARIO/ADMIN: tras corregir → regresa directo a Aprobado (sin re-aprobación) */
+export async function reenviarContabilidadARendir(id: number): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Aprobado' })
+    .eq('id', id)
+  if (error) throw error
+}
+
 /** VISUALIZADOR/ADMIN: entregó el dinero → estado Pagado */
 export async function marcarPagadoARendir(
   id: number,

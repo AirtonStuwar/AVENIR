@@ -14,7 +14,7 @@ export interface DevolucionCliente {
   boucher_separacion_path: string | null
   constancia_separacion_path: string | null
   sustento_desistimiento_path: string | null
-  estado: 'Pendiente' | 'Autorizado' | 'Rechazado'
+  estado: 'Pendiente' | 'Autorizado' | 'Rechazado' | 'Observado'
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
   comentario: string | null

@@ -13,6 +13,7 @@ import {
   createDetalleCajaChica, updateDetalleCajaChica, deleteDetalleCajaChica,
   enviarCajaChica, marcarEvaluadoCajaChica, devolverDesdeRevisionCajaChica,
   autorizarCajaChica, rechazarCajaChica, devolverCajaChica,
+  observarCajaChica, reenviarContabilidadCajaChica,
   getAreas,
 } from '../features/caja-chica/services/cajaChicaService'
 import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
@@ -36,6 +37,7 @@ const ESTADO_BADGE: Record<string, string> = {
   'Autorizado': 'bg-emerald-100 text-emerald-700',
   'Rechazado': 'bg-red-100 text-red-700',
   'Devuelto': 'bg-amber-100 text-amber-700',
+  'Observado': 'bg-amber-100 text-amber-800',
 }
 
 const TIPOS_DOC = ['FACTURA', 'RECIBO', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
@@ -120,9 +122,11 @@ export default function CajaChicaDetallePage() {
   const isEnRevision = cc.estado === 'En Revision'
   const isEvaluado = cc.estado === 'Evaluado'
   const isAutorizado = cc.estado === 'Autorizado'
+  const isObservado = cc.estado === 'Observado'
   const isOwner = cc.responsable_id === user?.id
-  const canEdit = (isPendiente || isDevuelto) && (isOwner || userRole === ROLES.ADMIN)
-  const canEnviar = canEdit && detalles.length > 0
+  const canEdit = (isPendiente || isDevuelto || isObservado) && (isOwner || userRole === ROLES.ADMIN)
+  const canEnviar = (isPendiente || isDevuelto) && (isOwner || userRole === ROLES.ADMIN) && detalles.length > 0
+  const canReenviarConta = isObservado && (isOwner || userRole === ROLES.ADMIN)
   const canEvaluar = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canAprobar = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canMarcarPagado = isAutorizado && !cc.fecha_pago && userRole === ROLES.VISUALIZADOR
@@ -311,9 +315,26 @@ export default function CajaChicaDetallePage() {
 
   const handleDevolver = async (comentario: string) => {
     setActioning(true)
-    try { await devolverCajaChica(cc.id, comentario); toast.success('Devuelta'); await loadData() }
+    try {
+      // Desde Autorizado (contabilidad) → Observado; desde Evaluado (aprobador) → Devuelto
+      if (cc.estado === 'Autorizado') {
+        await observarCajaChica(cc.id, comentario)
+        toast.success('Observado — el responsable puede corregir y reenviar')
+      } else {
+        await devolverCajaChica(cc.id, comentario)
+        toast.success('Devuelta')
+      }
+      await loadData()
+    }
     catch { toast.error('Error') }
     finally { setActioning(false); setDevolucionOpen(false) }
+  }
+
+  const handleReenviarConta = async () => {
+    setActioning(true)
+    try { await reenviarContabilidadCajaChica(cc.id); toast.success('Reenviado a contabilidad'); await loadData() }
+    catch { toast.error('Error al reenviar') }
+    finally { setActioning(false) }
   }
 
   const INPUT = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all'
@@ -341,15 +362,27 @@ export default function CajaChicaDetallePage() {
               </button>
             )}
             {canMarcarPagado && (
-              <button onClick={() => setPagoOpen(true)} disabled={actioning}
-                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-                Marcar pagado
-              </button>
+              <>
+                <button onClick={() => setPagoOpen(true)} disabled={actioning}
+                  className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                  Marcar pagado
+                </button>
+                <button onClick={() => setDevolucionOpen(true)} disabled={actioning}
+                  className="flex items-center gap-1.5 h-9 px-4 rounded-xl border border-amber-300 text-amber-700 text-xs font-semibold hover:bg-amber-50 disabled:opacity-50 transition-colors">
+                  <RotateCcw size={13} /> Devolver
+                </button>
+              </>
             )}
             {cc.fecha_pago && (
               <span className="flex items-center gap-1 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
                 Pagado {fmtDate(cc.fecha_pago)}
               </span>
+            )}
+            {canReenviarConta && (
+              <button onClick={handleReenviarConta} disabled={actioning}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
+                <Send size={13} /> Reenviar a contabilidad
+              </button>
             )}
             {canEnviar && (
               <button onClick={handleEnviar} disabled={actioning}
@@ -387,6 +420,20 @@ export default function CajaChicaDetallePage() {
             )}
           </div>
         </div>
+
+        {/* Alerta de observación — contabilidad encontró un error */}
+        {cc.estado === 'Observado' && cc.comentario && (
+          <div className="flex items-start gap-2 px-4 py-3 rounded-xl border bg-amber-50 border-amber-200 text-amber-700">
+            <AlertCircle size={16} className="shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold">Observado por contabilidad</p>
+              <p className="text-sm">{cc.comentario}</p>
+              {canReenviarConta && (
+                <p className="text-xs text-amber-600 mt-1">Corrige lo indicado y haz clic en "Reenviar a contabilidad" — no pasa de nuevo por aprobación.</p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Alert if devuelto/rechazado */}
         {cc.comentario && (cc.estado === 'Rechazado' || cc.estado === 'Devuelto') && (

@@ -18,6 +18,7 @@ function EstadoBadge({ estado }: { estado: SolicitudReembolso['estado'] }) {
     'Autorizado':  'bg-green-100 text-green-800',
     'Rechazado':   'bg-red-100 text-red-800',
     'Devuelto':    'bg-orange-100 text-orange-800',
+    'Observado':   'bg-amber-100 text-amber-800',
   }
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>

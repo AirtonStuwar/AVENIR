@@ -12,6 +12,8 @@ import PagoModal from '../features/solicitud/components/PagoModal'
 import {
   getARendirById,
   aprobarARendir,
+  devolverARendir,
+  reenviarContabilidadARendir,
   marcarPagadoARendir,
   enviarRendicion,
   cerrarRendicion,
@@ -48,6 +50,7 @@ function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
     'Pagado':      'bg-blue-100 text-blue-800',
     'En Revision': 'bg-purple-100 text-purple-800',
     'Cerrado':     'bg-green-100 text-green-800',
+    'Observado':   'bg-amber-100 text-amber-800',
   }
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -149,6 +152,8 @@ export default function ARendirDetallePage() {
   const [aprobarOpen,   setAprobarOpen]   = useState(false)
   const [aprobarComent, setAprobarComent] = useState('')
   const [aprobarLoading, setAprobarLoading] = useState(false)
+  const [devolverOpen,   setDevolverOpen]   = useState(false)
+  const [devolverComent, setDevolverComent] = useState('')
 
   useEffect(() => {
     if (!id) return
@@ -178,6 +183,37 @@ export default function ARendirDetallePage() {
       toast.error('Error al aprobar')
     } finally {
       setAprobarLoading(false)
+    }
+  }
+
+  async function handleDevolver() {
+    if (!solicitud || !devolverComent.trim()) return
+    setActionLoading(true)
+    try {
+      await devolverARendir(solicitud.id, devolverComent.trim())
+      toast.success('Observado — el solicitante puede corregir y reenviar')
+      setDevolverOpen(false); setDevolverComent('')
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } catch {
+      toast.error('Error al devolver')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleReenviarContabilidad() {
+    if (!solicitud) return
+    setActionLoading(true)
+    try {
+      await reenviarContabilidadARendir(solicitud.id)
+      toast.success('Reenviado a contabilidad')
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } catch {
+      toast.error('Error al reenviar')
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -297,7 +333,8 @@ export default function ARendirDetallePage() {
 
   const canAprobar        = solicitud?.estado === 'Pendiente' && (isAprobador || isAdmin)
   const canEditDet        = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
-    ['Aprobado', 'Pagado'].includes(solicitud?.estado ?? '')
+    ['Aprobado', 'Pagado', 'Observado'].includes(solicitud?.estado ?? '')
+  const canReenviarConta  = solicitud?.estado === 'Observado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
   const canMarcarPagado   = solicitud?.estado === 'Aprobado' && (isVisualizador || isAdmin)
   const canEnviarRendicion = solicitud?.estado === 'Pagado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
   const canCerrar         = solicitud?.estado === 'En Revision' && (isVisualizador || isEvaluador || isAdmin)
@@ -374,9 +411,24 @@ export default function ARendirDetallePage() {
 
           {/* VISUALIZADOR/ADMIN: Marcar que el dinero fue entregado (Aprobado) */}
           {canMarcarPagado && (
-            <button onClick={() => setPagoOpen(true)} disabled={actionLoading}
-              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
-              Marcar dinero entregado
+            <>
+              <button onClick={() => setPagoOpen(true)} disabled={actionLoading}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                Marcar dinero entregado
+              </button>
+              <button onClick={() => { setDevolverComent(''); setDevolverOpen(true) }} disabled={actionLoading}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
+                Devolver
+              </button>
+            </>
+          )}
+
+          {/* USUARIO/ADMIN: Reenviar a contabilidad tras corregir (Observado) */}
+          {canReenviarConta && (
+            <button onClick={handleReenviarContabilidad} disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
+              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+              Reenviar a contabilidad
             </button>
           )}
 
@@ -406,6 +458,17 @@ export default function ARendirDetallePage() {
 
         </div>
       </div>
+
+      {/* Alerta de observación — contabilidad encontró un error */}
+      {solicitud.estado === 'Observado' && solicitud.comentario && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
+          <p className="text-xs font-semibold text-amber-700 uppercase mb-1">Observado por contabilidad</p>
+          <p className="text-sm text-amber-800">{solicitud.comentario}</p>
+          {canReenviarConta && (
+            <p className="text-xs text-amber-600 mt-1">Corrige lo indicado y haz clic en "Reenviar a contabilidad" — no pasa de nuevo por aprobación.</p>
+          )}
+        </div>
+      )}
 
       {/* Info de estado Aprobado — aviso a contabilidad */}
       {solicitud.estado === 'Aprobado' && (
@@ -655,6 +718,33 @@ export default function ARendirDetallePage() {
               >
                 {aprobarLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
                 Aprobar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal devolver */}
+      {devolverOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Devolver A Rendir</h2>
+            <p className="text-sm text-gray-600">Quedará Observado para que el solicitante corrija y lo reenvíe directo a contabilidad (sin re-aprobación).</p>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Motivo *</label>
+              <textarea value={devolverComent} onChange={e => setDevolverComent(e.target.value)} rows={3}
+                placeholder="Describe el error encontrado..."
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-none" />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setDevolverOpen(false)} disabled={actionLoading}
+                className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={handleDevolver} disabled={actionLoading || !devolverComent.trim()}
+                className="flex-1 h-10 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-2">
+                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                Devolver
               </button>
             </div>
           </div>

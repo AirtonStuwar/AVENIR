@@ -249,6 +249,20 @@ export async function devolverSolicitud(id: number, comentario: string): Promise
   return updateSolicitud(id, { estado_id: estadoId, comentario_gerencia: comentario })
 }
 
+/** VISUALIZADOR/ADMIN: observa una solicitud Aprobada antes de pagar → estado Observado */
+export async function observarSolicitud(id: number, comentario: string): Promise<Solicitud> {
+  const [estadoId] = await resolveEstadoIds(['Observado'])
+  if (!estadoId) throw new Error('Estado "Observado" no encontrado en BD')
+  return updateSolicitud(id, { estado_id: estadoId, comentario_gerencia: comentario })
+}
+
+/** USUARIO/ADMIN: tras corregir una solicitud Observada → regresa directo a Aprobado */
+export async function reenviarAContabilidad(id: number): Promise<Solicitud> {
+  const [estadoId] = await resolveEstadoIds(['Aprobado'])
+  if (!estadoId) throw new Error('Estado "Aprobado" no encontrado en BD')
+  return updateSolicitud(id, { estado_id: estadoId })
+}
+
 export async function aprobarSolicitud(id: number, userId: string): Promise<Solicitud> {
   const [estadoId] = await resolveEstadoIds(['Aprobado'])
   if (!estadoId) throw new Error('Estado "Aprobado" no encontrado en BD')

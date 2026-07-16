@@ -6,6 +6,7 @@ import { pdf } from '@react-pdf/renderer'
 import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
   enviarARevision, cancelarSolicitud, marcarEvaluado, devolverSolicitud, aprobarSolicitud, rechazarSolicitud,
+  observarSolicitud, reenviarAContabilidad,
   getArchivosBySolicitud, getArchivoUrl,
   updateSolicitud, duplicarSolicitud, uploadFirma, getUsuarioById, marcarDetraccionPagada,
   getPlanContable,
@@ -73,6 +74,7 @@ const ESTADO_COLOR: Record<string, string> = {
   Aprobado:                'bg-green-100 text-green-800',
   Rechazado:               'bg-red-100 text-red-800',
   Cancelado:               'bg-gray-100 text-gray-600',
+  Observado:               'bg-amber-100 text-amber-800',
 }
 
 // Tipos de acción para el modal de confirmación
@@ -233,10 +235,13 @@ export default function SolicitudDetallePage() {
   const isAprobado     = nombre === 'Aprobado'
   const isCancelado    = nombre === 'Cancelado'
   const isRechazado    = nombre === 'Rechazado'
+  const isObservado    = nombre === 'Observado'
   const isOwnSolicitud = solicitud?.usuario_creador === user?.id
 
   const isRxH        = solicitud?.solicitud_tipo?.nombre === 'Recibo por Honorarios'
-  const canEdit      = isPendiente && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  // Observado (devuelto por contabilidad): editable como Pendiente, pero SIN abrir el modal
+  // de cabecera — así banco y número de cuenta quedan bloqueados durante la corrección.
+  const canEdit      = (isPendiente || isObservado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const canDuplicar  = userRole === ROLES.USUARIO && isOwnSolicitud && (isAprobado || isCancelado || isRechazado)
   const canShowPDF   = !isRechazado && !isCancelado
   // Contrato requerido si total con IGV en soles >= S/ 3,500
@@ -257,6 +262,7 @@ export default function SolicitudDetallePage() {
   )
   const tienePlanContable = !!solicitud?.plan_contable_id
   const canEnviar    = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente && tieneDocsObligatorios && tienePlanContable
+  const canReenviarConta = isObservado && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const canCancelar  = ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN) && isPendiente
   const canEvaluar   = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canDevolver  = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
@@ -486,12 +492,32 @@ export default function SolicitudDetallePage() {
   const handleDevolver = async (comentario: string) => {
     if (!solicitud || !id) return
     try {
-      await devolverSolicitud(solicitud.id, comentario)
-      toast.success('Solicitud devuelta al usuario')
+      // Desde Aprobado (contabilidad) → Observado; desde En Revision (evaluador) → Pendiente
+      if (isAprobado) {
+        await observarSolicitud(solicitud.id, comentario)
+        toast.success('Observado — el usuario puede corregir y reenviar')
+      } else {
+        await devolverSolicitud(solicitud.id, comentario)
+        toast.success('Solicitud devuelta al usuario')
+      }
       await reload(id)
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al devolver')
       throw err
+    }
+  }
+
+  const handleReenviarContabilidad = async () => {
+    if (!solicitud || !id) return
+    setActioning(true)
+    try {
+      await reenviarAContabilidad(solicitud.id)
+      toast.success('Reenviado a contabilidad')
+      await reload(id)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al reenviar')
+    } finally {
+      setActioning(false)
     }
   }
 
@@ -632,10 +658,16 @@ export default function SolicitudDetallePage() {
             </button>
           )}
           {canMarcarPagado && (
-            <button onClick={() => setPagoOpen(true)} disabled={actioning}
-              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-              Marcar pagado
-            </button>
+            <>
+              <button onClick={() => setPagoOpen(true)} disabled={actioning}
+                className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                Marcar pagado
+              </button>
+              <button onClick={() => setDevolucionOpen(true)} disabled={actioning}
+                className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
+                Devolver
+              </button>
+            </>
           )}
           {solicitud?.fecha_pago && (
             <span className="flex items-center gap-1 h-8 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
@@ -660,6 +692,12 @@ export default function SolicitudDetallePage() {
             <button onClick={handleEnviar} disabled={actioning}
               className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
               <Send size={13} /> Enviar a revisión
+            </button>
+          )}
+          {canReenviarConta && (
+            <button onClick={handleReenviarContabilidad} disabled={actioning}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
+              <Send size={13} /> Reenviar a contabilidad
             </button>
           )}
           {canCancelar && (
@@ -697,15 +735,29 @@ export default function SolicitudDetallePage() {
 
       <div className="max-w-5xl mx-auto px-6 py-6 space-y-5">
 
+        {/* Alerta de observación — contabilidad encontró un error */}
+        {isObservado && solicitud.comentario_gerencia && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
+            <p className="text-xs font-semibold text-amber-700 uppercase mb-1">Observado por contabilidad</p>
+            <p className="text-sm text-amber-800">{solicitud.comentario_gerencia}</p>
+            {canReenviarConta && (
+              <p className="text-xs text-amber-600 mt-1">Corrige lo indicado (documentos, factura, detalles) y haz clic en "Reenviar a contabilidad" — no pasa de nuevo por aprobación. Los datos bancarios no se pueden modificar.</p>
+            )}
+          </div>
+        )}
+
         {/* ── INFO GENERAL ── */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Información general</h2>
-            {canEdit && (
+            {canEdit && isPendiente && (
               <button onClick={() => setEditInfoOpen(true)}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors">
                 <Pencil size={13} /> Editar
               </button>
+            )}
+            {isObservado && canEdit && (
+              <span className="text-xs text-amber-600 italic">Datos bancarios bloqueados — corrige documentos y detalles</span>
             )}
           </div>
           <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">

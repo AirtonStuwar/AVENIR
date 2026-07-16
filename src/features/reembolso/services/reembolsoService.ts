@@ -125,6 +125,20 @@ export async function devolverReembolso(id: number, comentario: string): Promise
   if (error) throw error
 }
 
+/** VISUALIZADOR/ADMIN: encontró un error antes de pagar → estado Observado */
+export async function observarReembolso(id: number, comentario: string): Promise<void> {
+  const { error } = await supabase.from('solicitud_reembolso')
+    .update({ estado: 'Observado', comentario }).eq('id', id)
+  if (error) throw error
+}
+
+/** USUARIO/ADMIN: tras corregir → regresa directo a Autorizado (sin re-aprobación) */
+export async function reenviarContabilidadReembolso(id: number): Promise<void> {
+  const { error } = await supabase.from('solicitud_reembolso')
+    .update({ estado: 'Autorizado' }).eq('id', id)
+  if (error) throw error
+}
+
 // ── Detalle ────────────────────────────────────────────────────
 export async function addDetalleReembolso(payload: ReembolsoDetalleInsert): Promise<ReembolsoDetalle> {
   const { data, error } = await supabase

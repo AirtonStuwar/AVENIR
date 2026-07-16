@@ -93,6 +93,22 @@ export async function rechazarDevolucion(id: number, usuarioId: string, comentar
   if (error) throw error
 }
 
+/** VISUALIZADOR/ADMIN: encontró un error antes de pagar → estado Observado */
+export async function devolverDevolucion(id: number, comentario: string): Promise<void> {
+  const { error } = await supabase.from('devolucion_cliente')
+    .update({ estado: 'Observado', comentario })
+    .eq('id', id)
+  if (error) throw error
+}
+
+/** USUARIO/ADMIN: tras corregir → regresa directo a Autorizado (sin re-aprobación) */
+export async function reenviarContabilidadDevolucion(id: number): Promise<void> {
+  const { error } = await supabase.from('devolucion_cliente')
+    .update({ estado: 'Autorizado' })
+    .eq('id', id)
+  if (error) throw error
+}
+
 /** VISUALIZADOR/ADMIN: marca como pagado */
 export async function marcarPagadoDevolucion(
   id: number,

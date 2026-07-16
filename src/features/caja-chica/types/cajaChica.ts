@@ -11,7 +11,7 @@ export interface CajaChica {
   total_gastos: number
   saldo_actual: number
   cuenta_bbva: string | null
-  estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto'
+  estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto' | 'Observado'
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
   comentario: string | null

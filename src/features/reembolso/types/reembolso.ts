@@ -25,7 +25,7 @@ export interface SolicitudReembolso {
   banco: string | null
   numero_cuenta: string | null
   documento_sustento_path: string | null
-  estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto'
+  estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto' | 'Observado'
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
   comentario: string | null

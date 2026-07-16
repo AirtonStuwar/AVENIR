@@ -16,6 +16,7 @@ const ESTADO_BADGE: Record<string, string> = {
   'Autorizado':  'bg-emerald-100 text-emerald-700',
   'Rechazado':   'bg-red-100 text-red-700',
   'Devuelto':    'bg-amber-100 text-amber-700',
+  'Observado':   'bg-amber-100 text-amber-800',
 }
 
 const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`

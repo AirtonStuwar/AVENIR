@@ -11,6 +11,8 @@ import {
   getDevolucionById,
   autorizarDevolucion,
   rechazarDevolucion,
+  devolverDevolucion,
+  reenviarContabilidadDevolucion,
   marcarPagadoDevolucion,
   getArchivoDevolucionUrl,
 } from '../features/devolucion/services/devolucionService'
@@ -32,6 +34,7 @@ function EstadoBadge({ estado }: { estado: DevolucionCliente['estado'] }) {
     'Pendiente':  'bg-yellow-100 text-yellow-800',
     'Autorizado': 'bg-green-100 text-green-800',
     'Rechazado':  'bg-red-100 text-red-800',
+    'Observado':  'bg-amber-100 text-amber-800',
   }
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -58,6 +61,7 @@ export default function DevolucionDetallePage() {
   const [pagoOpen,        setPagoOpen]        = useState(false)
   const [autorizarOpen,   setAutorizarOpen]   = useState(false)
   const [rechazarOpen,    setRechazarOpen]    = useState(false)
+  const [devolverOpen,    setDevolverOpen]    = useState(false)
   const [comentario,      setComentario]      = useState('')
   const [actionLoading,   setActionLoading]   = useState(false)
 
@@ -107,6 +111,35 @@ export default function DevolucionDetallePage() {
     }
   }
 
+  async function handleDevolver() {
+    if (!dev || !comentario.trim()) { toast.error('Ingresa el motivo'); return }
+    setActionLoading(true)
+    try {
+      await devolverDevolucion(dev.id, comentario.trim())
+      toast.success('Observado — el solicitante puede corregir y reenviar')
+      setDevolverOpen(false); setComentario('')
+      await reload()
+    } catch {
+      toast.error('Error al devolver')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleReenviarContabilidad() {
+    if (!dev) return
+    setActionLoading(true)
+    try {
+      await reenviarContabilidadDevolucion(dev.id)
+      toast.success('Reenviado a contabilidad')
+      await reload()
+    } catch {
+      toast.error('Error al reenviar')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
   async function handleConfirmPago(cuentaId: number, fechaPago: string) {
     if (!dev?.id || !user?.id) return
     try {
@@ -133,8 +166,10 @@ export default function DevolucionDetallePage() {
   const isAprobador    = userRole === ROLES.APROBADOR
   const isVisualizador = userRole === ROLES.VISUALIZADOR
 
+  const isOwner         = dev?.creador_id === user?.id
   const canAutorizar    = dev?.estado === 'Pendiente' && (isAprobador || isAdmin)
   const canMarcarPagado = dev?.estado === 'Autorizado' && !dev?.fecha_pago && (isVisualizador || isAdmin)
+  const canReenviarConta = dev?.estado === 'Observado' && (isAdmin || (userRole === ROLES.USUARIO && isOwner))
 
   if (loading) {
     return (
@@ -189,14 +224,41 @@ export default function DevolucionDetallePage() {
               </button>
             </>
           )}
-          {canMarcarPagado && (
-            <button onClick={() => setPagoOpen(true)} disabled={actionLoading}
-              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
-              Marcar pagado
+          {canReenviarConta && (
+            <button onClick={handleReenviarContabilidad} disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
+              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+              Reenviar a contabilidad
             </button>
+          )}
+          {canMarcarPagado && (
+            <>
+              <button onClick={() => setPagoOpen(true)} disabled={actionLoading}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors">
+                Marcar pagado
+              </button>
+              <button onClick={() => { setComentario(''); setDevolverOpen(true) }} disabled={actionLoading}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
+                Devolver
+              </button>
+            </>
           )}
         </div>
       </div>
+
+      {/* Alerta de observación — contabilidad encontró un error */}
+      {dev.estado === 'Observado' && dev.comentario && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex items-start gap-3">
+          <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-amber-700 uppercase mb-1">Observado por contabilidad</p>
+            <p className="text-sm text-amber-800">{dev.comentario}</p>
+            {canReenviarConta && (
+              <p className="text-xs text-amber-600 mt-1">Corrige lo indicado y haz clic en "Reenviar a contabilidad" — no pasa de nuevo por aprobación.</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Alerta rechazo */}
       {dev.estado === 'Rechazado' && dev.comentario && (
@@ -317,6 +379,33 @@ export default function DevolucionDetallePage() {
                 className="flex-1 h-10 rounded-xl bg-red-500 text-white text-sm font-semibold hover:bg-red-600 disabled:opacity-50 flex items-center justify-center gap-2">
                 {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
                 Rechazar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal devolver */}
+      {devolverOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Devolver registro</h2>
+            <p className="text-sm text-gray-600">Quedará Observado para que el solicitante corrija y lo reenvíe directo a contabilidad (sin re-aprobación).</p>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Motivo *</label>
+              <textarea value={comentario} onChange={e => setComentario(e.target.value)} rows={3}
+                placeholder="Describe el error encontrado..."
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-none" />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setDevolverOpen(false)} disabled={actionLoading}
+                className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={handleDevolver} disabled={actionLoading || !comentario.trim()}
+                className="flex-1 h-10 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-2">
+                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                Devolver
               </button>
             </div>
           </div>
