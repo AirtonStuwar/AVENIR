@@ -10,7 +10,7 @@ export interface ReporteFiltros {
 }
 
 export interface ReporteRow {
-  tipo:           'OC' | 'RxH' | 'A Rendir' | 'Reembolso' | 'Caja Chica'
+  tipo:           'OC' | 'RxH' | 'A Rendir' | 'Reembolso' | 'Caja Chica' | 'Devolución'
   codigo:         string | null
   fecha_solicitud: string | null
   fecha_requerida: string | null
@@ -411,14 +411,82 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
   })
 }
 
+async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]> {
+  const { fechaDesde, fechaHasta, proyectoId } = filtros
+
+  let q = supabase
+    .from('devolucion_cliente')
+    .select('id, codigo, creador_id, proyecto_id, cliente_nombre, cliente_dni, monto, moneda, banco, numero_cuenta, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
+    .eq('estado', 'Autorizado')
+    .gte('fecha_aprobacion', fechaDesde)
+    .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
+
+  if (proyectoId) q = q.eq('proyecto_id', proyectoId)
+  const { data, error } = await q.order('fecha_aprobacion')
+  if (error) throw error
+
+  const rows = (data ?? []) as unknown as {
+    id: number; codigo: string | null; creador_id: string | null
+    cliente_nombre: string; cliente_dni: string | null
+    monto: number; moneda: string | null
+    banco: string | null; numero_cuenta: string | null
+    sustento_path: string | null; boucher_separacion_path: string | null
+    constancia_separacion_path: string | null; sustento_desistimiento_path: string | null
+    fecha_aprobacion: string | null; fecha_creacion: string | null; fecha_pago: string | null
+    proyecto: { nombre: string } | null
+    proyecto_partida: { nombre: string } | null
+  }[]
+
+  if (!rows.length) return []
+  const userMap = await enrichUsers(rows.map(r => r.creador_id))
+
+  return rows.map(r => {
+    const isPEN = (r.moneda ?? 'PEN') === 'PEN'
+    const u     = r.creador_id ? (userMap[r.creador_id] ?? null) : null
+    return {
+      tipo:            'Devolución',
+      codigo:          r.codigo,
+      fecha_solicitud: r.fecha_creacion,
+      fecha_requerida: null,
+      fecha_aprobada:  r.fecha_aprobacion,
+      fecha_emision:   null,
+      requerido_por: u?.nombre ?? null,
+      area:          u?.area ?? null,
+      beneficiario:  r.cliente_nombre,
+      documento:     null,
+      ruc:           r.cliente_dni,
+      proyecto:      r.proyecto?.nombre ?? null,
+      partida:       r.proyecto_partida?.nombre ?? null,
+      concepto:      'Devolución de cliente',
+      moneda:        r.moneda ?? 'PEN',
+      total_usd:     isPEN ? 0 : r.monto,
+      total_pen:     isPEN ? r.monto : 0,
+      detraccion:    0,
+      retencion:     0,
+      girar_usd:     isPEN ? 0 : r.monto,
+      girar_pen:     isPEN ? r.monto : 0,
+      banco:         r.banco,
+      cuenta:        r.numero_cuenta,
+      correo:        u?.correo ?? null,
+      fecha_pago:    r.fecha_pago,
+      arc_contrato:   false,
+      arc_sustento:   !!r.sustento_path,
+      arc_cotizacion: false,
+      arc_factura:    false,
+      arc_otros:      !!(r.boucher_separacion_path || r.constancia_separacion_path || r.sustento_desistimiento_path),
+    } satisfies ReporteRow
+  })
+}
+
 export async function getReporteData(filtros: ReporteFiltros): Promise<ReporteRow[]> {
-  const [solis, arendir, reembolso, cajaChica] = await Promise.all([
+  const [solis, arendir, reembolso, cajaChica, devoluciones] = await Promise.all([
     fetchSolicitudes(filtros),
     fetchARendir(filtros),
     fetchReembolso(filtros),
     fetchCajaChica(filtros),
+    fetchDevoluciones(filtros),
   ])
-  return [...solis, ...arendir, ...reembolso, ...cajaChica].sort((a, b) =>
+  return [...solis, ...arendir, ...reembolso, ...cajaChica, ...devoluciones].sort((a, b) =>
     (a.fecha_aprobada ?? '').localeCompare(b.fecha_aprobada ?? '')
   )
 }
@@ -431,6 +499,7 @@ const TIPO_COLOR: Record<string, string> = {
   'A Rendir':  'FFF8E1',
   'Reembolso':   'FCE4EC',
   'Caja Chica':  'F3E5F5',
+  'Devolución':  'E0F2F1',
 }
 
 const fmtDate = (s: string | null) =>

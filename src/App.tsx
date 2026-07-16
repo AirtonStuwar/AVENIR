@@ -23,6 +23,9 @@ import ReembolsoNuevaPage from './pages/ReembolsoNuevaPage';
 import ReembolsoDetallePage from './pages/ReembolsoDetallePage'
 import ReportesPage from './pages/ReportesPage';
 import PlanContableGastoPage from './pages/PlanContableGastoPage';
+import DevolucionPage from './pages/DevolucionPage';
+import DevolucionNuevaPage from './pages/DevolucionNuevaPage';
+import DevolucionDetallePage from './pages/DevolucionDetallePage';
 import AreasConsumoPage from './pages/AreasConsumoPage';
 import CajaChicaPage from './pages/CajaChicaPage';
 import CajaChicaNuevaPage from './pages/CajaChicaNuevaPage';
@@ -85,6 +88,9 @@ function App() {
             <Route path="/reportes"        element={<ReportesPage />} />
             <Route path="/plan-contable"   element={<PlanContableGastoPage />} />
             <Route path="/areas"           element={<AreasConsumoPage />} />
+            <Route path="/devolucion"        element={<DevolucionPage />} />
+            <Route path="/devolucion/nueva"  element={<DevolucionNuevaPage />} />
+            <Route path="/devolucion/:id"    element={<DevolucionDetallePage />} />
             <Route path="/caja-chica"       element={<CajaChicaPage />} />
             <Route path="/caja-chica/nueva" element={<CajaChicaNuevaPage />} />
             <Route path="/caja-chica/:id"   element={<CajaChicaDetallePage />} />

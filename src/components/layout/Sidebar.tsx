@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Briefcase, LogOut, X, AlertCircle, Receipt, RefreshCw, BarChart2, Building2, Wallet, PieChart } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Briefcase, LogOut, X, AlertCircle, Receipt, RefreshCw, BarChart2, Building2, Wallet, PieChart, RotateCcw } from 'lucide-react';
 import { supabase } from '../../api/supabase';
 import { useAuthStore } from '../../store/authStore';
 
@@ -14,6 +14,7 @@ const menuItems = [
   { name: 'A Rendir',    path: '/arendir',     icon: Receipt,    roles: [1, 8, 9, 10, 11] },
   { name: 'Reembolso',   path: '/reembolso',   icon: RefreshCw,  roles: [1, 8, 9, 10, 11] },
   { name: 'Caja Chica',  path: '/caja-chica',  icon: Wallet,     roles: [1, 8, 9, 10, 11] },
+  { name: 'Devolución Cliente', path: '/devolucion', icon: RotateCcw, roles: [1, 9, 10, 11] },
   { name: 'Proveedores', path: '/proveedores', icon: Users,      roles: [1, 11] },
   { name: 'Empresas',    path: '/proyectos',   icon: Briefcase,  roles: [1] },
   { name: 'Áreas',       path: '/areas',       icon: Building2,  roles: [1, 9] },

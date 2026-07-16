@@ -16,7 +16,7 @@ import {
   getProveedorMetricas,
   type DashboardData, type AprobadorData, type EvaluadorData,
   type VisualizadorData, type UsuarioData, type SolicitudRow,
-  type ProveedorMetricasData, type ARendirRow, type ReembolsoRow,
+  type ProveedorMetricasData, type ARendirRow, type ReembolsoRow, type DevolucionRow,
 } from '../features/dashboard/services/dashboardService'
 import { ROLES } from '../features/solicitud/types/solicitud'
 
@@ -111,6 +111,12 @@ function montoReembolso(rows: ReembolsoRow[], moneda: 'PEN' | 'USD') {
     .reduce((sum, r) => sum + (r.total_reembolso ?? 0), 0)
 }
 
+function montoDevolucion(rows: DevolucionRow[], moneda: 'PEN' | 'USD') {
+  return rows
+    .filter(r => (r.moneda ?? 'PEN') === moneda)
+    .reduce((sum, r) => sum + (r.monto ?? 0), 0)
+}
+
 // ── main component ───────────────────────────────────────────────
 export function DashboardPage() {
   const { userRole } = useAuthStore()
@@ -143,7 +149,7 @@ function AdminDashboard() {
   if (loading) return <Spinner />
   if (error || !data) return <ErrorState />
 
-  const { solicitudes, proyectos, detalles, arendir, reembolso } = data
+  const { solicitudes, proyectos, detalles, arendir, reembolso, devoluciones } = data
 
   const porEstado = solicitudes.reduce<Record<string, number>>((acc, s) => {
     const t = s.estado_soli?.nombre ?? 'Sin estado'
@@ -166,6 +172,8 @@ function AdminDashboard() {
   const arendirUSD      = montoARendir(arendirAprobado, 'USD')
   const reembolsoPEN   = montoReembolso(reembolso, 'PEN')
   const reembolsoUSD   = montoReembolso(reembolso, 'USD')
+  const devAutorizadas = devoluciones.filter(d => d.estado === 'Autorizado')
+  const devPendientes  = devoluciones.filter(d => d.estado === 'Pendiente')
 
   const donutData = Object.entries(porEstado).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }))
 
@@ -222,6 +230,16 @@ function AdminDashboard() {
           <KpiCard label="Reembolsos autorizados" value={reembolso.length} sub="total autorizados" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/reembolso')} />
           <KpiCard label="Reembolsos evaluados" value={reembolso.filter(r => r.estado === 'Evaluado').length} sub="esperando autorización" icon={<FileText size={18} />} color="amber" alert={reembolso.filter(r => r.estado === 'Evaluado').length > 0} onClick={() => navigate('/reembolso')} />
         </div>
+
+        {/* KPIs Devolución de Cliente */}
+        {devoluciones.length > 0 && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="Devolución autorizada S/" value={fmtMoney(montoDevolucion(devAutorizadas, 'PEN'), 'PEN')} sub={`${devAutorizadas.filter(d => (d.moneda ?? 'PEN') === 'PEN').length} en soles`} icon={<TrendingUp size={18} />} color="teal" onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Devolución autorizada $" value={fmtMoney(montoDevolucion(devAutorizadas, 'USD'), 'USD')} sub={`${devAutorizadas.filter(d => (d.moneda ?? 'PEN') === 'USD').length} en dólares`} icon={<TrendingUp size={18} />} color="blue" onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Devoluciones por autorizar" value={devPendientes.length} sub="esperando aprobación" icon={<Hourglass size={18} />} color="amber" alert={devPendientes.length > 0} onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Devoluciones pagadas" value={devAutorizadas.filter(d => d.fecha_pago).length} sub={`de ${devAutorizadas.length} autorizadas`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/devolucion')} />
+          </div>
+        )}
 
         {/* KPIs Recibo por Honorarios */}
         {(rxhAprobadas.length > 0) && (
@@ -334,7 +352,7 @@ function AprobadorDashboard() {
   if (loading) return <Spinner />
   if (error || !data) return <ErrorState />
 
-  const { enCola, aprobadas, rechazadas, proyectos, detalles, arendir, reembolso, cajaChica } = data
+  const { enCola, aprobadas, rechazadas, proyectos, detalles, arendir, reembolso, cajaChica, devoluciones } = data
 
   const applyFilter = <T extends SolicitudRow>(list: T[]) =>
     proyectoFilter ? list.filter(s => s.proyecto_id === proyectoFilter) : list
@@ -368,17 +386,23 @@ function AprobadorDashboard() {
   const reembolsoPag = reembolsoAuthFil.filter(r => r.fecha_pago)
   const cajaChicaFil = proyectoFilter ? cajaChica.filter(c => c.proyecto_id === proyectoFilter) : cajaChica
   const cajaChicaPag = cajaChicaFil.filter(c => c.fecha_pago)
+  const devFil       = proyectoFilter ? devoluciones.filter(d => d.proyecto_id === proyectoFilter) : devoluciones
+  const devPend      = devFil.filter(d => d.estado === 'Pendiente')
+  const devAut       = devFil.filter(d => d.estado === 'Autorizado')
+  const devPag       = devAut.filter(d => d.fecha_pago)
 
   const pagosPEN = [
     { modulo: 'Solicitudes', Aprobado: montoSolicitudes(aprobadasFiltradas, detalles, 'PEN'), Pagado: montoSolicitudes(solPagadas, detalles, 'PEN') },
     { modulo: 'A Rendir',    Aprobado: montoARendir(arendirAprob, 'PEN'),                     Pagado: montoARendir(arendirPag, 'PEN') },
     { modulo: 'Reembolso',   Aprobado: montoReembolso(reembolsoAuthFil, 'PEN'),               Pagado: montoReembolso(reembolsoPag, 'PEN') },
     { modulo: 'Caja Chica',  Aprobado: cajaChicaFil.reduce((s, c) => s + (c.total_gastos ?? 0), 0), Pagado: cajaChicaPag.reduce((s, c) => s + (c.total_gastos ?? 0), 0) },
+    { modulo: 'Devolución',  Aprobado: montoDevolucion(devAut, 'PEN'),                        Pagado: montoDevolucion(devPag, 'PEN') },
   ]
   const pagosUSD = [
     { modulo: 'Solicitudes', Aprobado: montoSolicitudes(aprobadasFiltradas, detalles, 'USD'), Pagado: montoSolicitudes(solPagadas, detalles, 'USD') },
     { modulo: 'A Rendir',    Aprobado: montoARendir(arendirAprob, 'USD'),                     Pagado: montoARendir(arendirPag, 'USD') },
     { modulo: 'Reembolso',   Aprobado: montoReembolso(reembolsoAuthFil, 'USD'),               Pagado: montoReembolso(reembolsoPag, 'USD') },
+    { modulo: 'Devolución',  Aprobado: montoDevolucion(devAut, 'USD'),                        Pagado: montoDevolucion(devPag, 'USD') },
   ]
   const hasPagosUSD = pagosUSD.some(d => d.Aprobado > 0 || d.Pagado > 0)
 
@@ -444,6 +468,16 @@ function AprobadorDashboard() {
           <KpiCard label="Reembolso pend. aprob." value={reembolso.filter(r => r.estado === 'Evaluado').length} sub="evaluados, esperan tu firma" icon={<Hourglass size={18} />} color="amber" alert={reembolso.filter(r => r.estado === 'Evaluado').length > 0} onClick={() => navigate('/reembolso')} />
           <KpiCard label="Reembolsos autorizados" value={reembolso.filter(r => r.estado === 'Autorizado').length} sub="finalizados" icon={<CheckCircle size={18} />} color="green" />
         </div>
+
+        {/* KPIs Devolución de Cliente */}
+        {devFil.length > 0 && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="Devol. por autorizar" value={devPend.length} sub="esperando tu decisión" icon={<Hourglass size={18} />} color="amber" alert={devPend.length > 0} onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Devol. autorizada S/" value={fmtMoney(montoDevolucion(devAut, 'PEN'), 'PEN')} sub={`${devAut.filter(d => (d.moneda ?? 'PEN') === 'PEN').length} en soles`} icon={<TrendingUp size={18} />} color="teal" onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Devol. autorizada $" value={fmtMoney(montoDevolucion(devAut, 'USD'), 'USD')} sub={`${devAut.filter(d => (d.moneda ?? 'PEN') === 'USD').length} en dólares`} icon={<TrendingUp size={18} />} color="blue" onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Devoluciones pagadas" value={devPag.length} sub={`de ${devAut.length} autorizadas`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/devolucion')} />
+          </div>
+        )}
 
         {/* KPIs Recibo por Honorarios */}
         {rxhAprob.length > 0 && (
@@ -699,7 +733,7 @@ function VisualizadorDashboard() {
   if (loading) return <Spinner />
   if (error || !data) return <ErrorState />
 
-  const { aprobadas, detalles, arendir, reembolso } = data
+  const { aprobadas, detalles, arendir, reembolso, devoluciones } = data
 
   const cmk             = currentMonthKey()
   const pmk             = prevMonthKey()
@@ -720,6 +754,9 @@ function VisualizadorDashboard() {
   const arendirPagadoUSD  = montoARendir(arendirYaPagado, 'USD')
   const reembolsoPEN    = montoReembolso(reembolso, 'PEN')
   const reembolsoUSD    = montoReembolso(reembolso, 'USD')
+  const devVisAut       = devoluciones.filter(d => d.estado === 'Autorizado')
+  const devVisPorPagar  = devVisAut.filter(d => !d.fecha_pago)
+  const devVisPagadas   = devVisAut.filter(d => d.fecha_pago)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -750,6 +787,16 @@ function VisualizadorDashboard() {
           <KpiCard label="Reembolsos autorizados" value={reembolso.filter(r => r.estado === 'Autorizado').length} sub="total autorizados" icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/reembolso')} />
           <KpiCard label="Reembolsos en evaluación" value={reembolso.filter(r => r.estado === 'Evaluado').length} sub="esperando autorización gerencia" icon={<Hourglass size={18} />} color="amber" onClick={() => navigate('/reembolso')} />
         </div>
+
+        {/* KPIs Devolución de Cliente */}
+        {devVisAut.length > 0 && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="Devol. por pagar S/" value={fmtMoney(montoDevolucion(devVisPorPagar, 'PEN'), 'PEN')} sub={`${devVisPorPagar.filter(d => (d.moneda ?? 'PEN') === 'PEN').length} pendientes de desembolso`} icon={<Hourglass size={18} />} color="amber" alert={devVisPorPagar.length > 0} onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Devol. por pagar $" value={fmtMoney(montoDevolucion(devVisPorPagar, 'USD'), 'USD')} sub={`${devVisPorPagar.filter(d => (d.moneda ?? 'PEN') === 'USD').length} pendientes de desembolso`} icon={<Hourglass size={18} />} color="amber" onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Devol. pagada S/" value={fmtMoney(montoDevolucion(devVisPagadas, 'PEN'), 'PEN')} sub={`${devVisPagadas.filter(d => (d.moneda ?? 'PEN') === 'PEN').length} desembolsadas`} icon={<CheckCircle size={18} />} color="teal" onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Devol. pagada $" value={fmtMoney(montoDevolucion(devVisPagadas, 'USD'), 'USD')} sub={`${devVisPagadas.filter(d => (d.moneda ?? 'PEN') === 'USD').length} desembolsadas`} icon={<CheckCircle size={18} />} color="blue" onClick={() => navigate('/devolucion')} />
+          </div>
+        )}
 
         {/* KPIs Recibo por Honorarios */}
         {rxhVis.length > 0 && (

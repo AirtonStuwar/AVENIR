@@ -2,8 +2,9 @@ import { supabase } from '../../../api/supabase'
 import { getARendirAutorizados, type ARendirRow } from '../../arendir/services/arendirService'
 import { getReembolsoAutorizados, type ReembolsoRow } from '../../reembolso/services/reembolsoService'
 import { getCajaChicaAutorizadas, type CajaChicaRow } from '../../caja-chica/services/cajaChicaService'
+import { getDevolucionesAutorizadas, type DevolucionRow } from '../../devolucion/services/devolucionService'
 
-export type { ARendirRow, ReembolsoRow, CajaChicaRow }
+export type { ARendirRow, ReembolsoRow, CajaChicaRow, DevolucionRow }
 
 const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, moneda, fecha_pago, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre)'
 
@@ -45,16 +46,18 @@ export interface DashboardData {
   detalles: DetalleRow[]
   arendir: ARendirRow[]
   reembolso: ReembolsoRow[]
+  devoluciones: DevolucionRow[]
 }
 
 // ── Admin ────────────────────────────────────────────────────────
 export async function getDashboardData(): Promise<DashboardData> {
-  const [solRes, proyRes, detRes, arendir, reembolso] = await Promise.all([
+  const [solRes, proyRes, detRes, arendir, reembolso, devoluciones] = await Promise.all([
     supabase.from('solicitud').select(SOL_SELECT).order('fecha_creacion', { ascending: false }),
     supabase.from('proyecto').select('id, nombre, estado, presupuesto, fecha_inicio, fecha_fin'),
     supabase.from('solicitud_detalle').select('solicitud_id, valor_total, cantidad, valor_unitario'),
     getARendirAutorizados(),
     getReembolsoAutorizados(),
+    getDevolucionesAutorizadas(),
   ])
   if (solRes.error) throw solRes.error
   if (proyRes.error) throw proyRes.error
@@ -65,6 +68,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     detalles:    (detRes.data ?? []) as DetalleRow[],
     arendir,
     reembolso,
+    devoluciones,
   }
 }
 
@@ -78,10 +82,11 @@ export interface AprobadorData {
   arendir: ARendirRow[]
   reembolso: ReembolsoRow[]
   cajaChica: CajaChicaRow[]
+  devoluciones: DevolucionRow[]
 }
 
 export async function getAprobadorData(): Promise<AprobadorData> {
-  const [solRes, proyRes, detRes, arendir, reembolso, cajaChica] = await Promise.all([
+  const [solRes, proyRes, detRes, arendir, reembolso, cajaChica, devoluciones] = await Promise.all([
     supabase
       .from('solicitud')
       .select(SOL_SELECT)
@@ -92,6 +97,7 @@ export async function getAprobadorData(): Promise<AprobadorData> {
     getARendirAutorizados(),
     getReembolsoAutorizados(),
     getCajaChicaAutorizadas(),
+    getDevolucionesAutorizadas(),
   ])
   if (solRes.error) throw solRes.error
   if (proyRes.error) throw proyRes.error
@@ -107,6 +113,7 @@ export async function getAprobadorData(): Promise<AprobadorData> {
     arendir,
     reembolso,
     cajaChica,
+    devoluciones,
   }
 }
 
@@ -143,10 +150,11 @@ export interface VisualizadorData {
   detalles: DetalleRow[]
   arendir: ARendirRow[]
   reembolso: ReembolsoRow[]
+  devoluciones: DevolucionRow[]
 }
 
 export async function getVisualizadorData(): Promise<VisualizadorData> {
-  const [solRes, detRes, arendir, reembolso] = await Promise.all([
+  const [solRes, detRes, arendir, reembolso, devoluciones] = await Promise.all([
     supabase
       .from('solicitud')
       .select(SOL_SELECT)
@@ -154,6 +162,7 @@ export async function getVisualizadorData(): Promise<VisualizadorData> {
     supabase.from('solicitud_detalle').select('solicitud_id, valor_total, cantidad, valor_unitario'),
     getARendirAutorizados(),
     getReembolsoAutorizados(),
+    getDevolucionesAutorizadas(),
   ])
   if (solRes.error) throw solRes.error
   if (detRes.error) throw detRes.error
@@ -164,6 +173,7 @@ export async function getVisualizadorData(): Promise<VisualizadorData> {
     detalles:  (detRes.data ?? []) as DetalleRow[],
     arendir,
     reembolso,
+    devoluciones,
   }
 }
 

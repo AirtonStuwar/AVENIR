@@ -473,6 +473,29 @@ Consolidación de registros aprobados/autorizados de todos los módulos en un Ex
 
 ---
 
+## Módulo Devolución de Cliente
+
+Registro de devoluciones de dinero a clientes (egreso). Sin líneas de detalle: un solo monto por registro.
+
+**Rutas:** `/devolucion` (listado), `/devolucion/nueva` (formulario), `/devolucion/:id` (detalle).
+
+**Sidebar:** "Devolución Cliente" con ícono `RotateCcw`, roles [1, 9, 10, 11] (sin EVALUADOR). Solo USUARIO y ADMIN crean.
+
+**Feature folder:** `src/features/devolucion/` — `types/devolucion.ts`, `services/devolucionService.ts`, `hooks/useDevolucion.ts`.
+
+**Tabla `devolucion_cliente`:** `id`, `codigo` (trigger `DVC-YY-0001`), `creador_id`, `proyecto_id`, `proyecto_partida_id`, `cliente_nombre`, `cliente_dni`, `monto`, `moneda` (PEN/USD), `banco`, `numero_cuenta`, 4 paths de archivos (`sustento_path`, `boucher_separacion_path`, `constancia_separacion_path`, `sustento_desistimiento_path`), `estado` CHECK (`Pendiente`/`Autorizado`/`Rechazado`), `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `fecha_pago`, `cuenta_pago_id`, `usuario_pago`.
+
+**Flujo (sin evaluador):** Pendiente → APROBADOR/ADMIN Autoriza (comentario opcional) o Rechaza (comentario obligatorio) → VISUALIZADOR/ADMIN marca pagado (PagoModal). `fecha_pago` marca el pago, no es un estado.
+
+**Storage:** bucket `devolucion-documentos`, path `{devolucionId}/{tipo}/{timestamp}.{ext}`. En el formulario de creación, Sustento es obligatorio; los otros 3 archivos son opcionales.
+
+**Integraciones:**
+- **Reportes:** `fetchDevoluciones` en `reportesService.ts` — tipo `'Devolución'`, color teal (`E0F2F1`), filtra `estado = 'Autorizado'` por `fecha_aprobacion`. `beneficiario` = cliente_nombre, `ruc` = cliente_dni.
+- **Dashboards:** `getDevolucionesAutorizadas()` (estados Pendiente + Autorizado) alimenta ADMIN (fila KPI), APROBADOR (fila KPI con cola "por autorizar" + fila 'Devolución' en gráficos Aprobado vs Pagado) y VISUALIZADOR (por pagar / pagado). Las filas KPI solo se renderizan si hay registros.
+- **Excel BBVA:** botón en `DevolucionPage` para VISUALIZADOR/ADMIN — DOI `'L'` + DNI del cliente, nombre con `sanitizeBBVA`, referencia `'Devolucion Cliente'`.
+
+---
+
 ## Módulo Gasto por Plan Contable
 
 Página `/plan-contable` — visible para **ADMIN (1)** y **USUARIO (11)**. El USUARIO ve solo sus propias solicitudes; ADMIN ve todas.
