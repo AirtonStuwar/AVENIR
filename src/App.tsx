@@ -34,6 +34,11 @@ import UsuariosPage from './pages/UsuariosPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 
+// Capturado ANTES de que el cliente de Supabase consuma el hash de la URL:
+// si el enlace del correo (invitación o recuperación) aterriza en cualquier ruta,
+// redirigimos a /reset-password aunque Supabase haya usado la Site URL raíz como fallback.
+const isAuthEmailLink = /type=(recovery|invite)/.test(window.location.hash);
+
 function App() {
   const setSession = useAuthStore((state) => state.setSession);
   const isLoading = useAuthStore((state) => state.isLoading);
@@ -103,7 +108,7 @@ function App() {
           </Route>
         </Route>
 
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to={isAuthEmailLink ? '/reset-password' : '/dashboard'} replace />} />
       </Routes>
     </BrowserRouter>
   );
