@@ -35,6 +35,12 @@ export interface ReporteRow {
   cuenta:         string | null
   correo:         string | null
   fecha_pago:     string | null
+  // Plan contable (sin tipo de gasto ni código Starsoft)
+  pc_cuenta_contable: string | null
+  pc_nombre_cuenta:   string | null
+  pc_partida:         string | null
+  pc_partida_n1:      string | null
+  pc_partida_n2:      string | null
   // Archivos adjuntos
   arc_contrato:   boolean
   arc_sustento:   boolean
@@ -66,6 +72,27 @@ async function enrichUsers(ids: (string | null)[]): Promise<Record<string, { nom
   return result
 }
 
+// Plan contable joineado (campos sin tipo de gasto ni código Starsoft)
+interface PlanContableJoin {
+  cuenta_contable_2020_starsoft: string | null
+  nombre_cuenta_contable: string | null
+  partida_presupuestal: string | null
+  partida_presupuesta_n1: string | null
+  partida_presupuesta_n2: string | null
+}
+
+const PC_COLS = 'cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2'
+
+function pcFields(pc: PlanContableJoin | null | undefined) {
+  return {
+    pc_cuenta_contable: pc?.cuenta_contable_2020_starsoft ?? null,
+    pc_nombre_cuenta:   pc?.nombre_cuenta_contable ?? null,
+    pc_partida:         pc?.partida_presupuestal ?? null,
+    pc_partida_n1:      pc?.partida_presupuesta_n1 ?? null,
+    pc_partida_n2:      pc?.partida_presupuesta_n2 ?? null,
+  }
+}
+
 // ── Fetchers ───────────────────────────────────────────────────────────────
 
 async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> {
@@ -84,6 +111,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       'proyecto:proyecto_id(nombre)',
       'proyecto_partida:proyecto_partida_id(nombre)',
       'detraccion:detraccion_id(porcentaje)',
+      `plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(${PC_COLS})`,
     ].join(', '))
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -106,6 +134,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
     detraccion: { porcentaje: number } | null
+    plan_contable: PlanContableJoin | null
   }[]
 
   // Filter only Aprobado (PostgREST filters on joined tables need manual filter)
@@ -185,6 +214,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       arc_cotizacion: arcs.has('Cotizacion'),
       arc_factura:    arcs.has('Factura XML') || arcs.has('Factura PDF'),
       arc_otros:      arcs.has('Cuadro Comparativo') || arcs.has('Recibo Honorario') || arcs.has('Suspension'),
+      ...pcFields(s.plan_contable),
     } satisfies ReporteRow
   })
 }
@@ -194,7 +224,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_arendir')
-    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_rendicion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
+    .select(`id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_rendicion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
     .in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'])
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -210,6 +240,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     fecha_creacion: string | null; fecha_rendicion: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
+    plan_contable: PlanContableJoin | null
   }[]
 
   if (!rows.length) return []
@@ -266,6 +297,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       arc_cotizacion: false,
       arc_factura:    false,
       arc_otros:      false,
+      ...pcFields(r.plan_contable),
     } satisfies ReporteRow
   })
 }
@@ -275,7 +307,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_reembolso')
-    .select('id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
+    .select(`id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
     .eq('estado', 'Autorizado')
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -291,6 +323,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     fecha_creacion: string | null; fecha_requerida: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
+    plan_contable: PlanContableJoin | null
   }[]
 
   if (!rows.length) return []
@@ -346,6 +379,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       arc_cotizacion: false,
       arc_factura:    false,
       arc_otros:      false,
+      ...pcFields(r.plan_contable),
     } satisfies ReporteRow
   })
 }
@@ -355,7 +389,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('caja_chica')
-    .select('id, codigo, responsable_id, proyecto_id, total_gastos, monto_asignado, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre)')
+    .select(`id, codigo, responsable_id, proyecto_id, total_gastos, monto_asignado, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
     .eq('estado', 'Autorizado')
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -369,6 +403,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     total_gastos: number; monto_asignado: number
     fecha_aprobacion: string | null; fecha_creacion: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
+    plan_contable: PlanContableJoin | null
   }[]
 
   if (!rows.length) return []
@@ -407,6 +442,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       arc_cotizacion:  false,
       arc_factura:     false,
       arc_otros:       false,
+      ...pcFields(r.plan_contable),
     } satisfies ReporteRow
   })
 }
@@ -474,6 +510,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
       arc_cotizacion: false,
       arc_factura:    false,
       arc_otros:      !!(r.boucher_separacion_path || r.constancia_separacion_path || r.sustento_desistimiento_path),
+      ...pcFields(null),
     } satisfies ReporteRow
   })
 }
@@ -533,6 +570,11 @@ export async function exportarReporteExcel(
     { header: 'EMPRESA',         key: 'proyecto',        width: 20 },
     { header: 'CENTRO DE COSTO',key: 'partida',         width: 16 },
     { header: 'CONCEPTO DE PAGO',key: 'concepto',        width: 35 },
+    { header: 'CUENTA CONTABLE', key: 'pc_cuenta_contable', width: 16 },
+    { header: 'NOMBRE CUENTA',   key: 'pc_nombre_cuenta',   width: 26 },
+    { header: 'PARTIDA PRESUP.', key: 'pc_partida',         width: 18 },
+    { header: 'PARTIDA N1',      key: 'pc_partida_n1',      width: 18 },
+    { header: 'PARTIDA N2',      key: 'pc_partida_n2',      width: 18 },
     { header: 'TOTAL $',         key: 'total_usd',       width: 13 },
     { header: 'TOTAL S/.',       key: 'total_pen',       width: 13 },
     { header: 'DETRACCIÓN S/.',  key: 'detraccion',      width: 14 },
@@ -602,6 +644,11 @@ export async function exportarReporteExcel(
       row.proyecto,
       row.partida,
       row.concepto,
+      row.pc_cuenta_contable,
+      row.pc_nombre_cuenta,
+      row.pc_partida,
+      row.pc_partida_n1,
+      row.pc_partida_n2,
       fmtNum(row.total_usd),
       fmtNum(row.total_pen),
       fmtNum(row.detraccion),
@@ -626,7 +673,7 @@ export async function exportarReporteExcel(
       cell.alignment = { vertical: 'middle', wrapText: false }
       cell.border = { bottom: { style: 'hair', color: { argb: 'FFCCCCCC' } }, right: { style: 'hair', color: { argb: 'FFCCCCCC' } } }
       // Right-align numeric columns (TOTAL $ through GIRAR S/.)
-      if (ci >= 15 && ci <= 20) cell.alignment = { horizontal: 'right', vertical: 'middle' }
+      if (ci >= 20 && ci <= 25) cell.alignment = { horizontal: 'right', vertical: 'middle' }
     })
     r.height = 16
   })
@@ -643,7 +690,7 @@ export async function exportarReporteExcel(
     rows.reduce((s, r) => s + r.girar_pen,   0),
   ]
 
-  ws.mergeCells(rows.length + 3, 1, rows.length + 3, 15)
+  ws.mergeCells(rows.length + 3, 1, rows.length + 3, 20)
   const totLbl = totRow.getCell(1)
   totLbl.value = 'TOTALES'
   totLbl.font  = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } }
@@ -651,7 +698,7 @@ export async function exportarReporteExcel(
   totLbl.alignment = { horizontal: 'right', vertical: 'middle' }
 
   totals.forEach((v, i) => {
-    const cell = totRow.getCell(16 + i)
+    const cell = totRow.getCell(21 + i)
     cell.value = fmtNum(v)
     cell.font  = { bold: true, size: 9 }
     cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
