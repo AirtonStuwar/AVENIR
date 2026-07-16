@@ -117,7 +117,41 @@ export async function cambiarRolUsuario(usuarioId: string, rol: number): Promise
   if (error) throw error
 }
 
-/** ADMIN: crea un usuario nuevo (invitación por correo) y le asigna rol y datos de perfil */
+/** Lista todas las áreas disponibles (código de costos) */
+export async function getAreas(): Promise<{ id: number; nombre: string }[]> {
+  const { data, error } = await supabase.from('area').select('id, nombre').order('nombre')
+  if (error) throw error
+  return (data ?? []) as { id: number; nombre: string }[]
+}
+
+/** Área activa (estado=1) asignada a cada usuario, keyed por usuario_id */
+export async function getAreasUsuarios(): Promise<Record<string, number>> {
+  const { data, error } = await supabase
+    .from('area_usuario')
+    .select('usuario_id, area_id')
+    .eq('estado', 1)
+  if (error) throw error
+  const map: Record<string, number> = {}
+  for (const r of (data ?? []) as { usuario_id: string; area_id: number }[]) map[r.usuario_id] = r.area_id
+  return map
+}
+
+/** ADMIN: asigna/cambia el área de un usuario, preservando el histórico (desactiva la anterior) */
+export async function asignarAreaUsuario(usuarioId: string, areaId: number): Promise<void> {
+  const { error: deactErr } = await supabase
+    .from('area_usuario')
+    .update({ estado: 0 })
+    .eq('usuario_id', usuarioId)
+    .eq('estado', 1)
+  if (deactErr) throw deactErr
+
+  const { error: insErr } = await supabase
+    .from('area_usuario')
+    .insert({ usuario_id: usuarioId, area_id: areaId, estado: 1 })
+  if (insErr) throw insErr
+}
+
+/** ADMIN: crea un usuario nuevo (invitación por correo) y le asigna rol, área y datos de perfil */
 export async function crearUsuario(payload: {
   email: string
   nombres: string
@@ -125,6 +159,7 @@ export async function crearUsuario(payload: {
   cargo?: string
   dni?: string
   rol: number
+  areaId?: number
 }): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('No autenticado')

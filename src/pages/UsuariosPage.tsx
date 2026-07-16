@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import {
   getUsuariosConRol, cambiarRolUsuario, crearUsuario,
   actualizarPerfilUsuario, getEstadoUsuarios, cambiarEstadoUsuario,
+  getAreas, getAreasUsuarios, asignarAreaUsuario,
   type UsuarioConRol,
 } from '../features/usuario/services/usuarioService'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -26,6 +27,8 @@ export default function UsuariosPage() {
   const { user: currentUser } = useAuthStore()
   const [usuarios, setUsuarios] = useState<UsuarioConRol[]>([])
   const [estados,  setEstados]  = useState<Record<string, boolean>>({})
+  const [areasUsuarios, setAreasUsuarios] = useState<Record<string, number>>({})
+  const [areas,    setAreas]    = useState<{ id: number; nombre: string }[]>([])
   const [loading,  setLoading]  = useState(true)
   const [savingId, setSavingId] = useState<string | null>(null)
 
@@ -36,6 +39,7 @@ export default function UsuariosPage() {
   const [cargo,     setCargo]     = useState('')
   const [dni,       setDni]       = useState('')
   const [rol,       setRol]       = useState<number>(ROLES.USUARIO)
+  const [areaId,    setAreaId]    = useState<number | ''>('')
   const [creating,  setCreating]  = useState(false)
 
   const [editUser,  setEditUser]  = useState<UsuarioConRol | null>(null)
@@ -43,12 +47,18 @@ export default function UsuariosPage() {
   const [editApellidos, setEditApellidos] = useState('')
   const [editCargo,     setEditCargo]     = useState('')
   const [editDni,       setEditDni]       = useState('')
+  const [editAreaId,    setEditAreaId]    = useState<number | ''>('')
   const [savingEdit, setSavingEdit] = useState(false)
 
   const load = () => {
     setLoading(true)
-    Promise.all([getUsuariosConRol(), getEstadoUsuarios().catch(() => ({}))])
-      .then(([us, es]) => { setUsuarios(us); setEstados(es) })
+    Promise.all([
+      getUsuariosConRol(),
+      getEstadoUsuarios().catch(() => ({})),
+      getAreasUsuarios().catch(() => ({})),
+      getAreas().catch(() => []),
+    ])
+      .then(([us, es, au, ar]) => { setUsuarios(us); setEstados(es); setAreasUsuarios(au); setAreas(ar) })
       .catch(() => toast.error('Error al cargar usuarios'))
       .finally(() => setLoading(false))
   }
@@ -56,7 +66,7 @@ export default function UsuariosPage() {
   useEffect(load, [])
 
   const resetForm = () => {
-    setEmail(''); setNombres(''); setApellidos(''); setCargo(''); setDni(''); setRol(ROLES.USUARIO)
+    setEmail(''); setNombres(''); setApellidos(''); setCargo(''); setDni(''); setRol(ROLES.USUARIO); setAreaId('')
   }
 
   const handleCrear = async () => {
@@ -72,6 +82,7 @@ export default function UsuariosPage() {
         cargo: cargo.trim() || undefined,
         dni: dni.trim() || undefined,
         rol,
+        areaId: areaId || undefined,
       })
       toast.success('Usuario invitado — recibirá un correo para crear su contraseña')
       setModalOpen(false)
@@ -103,6 +114,7 @@ export default function UsuariosPage() {
     setEditApellidos(u.apellidos ?? '')
     setEditCargo(u.cargo ?? '')
     setEditDni(u.dni ?? '')
+    setEditAreaId(areasUsuarios[u.id] ?? '')
   }
 
   const handleGuardarEdit = async () => {
@@ -117,6 +129,9 @@ export default function UsuariosPage() {
         cargo: editCargo.trim() || undefined,
         dni: editDni.trim() || undefined,
       })
+      if (editAreaId && editAreaId !== areasUsuarios[editUser.id]) {
+        await asignarAreaUsuario(editUser.id, editAreaId)
+      }
       toast.success('Perfil actualizado')
       setEditUser(null)
       load()
@@ -178,6 +193,7 @@ export default function UsuariosPage() {
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nombre</th>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Correo</th>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Cargo</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Área</th>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Rol</th>
                     <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">Estado</th>
                     <th className="px-4 py-2.5" />
@@ -192,6 +208,7 @@ export default function UsuariosPage() {
                         <td className="px-4 py-3 font-medium text-gray-900">{u.nombre_completo ?? ([u.nombres, u.apellidos].filter(Boolean).join(' ') || '—')}</td>
                         <td className="px-4 py-3 text-gray-600">{u.correo ?? '—'}</td>
                         <td className="px-4 py-3 text-gray-600">{u.cargo ?? '—'}</td>
+                        <td className="px-4 py-3 text-gray-600">{areas.find(a => a.id === areasUsuarios[u.id])?.nombre ?? '—'}</td>
                         <td className="px-4 py-3">
                           <select
                             value={u.rol ?? ''}
@@ -271,11 +288,20 @@ export default function UsuariosPage() {
                 <input className={INPUT} value={dni} maxLength={8} onChange={e => setDni(e.target.value.replace(/\D/g, ''))} />
               </div>
             </div>
-            <div>
-              <label className={LABEL}>Rol *</label>
-              <select className={INPUT} value={rol} onChange={e => setRol(Number(e.target.value))}>
-                {ROLE_OPTIONS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={LABEL}>Rol *</label>
+                <select className={INPUT} value={rol} onChange={e => setRol(Number(e.target.value))}>
+                  {ROLE_OPTIONS.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={LABEL}>Área</label>
+                <select className={INPUT} value={areaId} onChange={e => setAreaId(e.target.value ? Number(e.target.value) : '')}>
+                  <option value="">Sin área</option>
+                  {areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+                </select>
+              </div>
             </div>
 
             <div className="flex gap-3 pt-2">
@@ -324,6 +350,13 @@ export default function UsuariosPage() {
                 <label className={LABEL}>DNI</label>
                 <input className={INPUT} value={editDni} maxLength={8} onChange={e => setEditDni(e.target.value.replace(/\D/g, ''))} />
               </div>
+            </div>
+            <div>
+              <label className={LABEL}>Área</label>
+              <select className={INPUT} value={editAreaId} onChange={e => setEditAreaId(e.target.value ? Number(e.target.value) : '')}>
+                <option value="">Sin área</option>
+                {areas.map(a => <option key={a.id} value={a.id}>{a.nombre}</option>)}
+              </select>
             </div>
 
             <div className="flex gap-3 pt-2">

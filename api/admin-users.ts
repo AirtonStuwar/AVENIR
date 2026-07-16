@@ -9,6 +9,7 @@ interface CreateUserBody {
   cargo?: string
   dni?: string
   rol: number
+  areaId?: number
 }
 
 interface EstadoBody {
@@ -75,7 +76,7 @@ export default async function handler(req: Request): Promise<Response> {
   // ── POST: crear/invitar usuario ──────────────────────────────────
   if (req.method === 'POST') {
     const body = await req.json() as CreateUserBody
-    const { email, nombres, apellidos, cargo, dni, rol } = body
+    const { email, nombres, apellidos, cargo, dni, rol, areaId } = body
 
     if (!email || !nombres || !apellidos || !rol) {
       return Response.json({ error: 'Faltan datos requeridos' }, { status: 400 })
@@ -103,6 +104,13 @@ export default async function handler(req: Request): Promise<Response> {
     const { error: rolErr } = await admin.from('usuario_rol').insert({ usuario: newUserId, rol })
     if (rolErr) {
       return Response.json({ error: `Usuario invitado pero falló al asignar el rol: ${rolErr.message}` }, { status: 500 })
+    }
+
+    if (areaId) {
+      const { error: areaErr } = await admin.from('area_usuario').insert({ usuario_id: newUserId, area_id: areaId, estado: 1 })
+      if (areaErr) {
+        return Response.json({ error: `Usuario invitado pero falló al asignar el área: ${areaErr.message}` }, { status: 500 })
+      }
     }
 
     return Response.json({ success: true, userId: newUserId })
