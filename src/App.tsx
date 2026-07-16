@@ -30,6 +30,9 @@ import AreasConsumoPage from './pages/AreasConsumoPage';
 import CajaChicaPage from './pages/CajaChicaPage';
 import CajaChicaNuevaPage from './pages/CajaChicaNuevaPage';
 import CajaChicaDetallePage from './pages/CajaChicaDetallePage';
+import UsuariosPage from './pages/UsuariosPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 function App() {
   const setSession = useAuthStore((state) => state.setSession);
@@ -69,6 +72,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         <Route element={<ProtectedRoute />}>
           {/* El MainLayout contiene el Sidebar y el Outlet para las páginas */}
@@ -94,6 +99,7 @@ function App() {
             <Route path="/caja-chica"       element={<CajaChicaPage />} />
             <Route path="/caja-chica/nueva" element={<CajaChicaNuevaPage />} />
             <Route path="/caja-chica/:id"   element={<CajaChicaDetallePage />} />
+            <Route path="/usuarios"        element={<UsuariosPage />} />
           </Route>
         </Route>
 

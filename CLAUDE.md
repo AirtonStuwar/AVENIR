@@ -366,6 +366,18 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 
 ---
 
+## Recuperación de contraseña e invitación de usuarios
+
+**Recuperar contraseña:** El enlace "¿Olvidaste tu contraseña?" en `LoginForm.tsx` navega a `/forgot-password` (ruta pública). Ahí se llama `requestPasswordReset(email)` (`authService.ts`) → `supabase.auth.resetPasswordForEmail()` con `redirectTo: /reset-password`. La página `/reset-password` (también pública, fuera de `ProtectedRoute`) detecta automáticamente la sesión que Supabase crea desde el enlace del correo (`detectSessionInUrl` por defecto en el cliente) y permite establecer nueva contraseña con `updatePassword()` → `supabase.auth.updateUser({ password })`. La misma página se reutiliza para el flujo de invitación de usuarios nuevos.
+
+**Administración de usuarios** (`/usuarios`, solo ADMIN): página `UsuariosPage.tsx` con tabla de todos los usuarios (`getUsuariosConRol()` en `usuarioService.ts` — combina `usuario` + `usuario_rol` client-side) y selector de rol inline por fila (`cambiarRolUsuario()` — `upsert` directo en `usuario_rol`, permitido por policies RLS `usuario_rol_admin_*` que verifican `rol = 1` del usuario autenticado).
+
+**Crear usuario nuevo:** botón "Nuevo usuario" abre modal (correo, nombres, apellidos, cargo, DNI, rol) → `crearUsuario()` llama a la Edge Function `api/admin-users.ts` (no se puede hacer desde el cliente porque requiere la Service Role Key de Supabase). La función: valida que el caller sea ADMIN, llama `supabase.auth.admin.inviteUserByEmail()` (envía el correo de invitación vía el SMTP configurado — el mismo `sistema@avenir.pe`), actualiza el perfil en `usuario` (el trigger `on_auth_user_created` solo inserta `id` y `correo`; nombres/apellidos/cargo/dni se completan aquí) y crea la fila en `usuario_rol`. El usuario invitado hace clic en el enlace del correo y llega a `/reset-password` para crear su propia contraseña.
+
+**Env vars requeridas para `api/admin-users.ts`:** `SUPABASE_SERVICE_ROLE_KEY` (Settings → API en Supabase — **nunca** con prefijo `VITE_`, no debe llegar al bundle del cliente) y reutiliza `VITE_SUPABASE_URL`. Configurar en Vercel → Environment Variables.
+
+---
+
 ## Estado de Pago
 
 Funcionalidad que permite a **Contabilidad (VISUALIZADOR)** marcar un registro como pagado, seleccionando la cuenta bancaria desde la que se realizó el desembolso.

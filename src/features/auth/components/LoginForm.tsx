@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { loginWithEmail } from '../services/authService';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react'; // o usa heroicons si ya lo tienes
 
 export const LoginForm = () => {
@@ -72,9 +72,9 @@ export const LoginForm = () => {
           <div className="mb-6">
             <div className="flex justify-between items-center mb-1.5">
               <label className="text-sm font-medium text-slate-600">Contraseña</label>
-              <a href="#" className="text-xs text-[#F65740] hover:underline">
+              <Link to="/forgot-password" className="text-xs text-[#F65740] hover:underline">
                 ¿Olvidaste tu contraseña?
-              </a>
+              </Link>
             </div>
             <div className="relative">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"

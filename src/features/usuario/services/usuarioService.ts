@@ -83,3 +83,57 @@ export async function deleteUserFirma(userId: string): Promise<void> {
     .eq('id', userId)
   if (dbErr) throw dbErr
 }
+
+// ── Administración de usuarios (solo ADMIN) ─────────────────────────
+
+export interface UsuarioConRol {
+  id: string
+  correo: string | null
+  nombres: string | null
+  apellidos: string | null
+  nombre_completo: string | null
+  cargo: string | null
+  dni: string | null
+  rol: number | null
+}
+
+/** Lista todos los perfiles con su rol asignado (o null si no tienen) */
+export async function getUsuariosConRol(): Promise<UsuarioConRol[]> {
+  const [usRes, rolRes] = await Promise.all([
+    supabase.from('usuario').select('id, correo, nombres, apellidos, nombre_completo, cargo, dni').order('nombres'),
+    supabase.from('usuario_rol').select('usuario, rol'),
+  ])
+  if (usRes.error) throw usRes.error
+  if (rolRes.error) throw rolRes.error
+  const rolMap = Object.fromEntries((rolRes.data ?? []).map(r => [r.usuario, r.rol]))
+  return (usRes.data ?? []).map(u => ({ ...u, rol: rolMap[u.id] ?? null }))
+}
+
+/** ADMIN: asigna o cambia el rol de un usuario existente */
+export async function cambiarRolUsuario(usuarioId: string, rol: number): Promise<void> {
+  const { error } = await supabase
+    .from('usuario_rol')
+    .upsert({ usuario: usuarioId, rol }, { onConflict: 'usuario' })
+  if (error) throw error
+}
+
+/** ADMIN: crea un usuario nuevo (invitación por correo) y le asigna rol y datos de perfil */
+export async function crearUsuario(payload: {
+  email: string
+  nombres: string
+  apellidos: string
+  cargo?: string
+  dni?: string
+  rol: number
+}): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('No autenticado')
+
+  const res = await fetch('/api/admin-users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+    body: JSON.stringify(payload),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error ?? 'Error al crear usuario')
+}
