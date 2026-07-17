@@ -85,7 +85,7 @@ export default async function handler(req: Request): Promise<Response> {
 
     // Nunca confiar en el header Origin de la petición para el enlace de invitación
     // (puede venir de localhost si se probó en local) — se fija la URL real de producción.
-    const siteUrl = process.env.SITE_URL ?? 'https://avenir-rose.vercel.app'
+    const siteUrl = process.env.SITE_URL ?? 'https://sistemaavenir.com'
     const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo: `${siteUrl}/reset-password`,
     })
