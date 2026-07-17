@@ -366,6 +366,18 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 
 ---
 
+## Seguridad de visibilidad por rol (RLS)
+
+Las policies SELECT de las 10 tablas de registros (`solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_arendir(+detalle)`, `solicitud_reembolso(+detalle)`, `caja_chica(+detalle)`, `devolucion_cliente`) restringen al rol **USUARIO (11)** a ver **solo sus propios registros** (creador/beneficiario/responsable = `auth.uid()`); los roles ADMIN/EVALUADOR/APROBADOR/VISUALIZADOR ven todo vía la función `es_rol_privilegiado()` (SECURITY DEFINER, consulta `usuario_rol` con roles 1/8/9/10). Esto bloquea a nivel de BD que un USUARIO abra `/solicitudes/:id` ajeno por URL — la página muestra "Solicitud no encontrada".
+
+**Funciones SECURITY DEFINER para datos agregados** (necesarias porque el rol USUARIO ya no ve filas ajenas, pero sí necesita totales globales):
+- `get_consumo_proyectos(pids bigint[])` → devuelve `(scope, ref_id, moneda, total)` con el consumo agregado de los 5 módulos por proyecto/partida. `getConsumoByProyectos` en `proyectoService.ts` es ahora un wrapper de este RPC. **Al cambiar los criterios de consumo, actualizar el SQL del RPC, no solo el TS.**
+- `get_saldo_anterior_caja(pid)` → saldo de la última caja chica pagada del proyecto (puede ser de otro responsable). Usada por `getSaldoAnterior` en `cajaChicaService.ts`.
+
+Los buckets de Storage siguen con policies por bucket completo (cualquier authenticated lee) — endurecerlos por dueño queda como mejora futura.
+
+---
+
 ## Recuperación de contraseña e invitación de usuarios
 
 **Recuperar contraseña:** El enlace "¿Olvidaste tu contraseña?" en `LoginForm.tsx` navega a `/forgot-password` (ruta pública). Ahí se llama `requestPasswordReset(email)` (`authService.ts`) → `supabase.auth.resetPasswordForEmail()` con `redirectTo: /reset-password`. La página `/reset-password` (también pública, fuera de `ProtectedRoute`) detecta automáticamente la sesión que Supabase crea desde el enlace del correo (`detectSessionInUrl` por defecto en el cliente) y permite establecer nueva contraseña con `updatePassword()` → `supabase.auth.updateUser({ password })`. La misma página se reutiliza para el flujo de invitación de usuarios nuevos.

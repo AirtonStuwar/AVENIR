@@ -196,16 +196,11 @@ export async function reenviarContabilidadCajaChica(id: number): Promise<void> {
 // ── Helpers ──────────────────────────────────────────────────────
 
 export async function getSaldoAnterior(proyectoId: number): Promise<number> {
-  const { data } = await supabase
-    .from('caja_chica')
-    .select('saldo_actual')
-    .eq('proyecto_id', proyectoId)
-    .eq('estado', 'Autorizado')
-    .not('fecha_pago', 'is', null)
-    .order('periodo_hasta', { ascending: false })
-    .limit(1)
-  if (data && data.length > 0) return (data[0] as { saldo_actual: number }).saldo_actual
-  return 0
+  // RPC SECURITY DEFINER: la última caja pagada del proyecto puede ser de otro
+  // responsable, cuya fila queda oculta por RLS para el rol USUARIO.
+  const { data, error } = await supabase.rpc('get_saldo_anterior_caja', { pid: proyectoId })
+  if (error) throw error
+  return Number(data ?? 0)
 }
 
 // ── Dashboard helpers ────────────────────────────────────────────
