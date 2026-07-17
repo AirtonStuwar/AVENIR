@@ -94,10 +94,14 @@ export async function marcarEvaluadoReembolso(
   planContableId: number,
   evaluadorId: string,
 ): Promise<void> {
-  const { error } = await supabase.from('solicitud_reembolso')
+  const { data, error } = await supabase.from('solicitud_reembolso')
     .update({ estado: 'Evaluado', plan_contable_id: planContableId, usuario_evaluador: evaluadorId })
     .eq('id', id)
+    .eq('estado', 'En Revision')
+    .select()
+    .maybeSingle()
   if (error) throw error
+  if (!data) throw new Error('Este reembolso ya fue evaluado por otro evaluador — recarga la página para ver el estado actual.')
 }
 
 export async function devolverDesdeRevisionReembolso(id: number, comentario: string): Promise<void> {

@@ -453,10 +453,16 @@ export default function SolicitudDetallePage() {
     const montoRetencion = isRxHSol && porcentajeRetencion !== undefined
       ? subtotalSol * porcentajeRetencion / 100
       : undefined
-    await marcarEvaluado(solicitud.id, planContableId, user?.id ?? null, porcentajeRetencion, montoRetencion, detraccionId, montoDetraccion)
-    toast.success('Marcada como Evaluada')
-    setEvaluarOpen(false)
-    await reload(id)
+    try {
+      await marcarEvaluado(solicitud.id, planContableId, user?.id ?? null, porcentajeRetencion, montoRetencion, detraccionId, montoDetraccion)
+      toast.success('Marcada como Evaluada')
+      setEvaluarOpen(false)
+      await reload(id)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al evaluar')
+      setEvaluarOpen(false)
+      await reload(id)
+    }
   }
 
 

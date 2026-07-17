@@ -274,7 +274,11 @@ export default function CajaChicaDetallePage() {
       setPlanSelected(null)
       setPlanSearch('')
       await loadData()
-    } catch { toast.error('Error') }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error')
+      setEvaluarOpen(false)
+      await loadData()
+    }
     finally { setActioning(false) }
   }
 

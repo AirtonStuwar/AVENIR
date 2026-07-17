@@ -321,7 +321,12 @@ export default function ReembolsoDetallePage() {
       const updated = await getReembolsoById(solicitud.id)
       setSolicitud(updated)
       setEvaluarOpen(false)
-    } catch { toast.error('Error al evaluar') }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al evaluar')
+      setEvaluarOpen(false)
+      const updated = await getReembolsoById(solicitud.id)
+      setSolicitud(updated)
+    }
     finally { setActionLoading(false) }
   }
 

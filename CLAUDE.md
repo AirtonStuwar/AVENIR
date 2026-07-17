@@ -366,6 +366,12 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 
 ---
 
+## Protección contra doble evaluación
+
+Con más de un usuario EVALUADOR, dos personas podían abrir la misma solicitud "En Revision" a la vez y ambas evaluarla — la segunda sobrescribía silenciosamente el plan contable/retención/detracción de la primera sin darse cuenta. `marcarEvaluado` (solicitud), `marcarEvaluadoReembolso` y `marcarEvaluadoCajaChica` ahora incluyen `.eq('estado_id'/'estado', 'En Revision')` en el UPDATE — si la fila ya no está en ese estado (alguien más la evaluó primero), la query devuelve 0 filas y se lanza `Error('... ya fue evaluada por otro evaluador ...')`, que el modal captura y muestra en un toast (antes de esto los `catch` genéricos de las páginas ocultaban el mensaje real). A Rendir no lo necesita: su paso de evaluador fue simplificado (`cerrarRendicion` es solo un cambio de estado, no asigna datos que puedan pisarse).
+
+---
+
 ## Seguridad de visibilidad por rol (RLS)
 
 Las policies SELECT de las 10 tablas de registros (`solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_arendir(+detalle)`, `solicitud_reembolso(+detalle)`, `caja_chica(+detalle)`, `devolucion_cliente`) restringen al rol **USUARIO (11)** a ver **solo sus propios registros** (creador/beneficiario/responsable = `auth.uid()`); los roles ADMIN/EVALUADOR/APROBADOR/VISUALIZADOR ven todo vía la función `es_rol_privilegiado()` (SECURITY DEFINER, consulta `usuario_rol` con roles 1/8/9/10). Esto bloquea a nivel de BD que un USUARIO abra `/solicitudes/:id` ajeno por URL — la página muestra "Solicitud no encontrada".

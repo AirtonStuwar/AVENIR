@@ -151,11 +151,18 @@ export async function enviarCajaChica(id: number): Promise<void> {
 }
 
 export async function marcarEvaluadoCajaChica(id: number, planContableId: number, evaluadorId: string): Promise<void> {
-  await updateCajaChica(id, {
-    estado: 'Evaluado',
-    plan_contable_id: planContableId,
-    usuario_evaluador: evaluadorId,
-  } as Partial<CajaChica>)
+  const { data, error } = await supabase.from('caja_chica')
+    .update({
+      estado: 'Evaluado',
+      plan_contable_id: planContableId,
+      usuario_evaluador: evaluadorId,
+    } as Partial<CajaChica>)
+    .eq('id', id)
+    .eq('estado', 'En Revision')
+    .select()
+    .maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('Esta caja chica ya fue evaluada por otro evaluador — recarga la página para ver el estado actual.')
 }
 
 export async function devolverDesdeRevisionCajaChica(id: number, comentario: string): Promise<void> {

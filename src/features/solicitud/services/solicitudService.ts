@@ -204,17 +204,26 @@ export async function marcarEvaluado(
   detraccionId?: number,
   montoDetraccion?: number,
 ): Promise<Solicitud> {
-  const [estadoId] = await resolveEstadoIds(['Evaluado'])
-  if (!estadoId) throw new Error('Estado "Evaluado" no encontrado en BD')
-  return updateSolicitud(id, {
-    estado_id: estadoId,
-    plan_contable_id: planContableId,
-    usuario_evaluador: userId,
-    ...(porcentajeRetencion !== undefined && { porcentaje_retencion: porcentajeRetencion, monto_retencion: montoRetencion ?? null }),
-    ...(detraccionId !== undefined
-      ? { detraccion_id: detraccionId, monto_detraccion: montoDetraccion ?? null }
-      : { detraccion_id: null, monto_detraccion: null }),
-  })
+  const [evaluadoId, enRevisionId] = await resolveEstadoIds(['Evaluado', 'En Revision'])
+  if (!evaluadoId) throw new Error('Estado "Evaluado" no encontrado en BD')
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({
+      estado_id: evaluadoId,
+      plan_contable_id: planContableId,
+      usuario_evaluador: userId,
+      ...(porcentajeRetencion !== undefined && { porcentaje_retencion: porcentajeRetencion, monto_retencion: montoRetencion ?? null }),
+      ...(detraccionId !== undefined
+        ? { detraccion_id: detraccionId, monto_detraccion: montoDetraccion ?? null }
+        : { detraccion_id: null, monto_detraccion: null }),
+    })
+    .eq('id', id)
+    .eq('estado_id', enRevisionId)
+    .select()
+    .maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('Esta solicitud ya fue evaluada por otro evaluador — recarga la página para ver el estado actual.')
+  return data as Solicitud
 }
 
 export async function getPlanContable(): Promise<PlanContable[]> {
