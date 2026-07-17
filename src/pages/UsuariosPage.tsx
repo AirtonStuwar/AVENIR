@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Users, Plus, X, Loader2, Pencil, UserX, UserCheck } from 'lucide-react'
+import { Users, Plus, X, Loader2, Pencil, UserX, UserCheck, Send } from 'lucide-react'
 import toast from 'react-hot-toast'
 import {
   getUsuariosConRol, cambiarRolUsuario, crearUsuario,
   actualizarPerfilUsuario, getEstadoUsuarios, cambiarEstadoUsuario,
-  getAreas, getAreasUsuarios, asignarAreaUsuario,
-  type UsuarioConRol,
+  getAreas, getAreasUsuarios, asignarAreaUsuario, reenviarInvitacion,
+  type UsuarioConRol, type EstadoUsuario,
 } from '../features/usuario/services/usuarioService'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import { useAuthStore } from '../store/authStore'
@@ -26,7 +26,8 @@ const LABEL = 'block text-xs font-semibold text-gray-500 uppercase tracking-wide
 export default function UsuariosPage() {
   const { user: currentUser } = useAuthStore()
   const [usuarios, setUsuarios] = useState<UsuarioConRol[]>([])
-  const [estados,  setEstados]  = useState<Record<string, boolean>>({})
+  const [estados,  setEstados]  = useState<Record<string, EstadoUsuario>>({})
+  const [reenviandoId, setReenviandoId] = useState<string | null>(null)
   const [areasUsuarios, setAreasUsuarios] = useState<Record<string, number>>({})
   const [areas,    setAreas]    = useState<{ id: number; nombre: string }[]>([])
   const [loading,  setLoading]  = useState(true)
@@ -143,18 +144,31 @@ export default function UsuariosPage() {
   }
 
   const handleToggleEstado = async (u: UsuarioConRol) => {
-    const isBanned = estados[u.id]
+    const isBanned = !!estados[u.id]?.banned
     const action = isBanned ? 'unban' : 'ban'
     if (!isBanned && !confirm(`¿Desactivar a ${u.nombre_completo ?? u.correo}? No podrá iniciar sesión, pero su historial se conserva.`)) return
     setSavingId(u.id)
     try {
       await cambiarEstadoUsuario(u.id, action)
-      setEstados(prev => ({ ...prev, [u.id]: !isBanned }))
+      setEstados(prev => ({ ...prev, [u.id]: { ...prev[u.id], banned: !isBanned } }))
       toast.success(isBanned ? 'Usuario reactivado' : 'Usuario desactivado')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al cambiar estado')
     } finally {
       setSavingId(null)
+    }
+  }
+
+  const handleReenviar = async (u: UsuarioConRol) => {
+    if (!u.correo) return
+    setReenviandoId(u.id)
+    try {
+      await reenviarInvitacion(u.correo)
+      toast.success(`Invitación reenviada a ${u.correo}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al reenviar invitación')
+    } finally {
+      setReenviandoId(null)
     }
   }
 
@@ -201,7 +215,8 @@ export default function UsuariosPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {usuarios.map(u => {
-                    const isBanned = !!estados[u.id]
+                    const isBanned = !!estados[u.id]?.banned
+                    const isPending = !!estados[u.id]?.pending
                     const isSelf = u.id === currentUser?.id
                     return (
                       <tr key={u.id} className="hover:bg-gray-50">
@@ -221,12 +236,20 @@ export default function UsuariosPage() {
                           </select>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${isBanned ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                            {isBanned ? 'Desactivado' : 'Activo'}
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                            isBanned ? 'bg-red-100 text-red-700' : isPending ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'
+                          }`}>
+                            {isBanned ? 'Desactivado' : isPending ? 'Pendiente' : 'Activo'}
                           </span>
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-1">
+                            {isPending && !isBanned && (
+                              <button onClick={() => handleReenviar(u)} disabled={reenviandoId === u.id} title="Reenviar invitación"
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors disabled:opacity-50">
+                                {reenviandoId === u.id ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                              </button>
+                            )}
                             <button onClick={() => openEdit(u)} title="Editar"
                               className="p-1.5 rounded-lg text-gray-400 hover:text-[#003D7D] hover:bg-[#003D7D]/10 transition-colors">
                               <Pencil size={14} />

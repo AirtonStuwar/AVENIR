@@ -46,13 +46,14 @@ export default async function handler(req: Request): Promise<Response> {
     return Response.json({ error: 'Solo el administrador puede gestionar usuarios' }, { status: 403 })
   }
 
-  // ── GET: estado (activo/inactivo) de todos los usuarios ─────────
+  // ── GET: estado (activo/inactivo/pendiente) de todos los usuarios ────
   if (req.method === 'GET') {
     const { data, error } = await admin.auth.admin.listUsers({ page: 1, perPage: 200 })
     if (error) return Response.json({ error: error.message }, { status: 500 })
     const estados = data.users.map(u => ({
       id: u.id,
       banned: !!u.banned_until && new Date(u.banned_until) > new Date(),
+      pending: !u.email_confirmed_at,
     }))
     return Response.json({ estados })
   }

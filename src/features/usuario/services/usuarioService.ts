@@ -187,8 +187,13 @@ export async function actualizarPerfilUsuario(usuarioId: string, data: {
   if (error) throw error
 }
 
-/** ADMIN: trae el estado (activo/desactivado) de todos los usuarios */
-export async function getEstadoUsuarios(): Promise<Record<string, boolean>> {
+export interface EstadoUsuario {
+  banned: boolean
+  pending: boolean
+}
+
+/** ADMIN: trae el estado (activo/desactivado/pendiente de confirmar) de todos los usuarios */
+export async function getEstadoUsuarios(): Promise<Record<string, EstadoUsuario>> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('No autenticado')
 
@@ -198,9 +203,24 @@ export async function getEstadoUsuarios(): Promise<Record<string, boolean>> {
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data.error ?? 'Error al obtener estado de usuarios')
-  const map: Record<string, boolean> = {}
-  for (const e of data.estados as { id: string; banned: boolean }[]) map[e.id] = e.banned
+  const map: Record<string, EstadoUsuario> = {}
+  for (const e of data.estados as { id: string; banned: boolean; pending: boolean }[]) {
+    map[e.id] = { banned: e.banned, pending: e.pending }
+  }
   return map
+}
+
+/**
+ * Reenvía la invitación a un usuario que aún no completó su registro (o cuyo
+ * enlace caducó). `inviteUserByEmail` falla si la cuenta ya existe, así que
+ * se usa el flujo de recuperación de contraseña — funciona igual: le llega
+ * un correo con un enlace para crear su contraseña.
+ */
+export async function reenviarInvitacion(correo: string): Promise<void> {
+  const { error } = await supabase.auth.resetPasswordForEmail(correo, {
+    redirectTo: `${window.location.origin}/reset-password`,
+  })
+  if (error) throw error
 }
 
 /** ADMIN: desactiva o reactiva el acceso de un usuario (no borra su historial) */
