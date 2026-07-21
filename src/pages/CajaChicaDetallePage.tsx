@@ -40,7 +40,7 @@ const ESTADO_BADGE: Record<string, string> = {
   'Observado': 'bg-amber-100 text-amber-800',
 }
 
-const TIPOS_DOC = ['FACTURA', 'RECIBO', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
+const TIPOS_DOC = ['FACTURA', 'RECIBO', 'RECIBO POR HONORARIOS', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
 
 const LABEL = 'block text-xs font-semibold text-[#003D7D]/50 uppercase tracking-wide mb-0.5'
 
