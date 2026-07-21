@@ -499,7 +499,7 @@ export default function SolicitudNuevaPage() {
                       placeholder="Cuenta para detracciones"
                       value={cuenta_detracciones}
                       readOnly={cuentasProveedor.length > 0}
-                      onChange={cuentasProveedor.length > 0 ? undefined : (e) => setCuentaDetracciones(e.target.value)}
+                      onChange={cuentasProveedor.length > 0 ? undefined : (e) => setCuentaDetracciones(e.target.value.replace(/\D/g, ''))}
                     />
                   </div>
                 </div>

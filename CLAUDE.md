@@ -453,6 +453,8 @@ Las tablas y vistas de Supabase son accesibles directamente. Power BI puede leer
 
 **TypeScript config:** strict mode with `noUnusedLocals` and `noUnusedParameters` enabled — unused variables will cause build errors. Use `Omit<T, 'id' | 'fecha_creacion' | ...>` for insert/update types (see `SolicitudInsert` as the canonical example).
 
+**Números de cuenta bancaria siempre sin guiones:** todos los campos "Número de cuenta / CCI" (Solicitudes, A Rendir, Reembolso, Devolución, Cuentas de Proveedor, Cuentas Bancarias de empresa) limpian automáticamente cualquier carácter no numérico en el `onChange` (`.replace(/\D/g, '')`) — necesario porque el Excel de pago masivo BBVA usa el valor tal cual está guardado, y un guion rompe el formato que exige el banco.
+
 **RUC lookup:** `rucService.ts` calls `/api/ruc?numero=<ruc>`. En dev, `vite.config.ts` proxea a `https://api.decolecta.com/v1/sunat/ruc`. En producción (Vercel), `api/ruc.ts` es una Edge Function que hace el mismo fetch con la API key del servidor.
 
 **Tipo de cambio SUNAT:** `getTipoCambioUSD()` en `rucService.ts` llama `/api/tipo-cambio`. En dev, `vite.config.ts` proxea a `https://api.decolecta.com/v1/tipo-cambio/sunat`. En producción, `api/tipo-cambio.ts` es una Edge Function (Vercel). Respuesta: `{ buy_price, sell_price, base_currency, quote_currency, date }`. Se usa `sell_price`. Se consume en: Step 3 del wizard (RxH USD umbral S/1,500 + OC USD umbral S/3,500 para Contrato), `EvaluarModal` (detracción OC USD), `SolicitudDetallePage` (Contrato OC USD).

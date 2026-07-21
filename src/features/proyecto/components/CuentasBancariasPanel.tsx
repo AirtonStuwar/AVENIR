@@ -175,13 +175,13 @@ export default function CuentasBancariasPanel({ proyecto, onClose }: Props) {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">N° Cuenta *</label>
-                <input className={INPUT} value={form.numero_cuenta} placeholder="0011-0518-0100009346"
-                  onChange={e => setForm(f => ({ ...f, numero_cuenta: e.target.value }))} />
+                <input className={INPUT} value={form.numero_cuenta} placeholder="00110518010009346"
+                  onChange={e => setForm(f => ({ ...f, numero_cuenta: e.target.value.replace(/\D/g, '') }))} />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">CCI</label>
-                <input className={INPUT} value={form.cci} placeholder="011-518-000100009346-86"
-                  onChange={e => setForm(f => ({ ...f, cci: e.target.value }))} />
+                <input className={INPUT} value={form.cci} placeholder="01151800010000934686"
+                  onChange={e => setForm(f => ({ ...f, cci: e.target.value.replace(/\D/g, '') }))} />
               </div>
               {partidas.length > 0 && (
                 <div>

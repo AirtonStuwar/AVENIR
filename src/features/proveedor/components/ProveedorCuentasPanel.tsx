@@ -179,7 +179,7 @@ export default function ProveedorCuentasPanel({ ruc, razonSocial, onClose }: Pro
                   <input
                     type="text"
                     value={form.numero_cuenta}
-                    onChange={e => set('numero_cuenta', e.target.value)}
+                    onChange={e => set('numero_cuenta', e.target.value.replace(/\D/g, ''))}
                     maxLength={maxLengthNumeroCuenta(form.banco)}
                     placeholder={`${maxLengthNumeroCuenta(form.banco)} dígitos`}
                     className={INPUT}
@@ -192,7 +192,7 @@ export default function ProveedorCuentasPanel({ ruc, razonSocial, onClose }: Pro
                   <input
                     type="text"
                     value={form.cuenta_detracciones}
-                    onChange={e => set('cuenta_detracciones', e.target.value)}
+                    onChange={e => set('cuenta_detracciones', e.target.value.replace(/\D/g, ''))}
                     placeholder="N° cuenta SPOT — Banco de la Nación"
                     className={INPUT}
                   />

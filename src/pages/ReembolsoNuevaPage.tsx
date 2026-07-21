@@ -405,7 +405,7 @@ export default function ReembolsoNuevaPage() {
               <input
                 type="text"
                 value={numeroCuenta}
-                onChange={e => setNumeroCuenta(e.target.value)}
+                onChange={e => setNumeroCuenta(e.target.value.replace(/\D/g, ''))}
                 maxLength={banco ? maxLengthNumeroCuenta(banco) : 20}
                 placeholder={banco ? placeholderNumeroCuenta(banco) : '—'}
                 disabled={!banco}

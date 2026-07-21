@@ -345,7 +345,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
                   placeholder="Cuenta para detracciones"
                   value={cuenta_detracciones}
-                  onChange={(e) => { setCuentaDetracciones(e.target.value); clearErrors() }}
+                  onChange={(e) => { setCuentaDetracciones(e.target.value.replace(/\D/g, '')); clearErrors() }}
                 />
                 {errors.cuenta_detracciones && <p className="mt-1 text-sm text-red-600">{errors.cuenta_detracciones}</p>}
               </div>
