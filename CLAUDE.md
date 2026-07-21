@@ -633,6 +633,12 @@ Autorizado
 - Badge "Pagado dd/mm/yyyy" en header cuando `fecha_pago` está presente
 - Botón PDF disponible desde En Revision en adelante
 
+**Documento sustento general:** columna `documento_sustento_path` en `caja_chica` (patrón igual a A Rendir) — se sube desde el detalle (tarjeta "Documento sustento", visible cuando `canEdit`), no en el wizard de creación. `uploadSustentoCajaChica()` + `updateCajaChica()` guardan el path; `getArchivoCajaChicaUrl()` genera la URL firmada para verlo.
+
+**Bug corregido (archivo se borraba al editar):** `handleSaveDet` en el detalle enviaba siempre `archivo_path` en el payload de actualización (con `null` si no se adjuntaba uno nuevo), borrando el archivo ya subido de un gasto al corregir cualquier otro campo. Ahora solo se incluye `archivo_path` en el `UPDATE` si el usuario adjunta un archivo nuevo.
+
+**Botón "Descargar PDF":** antes solo aparecía después de "Enviar a revisión" (`!isPendiente`); ahora está disponible desde Pendiente en adelante (`canShowPDF = detalles.length > 0`), igual que en los demás módulos.
+
 **Lógica de saldo acumulable:** Al crear nueva caja chica, `getSaldoAnterior(proyectoId)` busca la última caja chica del mismo proyecto que tenga `fecha_pago IS NOT NULL` (pagada) y toma su `saldo_actual`. La transferencia = fondo - saldo anterior (solo se repone lo gastado). Solo cajas pagadas aportan saldo — una autorizada sin pagar no cuenta.
 
 **CajaChicaPDF** (`@react-pdf/renderer`, landscape A4): título, header (código, responsable, empresa, período, cuenta), resumen financiero (saldo anterior, transferencia, monto asignado, saldo actual, pendiente a reembolsar), tabla de gastos con columna de código de costos (área), total + saldo, dos firmas (responsable + aprobador).

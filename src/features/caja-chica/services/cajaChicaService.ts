@@ -5,6 +5,7 @@ import type {
 } from '../types/cajaChica'
 
 const SEL = '*, proyecto:proyecto_id(id,nombre), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)'
+const BUCKET = 'caja-chica-documentos'
 
 // ── Enrich ────────────────────────────────────────────────────────
 
@@ -142,6 +143,23 @@ export async function updateDetalleCajaChica(id: number, payload: Partial<CajaCh
 export async function deleteDetalleCajaChica(id: number): Promise<void> {
   const { error } = await supabase.from('caja_chica_detalle').delete().eq('id', id)
   if (error) throw error
+}
+
+// ── Storage ──────────────────────────────────────────────────────
+
+/** Sustento general de la caja chica (documento único, se sube al finalizar) */
+export async function uploadSustentoCajaChica(file: File, cajaChicaId: number): Promise<string> {
+  const ext  = file.name.split('.').pop()
+  const path = `${cajaChicaId}/sustento/${Date.now()}.${ext}`
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: true })
+  if (error) throw error
+  return path
+}
+
+export async function getArchivoCajaChicaUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600)
+  if (error) throw error
+  return data.signedUrl
 }
 
 // ── Flujo ────────────────────────────────────────────────────────

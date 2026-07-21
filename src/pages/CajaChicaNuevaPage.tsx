@@ -61,6 +61,7 @@ export default function CajaChicaNuevaPage() {
         saldo_anterior: saldoAnterior,
         transferencia,
         cuenta_bbva: cuentaBbva || null,
+        documento_sustento_path: null,
         estado: 'Pendiente',
       })
       toast.success(`Caja chica ${cc.codigo} creada`)

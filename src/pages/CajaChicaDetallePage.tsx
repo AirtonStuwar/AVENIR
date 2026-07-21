@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   ArrowLeft, Plus, Trash2, Pencil, Send, CheckCircle, Ban, RotateCcw,
-  Upload, Loader2, AlertCircle, Wallet, Download,
+  Upload, Loader2, AlertCircle, Wallet, Download, ExternalLink,
 } from 'lucide-react'
 import { pdf } from '@react-pdf/renderer'
 import { useAuthStore } from '../store/authStore'
@@ -14,7 +14,7 @@ import {
   enviarCajaChica, marcarEvaluadoCajaChica, devolverDesdeRevisionCajaChica,
   autorizarCajaChica, rechazarCajaChica, devolverCajaChica,
   observarCajaChica, reenviarContabilidadCajaChica,
-  getAreas,
+  getAreas, uploadSustentoCajaChica, getArchivoCajaChicaUrl, updateCajaChica,
 } from '../features/caja-chica/services/cajaChicaService'
 import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
@@ -76,6 +76,7 @@ export default function CajaChicaDetallePage() {
   const [monto, setMonto] = useState('')
   const [archivo, setArchivo] = useState<File | null>(null)
   const [savingDet, setSavingDet] = useState(false)
+  const [uploadingSustento, setUploadingSustento] = useState(false)
 
   // Modals
   const [rechazoOpen, setRechazoOpen] = useState(false)
@@ -130,7 +131,7 @@ export default function CajaChicaDetallePage() {
   const canEvaluar = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canAprobar = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canMarcarPagado = isAutorizado && !cc.fecha_pago && userRole === ROLES.VISUALIZADOR
-  const canShowPDF = !isPendiente && detalles.length > 0
+  const canShowPDF = detalles.length > 0
 
   const totalGastos = detalles.reduce((s, d) => s + d.monto, 0)
   const pctUsado = cc.monto_asignado > 0 ? (totalGastos / cc.monto_asignado) * 100 : 0
@@ -204,23 +205,33 @@ export default function CajaChicaDetallePage() {
         archivoPath = path
       }
 
-      const payload = {
-        caja_chica_id: cc.id,
-        fecha,
-        area_id: areaId,
-        proveedor: proveedor.trim(),
-        tipo_documento: tipoDoc,
-        numero_documento: numDoc.trim() || null,
-        detalle: detalle.trim(),
-        monto: parseFloat(monto),
-        archivo_path: archivoPath,
-      }
-
       if (editId) {
-        await updateDetalleCajaChica(editId, payload)
+        // Al editar, solo se toca archivo_path si se adjuntó uno nuevo —
+        // así no se borra el archivo ya subido cuando solo se corrige otro campo.
+        await updateDetalleCajaChica(editId, {
+          caja_chica_id: cc.id,
+          fecha,
+          area_id: areaId,
+          proveedor: proveedor.trim(),
+          tipo_documento: tipoDoc,
+          numero_documento: numDoc.trim() || null,
+          detalle: detalle.trim(),
+          monto: parseFloat(monto),
+          ...(archivoPath ? { archivo_path: archivoPath } : {}),
+        })
         toast.success('Gasto actualizado')
       } else {
-        await createDetalleCajaChica(payload)
+        await createDetalleCajaChica({
+          caja_chica_id: cc.id,
+          fecha,
+          area_id: areaId,
+          proveedor: proveedor.trim(),
+          tipo_documento: tipoDoc,
+          numero_documento: numDoc.trim() || null,
+          detalle: detalle.trim(),
+          monto: parseFloat(monto),
+          archivo_path: archivoPath,
+        })
         toast.success('Gasto agregado')
       }
       resetForm()
@@ -239,6 +250,31 @@ export default function CajaChicaDetallePage() {
       await loadData()
     } catch {
       toast.error('Error al eliminar')
+    }
+  }
+
+  const handleUploadSustento = async (file: File) => {
+    if (!cc) return
+    setUploadingSustento(true)
+    try {
+      const path = await uploadSustentoCajaChica(file, cc.id)
+      await updateCajaChica(cc.id, { documento_sustento_path: path })
+      toast.success('Documento sustento subido')
+      await loadData()
+    } catch {
+      toast.error('Error al subir el documento sustento')
+    } finally {
+      setUploadingSustento(false)
+    }
+  }
+
+  const handleVerSustento = async () => {
+    if (!cc?.documento_sustento_path) return
+    try {
+      const url = await getArchivoCajaChicaUrl(cc.documento_sustento_path)
+      window.open(url, '_blank')
+    } catch {
+      toast.error('No se pudo abrir el documento')
     }
   }
 
@@ -630,6 +666,40 @@ export default function CajaChicaDetallePage() {
               )}
             </table>
           </div>
+        </div>
+
+        {/* Documento sustento general */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <h2 className="text-sm font-semibold text-gray-800 mb-3">Documento sustento</h2>
+          {cc.documento_sustento_path ? (
+            <div className="flex items-center gap-3">
+              <button onClick={handleVerSustento}
+                className="flex items-center gap-1.5 text-sm text-[#003D7D] font-semibold hover:underline">
+                <ExternalLink size={14} /> Ver documento
+              </button>
+              {canEdit && (
+                <label className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#003D7D] cursor-pointer">
+                  {uploadingSustento
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <Upload size={13} />}
+                  Reemplazar
+                  <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadSustento(f); e.target.value = '' }} />
+                </label>
+              )}
+            </div>
+          ) : canEdit ? (
+            <label className="flex items-center gap-2 w-fit px-4 py-2 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500 hover:text-[#003D7D] hover:border-[#003D7D]/40 cursor-pointer transition-colors">
+              {uploadingSustento
+                ? <Loader2 size={14} className="animate-spin" />
+                : <Upload size={14} />}
+              {uploadingSustento ? 'Subiendo…' : 'Subir documento sustento'}
+              <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadSustento(f); e.target.value = '' }} />
+            </label>
+          ) : (
+            <p className="text-sm text-gray-400 italic">No adjuntado</p>
+          )}
         </div>
       </div>
 
