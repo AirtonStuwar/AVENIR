@@ -180,7 +180,9 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     const reten    = s.monto_retencion ?? 0
     const isPEN    = (s.moneda ?? 'PEN') === 'PEN'
     const detracPct = s.detraccion?.porcentaje ?? 0
-    const detracUSD = isPEN ? 0 : Math.round(total * detracPct / 100)
+    // Sin redondear: el redondeo solo aplica al depósito en soles a SUNAT (monto_detraccion),
+    // no al monto que se gira en dólares al proveedor.
+    const detracUSD = isPEN ? 0 : total * detracPct / 100
     const u        = s.usuario_creador ? (userMap[s.usuario_creador] ?? null) : null
 
     return {
@@ -203,7 +205,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       total_pen:    isPEN ? total : 0,
       detraccion:   detrac,
       retencion:    isPEN ? reten : 0,
-      girar_usd:    isPEN ? 0 : total - detracUSD,
+      girar_usd:    isPEN ? 0 : Math.round((total - detracUSD) * 100) / 100,
       girar_pen:    isPEN ? total - detrac - reten : 0,
       banco:        s.banco,
       cuenta:       s.numero_cuenta,

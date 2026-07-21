@@ -497,7 +497,7 @@ Consolidación de registros aprobados/autorizados de todos los módulos en un Ex
 
 **`ReporteRow` interface:** `tipo` (`'OC'|'RxH'|'A Rendir'|'Reembolso'|'Caja Chica'`), `codigo`, `fecha_solicitud`, `fecha_requerida`, `fecha_aprobada`, `fecha_emision`, `fecha_pago`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para otros), `ruc` (RUC para OC/RxH, DNI para A Rendir/Reembolso/Caja Chica), `proyecto`, `partida`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`, `archivo_contrato`, `archivo_sustento`, `archivo_cotizacion`, `archivo_factura`, `archivo_otros`.
 
-**Detracción en reportes:** `detraccion` siempre en S/ (SUNAT), sin importar la moneda de la solicitud. `girar_usd` descuenta la detracción en dólares: `total - Math.round(total × porcentaje / 100)`. `girar_pen` descuenta detracción y retención en soles.
+**Detracción en reportes:** `detraccion` siempre en S/ (SUNAT), sin importar la moneda de la solicitud. `girar_usd` descuenta la detracción en dólares: `total - (total × porcentaje / 100)`, **sin redondear** el descuento intermedio (solo el resultado final a 2 decimales) — el redondeo a soles enteros solo aplica al depósito SUNAT (`monto_detraccion`), no al monto girado en dólares. `girar_pen` descuenta detracción y retención en soles.
 
 **`exportarReporteExcel(rows, filtros, proyectoNombre)`:** ExcelJS workbook con 1 hoja "Reporte":
 - Fila 1: título mergeado, fondo `#003D7D`, fuente blanca.
