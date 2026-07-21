@@ -64,6 +64,7 @@ export async function getCajaChicaById(id: number): Promise<CajaChica> {
     .from('caja_chica')
     .select(`${SEL}, detalles:caja_chica_detalle(*)`)
     .eq('id', id)
+    .order('id', { ascending: true, foreignTable: 'caja_chica_detalle' })
     .single()
   if (error) throw error
 

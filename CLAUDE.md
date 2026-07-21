@@ -273,6 +273,8 @@ Evaluado
 - Si estado es Rechazado o Devuelto: alerta visible con el motivo (`comentario`)
 - Badge "Pagado dd/mm/yyyy" en header cuando `fecha_pago` está presente
 
+**Orden estable de gastos:** `getCajaChicaById` ordena los `detalles` embebidos por `id` ascendente (`.order('id', { ascending: true, foreignTable: 'caja_chica_detalle' })`) — antes no tenía orden explícito, así que la lista podía mostrarse en distinto orden cada vez que se recargaba (por ejemplo al editar un gasto), dando la sensación de que los ítems "se movían". Ordenar por `id` (que nunca cambia) garantiza que cada gasto se quede siempre en la misma posición, sin importar qué campo se edite.
+
 **Edición de gastos desde el detalle:** `ARendirDetallePage` permite agregar, editar y eliminar líneas de `solicitud_arendir_detalle` directamente (no solo durante el wizard). El total se recalcula automáticamente via trigger `trg_recalc_arendir_total`.
 
 **ARendirPDF** (`@react-pdf/renderer`, formato landscape A4): header con título y logo, grilla de datos generales (código, beneficiario, DNI, cargo, proyecto, importe adelanto, fecha rendición — **sin banco ni número de cuenta**), tabla de líneas de gasto, fila de balance (amarillo), fila de total a reembolsar (azul), sección de dos firmas (beneficiario + aprobador).
