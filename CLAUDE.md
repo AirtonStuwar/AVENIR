@@ -366,7 +366,7 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 - Sin `numero_pago`
 - El wizard y detalle tienen la misma estructura pero sin la lógica de balance adelanto vs gasto
 
-`ReembolsoDetallePage` también permite editar gastos inline y tiene botón "Marcar pagado" para VISUALIZADOR en estado Autorizado (igual que `ARendirDetallePage`).
+`ReembolsoDetallePage` también permite editar gastos inline y tiene botón "Marcar pagado" para VISUALIZADOR en estado Autorizado (igual que `ARendirDetallePage`). El **documento sustento general** (`documento_sustento_path`) se puede subir o reemplazar directamente desde el detalle (no solo en el wizard) mientras `canEditDet` sea `true` (estados Pendiente, Devuelto u Observado, dueño o ADMIN) — usa `uploadSustentoReembolso()` + `updateReembolso()`.
 
 ---
 

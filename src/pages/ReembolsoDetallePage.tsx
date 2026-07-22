@@ -27,6 +27,8 @@ import {
   updateDetalleReembolso,
   deleteDetalleReembolso,
   uploadDetalleArchivoReembolso,
+  uploadSustentoReembolso,
+  updateReembolso,
 } from '../features/reembolso/services/reembolsoService'
 import { getPlanContable } from '../features/solicitud/services/solicitudService'
 import type { SolicitudReembolso, ReembolsoDetalle } from '../features/reembolso/types/reembolso'
@@ -204,6 +206,7 @@ export default function ReembolsoDetallePage() {
   const [detImporte,  setDetImporte]  = useState('')
   const [detArchivo,  setDetArchivo]  = useState<File | null>(null)
   const [detSaving,   setDetSaving]   = useState(false)
+  const [uploadingSustento, setUploadingSustento] = useState(false)
 
   const TIPOS_DOC_DET = ['FACTURA', 'RECIBO', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
 
@@ -463,6 +466,18 @@ export default function ReembolsoDetallePage() {
     } catch { toast.error('No se pudo abrir el archivo') }
   }
 
+  async function handleUploadSustento(file: File) {
+    if (!solicitud) return
+    setUploadingSustento(true)
+    try {
+      const path = await uploadSustentoReembolso(file, solicitud.id)
+      await updateReembolso(solicitud.id, { documento_sustento_path: path })
+      toast.success('Documento sustento actualizado')
+      await reloadData()
+    } catch { toast.error('Error al subir el documento sustento') }
+    finally { setUploadingSustento(false) }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64 text-gray-400">
@@ -621,13 +636,27 @@ export default function ReembolsoDetallePage() {
             </div>
           ))}
         </div>
-        {solicitud.documento_sustento_path && (
+        {(solicitud.documento_sustento_path || canEditDet) && (
           <div className="mt-4 pt-4 border-t border-gray-100">
             <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Documento sustento</p>
-            <button onClick={handleVerSustento}
-              className="flex items-center gap-1.5 text-sm text-[#003D7D] font-semibold hover:underline">
-              <ExternalLink size={13} /> Ver sustento
-            </button>
+            <div className="flex items-center gap-3">
+              {solicitud.documento_sustento_path && (
+                <button onClick={handleVerSustento}
+                  className="flex items-center gap-1.5 text-sm text-[#003D7D] font-semibold hover:underline">
+                  <ExternalLink size={13} /> Ver sustento
+                </button>
+              )}
+              {canEditDet && (
+                <label className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#003D7D] cursor-pointer">
+                  {uploadingSustento
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <Upload size={13} />}
+                  {solicitud.documento_sustento_path ? 'Reemplazar' : 'Subir documento sustento'}
+                  <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadSustento(f); e.target.value = '' }} />
+                </label>
+              )}
+            </div>
           </div>
         )}
       </div>
