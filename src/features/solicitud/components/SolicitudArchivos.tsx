@@ -118,12 +118,24 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
       const carpeta = zipName ?? `solicitud-${solicitudId}`
       const zip = new JSZip()
       const folder = zip.folder(carpeta)!
+      const usedNames = new Set<string>()
       for (const archivo of descargables) {
         const url  = await getArchivoUrl(archivo.archivo_path!)
         const res  = await fetch(url)
         const blob = await res.blob()
-        const ext  = (archivo.nombre_archivo ?? archivo.archivo_path ?? '').split('.').pop() || 'pdf'
-        folder.file(`${archivo.tipo_archivo ?? 'Documento'}.${ext}`, blob)
+        const original = archivo.nombre_archivo || `${archivo.tipo_archivo ?? 'documento'}.${(archivo.archivo_path ?? '').split('.').pop() || 'pdf'}`
+        // Si el nombre original ya se usó en este ZIP, se le agrega un número para que ambos archivos se incluyan.
+        let name = original
+        if (usedNames.has(name)) {
+          const dot = original.lastIndexOf('.')
+          const base = dot > -1 ? original.slice(0, dot) : original
+          const ext  = dot > -1 ? original.slice(dot) : ''
+          let n = 2
+          while (usedNames.has(`${base} (${n})${ext}`)) n++
+          name = `${base} (${n})${ext}`
+        }
+        usedNames.add(name)
+        folder.file(name, blob)
       }
       const zipBlob = await zip.generateAsync({ type: 'blob' })
       const objUrl = URL.createObjectURL(zipBlob)

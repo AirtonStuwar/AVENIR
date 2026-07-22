@@ -67,6 +67,8 @@ Tipos de archivo manejados por `SolicitudArchivos`:
 
 El componente acepta la prop `tiposVisibles?: string[]`; si se pasa, sólo renderiza esos tipos. Usado en el wizard para separar documentos de contrato (Step 3) de documentos de factura (Step 4). En el detalle de la solicitud se muestra sin filtro (todos los tipos visibles), permitiendo subir Factura XML/PDF directamente desde ahí. Cuando la solicitud es RxH con `aplica_suspension === true`, `tiposVisibles` incluye `'Suspension'`.
 
+**Descarga masiva en ZIP** (`SolicitudArchivos.tsx`, botón "Descargar todos"): visible solo para VISUALIZADOR y EVALUADOR (prop `canDownloadAll`), y solo cuando hay al menos un documento adjunto. Genera un único `.zip` con `JSZip` — el nombre del archivo/carpeta viene de la prop `zipName` (en `SolicitudDetallePage.tsx`: razón social + N° factura/RxH, con fallback al código de la solicitud). Cada documento dentro del ZIP conserva su **nombre original de subida** (`archivo.nombre_archivo`); si dos documentos de la misma solicitud comparten nombre, al segundo se le agrega `(2)`, `(3)`, etc. antes de la extensión para que ambos queden incluidos sin pisarse.
+
 **Solicitud workflow states** (`estado_soli` table drives UI logic):
 - Pendiente → (USUARIO/ADMIN) → `enviarARevision` → En Revision
 - En Revision → (EVALUADOR/ADMIN) → `marcarEvaluado(id, planContableId, userId, porcentajeRetencion?, detraccionId?, montoDetraccion?)` → Evaluado
