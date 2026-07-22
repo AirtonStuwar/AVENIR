@@ -378,6 +378,12 @@ Con más de un usuario EVALUADOR, dos personas podían abrir la misma solicitud 
 
 ---
 
+## Bug corregido: reemplazo de documento no se reflejaba (`solicitud_archivo` sin policy DELETE)
+
+Al reemplazar un documento ya subido (ej. Cotización tras una devolución del evaluador), `SolicitudArchivos.tsx` llama `deleteArchivoSolicitud(existing.id, existing.archivo_path!)` antes de subir el nuevo archivo. Esa función borraba el archivo del bucket pero el `DELETE` sobre la tabla `solicitud_archivo` no tenía **ninguna policy RLS** que lo permitiera — PostgREST no lanza `error` cuando un `DELETE` afecta 0 filas, así que `if (error) throw error` nunca se disparaba y la función "tenía éxito" sin borrar la fila. El resultado: quedaban dos filas para el mismo `(solicitud_id, tipo_archivo)` — la vieja (con `archivo_path` ya borrado del bucket) y la nueva. Como no hay orden garantizado, tras un F5 `byTipo()` podía devolver la fila vieja rota, dando la impresión de que el archivo nuevo "no cargó". Se agregó la policy `DELETE` (permisiva, `true`, igual que INSERT/UPDATE ya existentes) y se limpiaron 97 filas duplicadas/huérfanas preexistentes en la BD (se conservó la fila más reciente de cada grupo).
+
+---
+
 ## Seguridad de visibilidad por rol (RLS)
 
 Las policies SELECT de las 10 tablas de registros (`solicitud`, `solicitud_detalle`, `solicitud_archivo`, `solicitud_arendir(+detalle)`, `solicitud_reembolso(+detalle)`, `caja_chica(+detalle)`, `devolucion_cliente`) restringen al rol **USUARIO (11)** a ver **solo sus propios registros** (creador/beneficiario/responsable = `auth.uid()`); los roles ADMIN/EVALUADOR/APROBADOR/VISUALIZADOR ven todo vía la función `es_rol_privilegiado()` (SECURITY DEFINER, consulta `usuario_rol` con roles 1/8/9/10). Esto bloquea a nivel de BD que un USUARIO abra `/solicitudes/:id` ajeno por URL — la página muestra "Solicitud no encontrada".
