@@ -26,7 +26,11 @@ function StarDisplay({ value }: { value: number | null }) {
 
 function fmtDate(d: string | null) {
   if (!d) return '—'
-  return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d))
+  try {
+    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d))
+  } catch {
+    return 'Fecha inválida'
+  }
 }
 
 export default function ProveedoresPage() {

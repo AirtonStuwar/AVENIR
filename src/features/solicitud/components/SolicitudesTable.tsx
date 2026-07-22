@@ -5,7 +5,11 @@ import { getProyectos } from '../../proyecto/services/proyectoService'
 
 function fmtDate(d: string | null): string {
   if (!d) return '—'
-  return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d + 'T00:00:00'))
+  try {
+    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d + 'T00:00:00'))
+  } catch {
+    return 'Fecha inválida'
+  }
 }
 
 const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']

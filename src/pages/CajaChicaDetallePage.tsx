@@ -29,7 +29,14 @@ import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import logoUrl from '../assets/avenir-logo.png'
 
 const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-const fmtDate = (s: string | null) => s ? new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(s.includes('T') ? s : s + 'T00:00:00')) : '—'
+const fmtDate = (s: string | null) => {
+  if (!s) return '—'
+  try {
+    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(s.includes('T') ? s : s + 'T00:00:00'))
+  } catch {
+    return 'Fecha inválida'
+  }
+}
 
 const ESTADO_BADGE: Record<string, string> = {
   'Pendiente': 'bg-gray-100 text-gray-600',

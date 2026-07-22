@@ -541,8 +541,14 @@ const TIPO_COLOR: Record<string, string> = {
   'Devolución':  'E0F2F1',
 }
 
-const fmtDate = (s: string | null) =>
-  s ? new Intl.DateTimeFormat('es-PE').format(new Date(s.includes('T') ? s : s + 'T00:00:00')) : ''
+const fmtDate = (s: string | null) => {
+  if (!s) return ''
+  try {
+    return new Intl.DateTimeFormat('es-PE').format(new Date(s.includes('T') ? s : s + 'T00:00:00'))
+  } catch {
+    return 'Fecha inválida'
+  }
+}
 
 const fmtNum = (n: number) =>
   n === 0 ? '' : n.toLocaleString('es-PE', { minimumFractionDigits: 2 })

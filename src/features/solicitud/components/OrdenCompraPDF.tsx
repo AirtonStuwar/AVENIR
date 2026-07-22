@@ -16,7 +16,11 @@ export interface OrdenCompraPDFProps {
 // ── Helpers ──────────────────────────────────────────────────────
 function fmtDate(d: string | null | undefined) {
   if (!d) return '—'
-  return new Intl.DateTimeFormat('es-PE', { dateStyle: 'short' }).format(new Date(d + 'T00:00:00'))
+  try {
+    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'short' }).format(new Date(d + 'T00:00:00'))
+  } catch {
+    return 'Fecha inválida'
+  }
 }
 
 function fmtMoney(n: number, moneda: 'PEN' | 'USD' = 'PEN') {

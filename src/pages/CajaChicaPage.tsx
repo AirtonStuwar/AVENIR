@@ -20,7 +20,14 @@ const ESTADO_BADGE: Record<string, string> = {
 }
 
 const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-const fmtDate = (s: string | null) => s ? new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(s + 'T00:00:00')) : '—'
+const fmtDate = (s: string | null) => {
+  if (!s) return '—'
+  try {
+    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(s + 'T00:00:00'))
+  } catch {
+    return 'Fecha inválida'
+  }
+}
 
 export default function CajaChicaPage() {
   const navigate = useNavigate()

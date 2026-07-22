@@ -9,7 +9,11 @@ import type { Consumo } from '../services/proyectoService'
 
 function fmtDate(d: string | null): string {
   if (!d) return '—'
-  return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d + 'T00:00:00'))
+  try {
+    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d + 'T00:00:00'))
+  } catch {
+    return 'Fecha inválida'
+  }
 }
 
 function fmtMoney(n: number | null): string {

@@ -16,7 +16,14 @@ const TIPO_BADGE: Record<string, { label: string; color: string; icon: React.Rea
 
 const fmt = (n: number) => n === 0 ? '—' : `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
 const fmtUSD = (n: number) => n === 0 ? '—' : `$ ${n.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-const fmtDate = (s: string | null) => s ? new Intl.DateTimeFormat('es-PE').format(new Date(s.includes('T') ? s : s + 'T00:00:00')) : '—'
+const fmtDate = (s: string | null) => {
+  if (!s) return '—'
+  try {
+    return new Intl.DateTimeFormat('es-PE').format(new Date(s.includes('T') ? s : s + 'T00:00:00'))
+  } catch {
+    return 'Fecha inválida'
+  }
+}
 
 // Default: current month
 const today = new Date()

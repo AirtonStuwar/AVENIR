@@ -463,6 +463,8 @@ Las tablas y vistas de Supabase son accesibles directamente. Power BI puede leer
 
 **`api/` folder (Vercel Edge Functions):** `api/ruc.ts` y `api/tipo-cambio.ts` — proxies server-side hacia decolecta.com usando `DECOLECTA_API_KEY`. La variable de entorno debe estar configurada en Vercel → Settings → Environment Variables.
 
+**Blindaje contra fechas corruptas:** las 9 implementaciones de `fmtDate` que usan `Intl.DateTimeFormat(...).format(...)` (a diferencia de `.toLocaleDateString()`, que degrada a texto "Invalid Date" sin romper nada) lanzan `RangeError` si la fecha guardada es inválida (ej. un año mal tipeado como `"62026-06-30"`) — sin `try/catch`, ese error no capturado tumbaba toda la página en blanco. Todas están envueltas en `try/catch` devolviendo `'Fecha inválida'` en vez de crashear. Al agregar un nuevo `fmtDate` con `Intl.DateTimeFormat`, replicar este patrón.
+
 **Formateo de fechas (timezone):** Todas las funciones `fmtDate` en el proyecto usan el patrón `s.includes('T') ? s : s + 'T00:00:00'` antes de pasarlo a `new Date()`. Esto evita que fechas tipo `"YYYY-MM-DD"` (sin hora) se parseen como UTC medianoche y aparezcan un día antes en Perú (UTC-5). **No usar** `new Date(dateString)` directamente con strings de solo fecha ni `new Date().toISOString().slice(0,10)` para defaults — usar la función local `localToday()` del `PagoModal`.
 
 **`EvaluarModal` carga de datos:** Usa `Promise.all` con handlers independientes por promesa (no un `.catch` global) para que un fallo del TC SUNAT no impida cargar el plan contable. Si `getTipoCambioUSD()` falla en producción, el campo TC aparece vacío y el evaluador lo ingresa manualmente.
