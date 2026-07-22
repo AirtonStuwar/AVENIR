@@ -25,6 +25,10 @@ export interface ReporteRow {
   partida:        string | null
   concepto:       string | null
   moneda:         string
+  subtotal_usd:   number
+  subtotal_pen:   number
+  igv_usd:        number
+  igv_pen:        number
   total_usd:      number
   total_pen:      number
   detraccion:     number
@@ -201,6 +205,10 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       concepto:     det[0]?.descripcion ?? null,
       partida:      s.proyecto_partida?.nombre ?? null,
       moneda:       s.moneda ?? 'PEN',
+      subtotal_usd: isPEN ? 0 : subtotal,
+      subtotal_pen: isPEN ? subtotal : 0,
+      igv_usd:      isPEN ? 0 : igv,
+      igv_pen:      isPEN ? igv : 0,
       total_usd:    isPEN ? 0 : total,
       total_pen:    isPEN ? total : 0,
       detraccion:   detrac,
@@ -284,6 +292,10 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       partida:       r.proyecto_partida?.nombre ?? null,
       concepto:      conceptoMap[r.id] ?? 'Rendición de gastos',
       moneda:        r.moneda ?? 'PEN',
+      subtotal_usd:  0,
+      subtotal_pen:  0,
+      igv_usd:       0,
+      igv_pen:       0,
       total_usd:     isPEN ? 0 : r.importe,
       total_pen:     isPEN ? r.importe : 0,
       detraccion:    0,
@@ -366,6 +378,10 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       partida:       r.proyecto_partida?.nombre ?? null,
       concepto:      conceptoMap[r.id] ?? 'Reembolso de gastos',
       moneda:        r.moneda ?? 'PEN',
+      subtotal_usd:  0,
+      subtotal_pen:  0,
+      igv_usd:       0,
+      igv_pen:       0,
       total_usd:     isPEN ? 0 : r.total_reembolso,
       total_pen:     isPEN ? r.total_reembolso : 0,
       detraccion:    0,
@@ -429,6 +445,10 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       partida:         null,
       concepto:        'Rendición de caja chica',
       moneda:          'PEN',
+      subtotal_usd:    0,
+      subtotal_pen:    0,
+      igv_usd:         0,
+      igv_pen:         0,
       total_usd:       0,
       total_pen:       r.total_gastos,
       detraccion:      0,
@@ -497,6 +517,10 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
       partida:       r.proyecto_partida?.nombre ?? null,
       concepto:      'Devolución de cliente',
       moneda:        r.moneda ?? 'PEN',
+      subtotal_usd:  0,
+      subtotal_pen:  0,
+      igv_usd:       0,
+      igv_pen:       0,
       total_usd:     isPEN ? 0 : r.monto,
       total_pen:     isPEN ? r.monto : 0,
       detraccion:    0,
@@ -583,6 +607,10 @@ export async function exportarReporteExcel(
     { header: 'PARTIDA PRESUP.', key: 'pc_partida',         width: 18 },
     { header: 'PARTIDA N1',      key: 'pc_partida_n1',      width: 18 },
     { header: 'PARTIDA N2',      key: 'pc_partida_n2',      width: 18 },
+    { header: 'SUBTOTAL $',      key: 'subtotal_usd',    width: 13 },
+    { header: 'SUBTOTAL S/.',    key: 'subtotal_pen',    width: 13 },
+    { header: 'IGV $',           key: 'igv_usd',         width: 12 },
+    { header: 'IGV S/.',         key: 'igv_pen',         width: 12 },
     { header: 'TOTAL $',         key: 'total_usd',       width: 13 },
     { header: 'TOTAL S/.',       key: 'total_pen',       width: 13 },
     { header: 'DETRACCIÓN S/.',  key: 'detraccion',      width: 14 },
@@ -657,6 +685,10 @@ export async function exportarReporteExcel(
       row.pc_partida,
       row.pc_partida_n1,
       row.pc_partida_n2,
+      fmtNum(row.subtotal_usd),
+      fmtNum(row.subtotal_pen),
+      fmtNum(row.igv_usd),
+      fmtNum(row.igv_pen),
       fmtNum(row.total_usd),
       fmtNum(row.total_pen),
       fmtNum(row.detraccion),
@@ -680,8 +712,8 @@ export async function exportarReporteExcel(
       cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + bg } }
       cell.alignment = { vertical: 'middle', wrapText: false }
       cell.border = { bottom: { style: 'hair', color: { argb: 'FFCCCCCC' } }, right: { style: 'hair', color: { argb: 'FFCCCCCC' } } }
-      // Right-align numeric columns (TOTAL $ through GIRAR S/.)
-      if (ci >= 20 && ci <= 25) cell.alignment = { horizontal: 'right', vertical: 'middle' }
+      // Right-align numeric columns (SUBTOTAL $ through GIRAR S/.)
+      if (ci >= 20 && ci <= 29) cell.alignment = { horizontal: 'right', vertical: 'middle' }
     })
     r.height = 16
   })
@@ -690,6 +722,10 @@ export async function exportarReporteExcel(
   const totRow = ws.getRow(rows.length + 3)
   totRow.height = 18
   const totals = [
+    rows.reduce((s, r) => s + r.subtotal_usd, 0),
+    rows.reduce((s, r) => s + r.subtotal_pen, 0),
+    rows.reduce((s, r) => s + r.igv_usd,      0),
+    rows.reduce((s, r) => s + r.igv_pen,      0),
     rows.reduce((s, r) => s + r.total_usd,   0),
     rows.reduce((s, r) => s + r.total_pen,   0),
     rows.reduce((s, r) => s + r.detraccion,  0),
