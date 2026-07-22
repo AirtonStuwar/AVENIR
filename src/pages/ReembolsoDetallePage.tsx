@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { pdf } from '@react-pdf/renderer'
@@ -224,11 +224,17 @@ export default function ReembolsoDetallePage() {
     setSolicitud(sol); setDetalles(sol.detalles ?? [])
   }
 
+  // Guarda sincrónica (no depende de que React vuelva a pintar el botón deshabilitado)
+  // para bloquear un doble clic que llegue antes de que se aplique disabled={detSaving}.
+  const detSavingRef = useRef(false)
+
   const handleDetSave = async () => {
     if (!solicitud || !id) return
     if (!detFecha || !detProv.trim() || !detConcepto.trim() || !detImporte) {
       toast.error('Completa fecha, proveedor, concepto e importe'); return
     }
+    if (detSavingRef.current) return
+    detSavingRef.current = true
     setDetSaving(true)
     try {
       let archivoPath: string | null = null
@@ -257,7 +263,7 @@ export default function ReembolsoDetallePage() {
       resetDetForm()
       await reloadData()
     } catch { toast.error('Error al guardar') }
-    finally { setDetSaving(false) }
+    finally { detSavingRef.current = false; setDetSaving(false) }
   }
 
   const handleDetDelete = async (det: ReembolsoDetalle) => {

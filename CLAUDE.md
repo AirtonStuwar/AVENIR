@@ -359,6 +359,8 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 
 **Flujo de estados:** idéntico a A Rendir (Pendiente → En Revision → Evaluado → Autorizado/Rechazado/Devuelto).
 
+**Protección contra doble clic al agregar gasto:** `handleDetSave` en `ReembolsoDetallePage.tsx` usa una bandera síncrona (`useRef`, no `useState`) además del `disabled={detSaving}` del botón — un doble clic muy rápido puede llegar antes de que React vuelva a pintar el botón deshabilitado (la actualización de `disabled` depende de un re-render), y sin la bandera síncrona ambos clics alcanzaban a disparar el guardado, duplicando el gasto. La bandera (`detSavingRef.current`) se revisa y activa de forma inmediata, sin esperar al re-render.
+
 **Diferencias clave vs A Rendir:**
 - Sin campo `importe` (adelanto) — solo `total_reembolso`
 - Sin `numero_pago`
