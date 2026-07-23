@@ -474,7 +474,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
 
   let q = supabase
     .from('devolucion_cliente')
-    .select('id, codigo, creador_id, proyecto_id, cliente_nombre, cliente_dni, monto, moneda, banco, numero_cuenta, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
+    .select('id, codigo, creador_id, proyecto_id, cliente_nombre, cliente_dni, monto, moneda, banco, numero_cuenta, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)')
     .eq('estado', 'Autorizado')
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -493,6 +493,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
     fecha_aprobacion: string | null; fecha_creacion: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
+    plan_contable: PlanContableJoin | null
   }[]
 
   if (!rows.length) return []
@@ -536,7 +537,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
       arc_cotizacion: false,
       arc_factura:    false,
       arc_otros:      !!(r.boucher_separacion_path || r.constancia_separacion_path || r.sustento_desistimiento_path),
-      ...pcFields(null),
+      ...pcFields(r.plan_contable),
     } satisfies ReporteRow
   })
 }

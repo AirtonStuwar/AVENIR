@@ -11,14 +11,22 @@ import type { DevolucionCliente } from '../features/devolucion/types/devolucion'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 
-const ESTADOS = ['Pendiente', 'Autorizado', 'Rechazado']
+const ESTADOS_DEVOLUCION: Record<string, string[]> = {
+  default:      ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado', 'Rechazado', 'Devuelto', 'Observado'],
+  evaluador:    ['En Revision', 'Evaluado'],
+  aprobador:    ['Evaluado', 'Autorizado', 'Rechazado'],
+  visualizador: ['Evaluado', 'Autorizado'],
+}
 
 function EstadoBadge({ estado }: { estado: DevolucionCliente['estado'] }) {
   const map: Record<string, string> = {
-    'Pendiente':  'bg-yellow-100 text-yellow-800',
-    'Autorizado': 'bg-green-100 text-green-800',
-    'Rechazado':  'bg-red-100 text-red-800',
-    'Observado':  'bg-amber-100 text-amber-800',
+    'Pendiente':   'bg-yellow-100 text-yellow-800',
+    'En Revision': 'bg-blue-100 text-blue-800',
+    'Evaluado':    'bg-purple-100 text-purple-800',
+    'Autorizado':  'bg-green-100 text-green-800',
+    'Rechazado':   'bg-red-100 text-red-800',
+    'Devuelto':    'bg-orange-100 text-orange-800',
+    'Observado':   'bg-amber-100 text-amber-800',
   }
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -146,7 +154,12 @@ export default function DevolucionPage() {
           className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 shadow-sm"
         >
           <option value="">Todos los estados</option>
-          {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
+          {(
+            userRole === ROLES.EVALUADOR    ? ESTADOS_DEVOLUCION.evaluador    :
+            userRole === ROLES.APROBADOR    ? ESTADOS_DEVOLUCION.aprobador    :
+            userRole === ROLES.VISUALIZADOR ? ESTADOS_DEVOLUCION.visualizador :
+            ESTADOS_DEVOLUCION.default
+          ).map(e => <option key={e} value={e}>{e}</option>)}
         </select>
         <select
           value={proyectoFilter ?? ''}

@@ -2,13 +2,16 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
-  ChevronLeft, Loader2, CheckCircle2, XCircle, ExternalLink, RotateCcw, AlertCircle,
+  ChevronLeft, Loader2, CheckCircle2, XCircle, ExternalLink, RotateCcw, AlertCircle, FileText, BookOpen,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
 import {
   getDevolucionById,
+  enviarDevolucion,
+  marcarEvaluadoDevolucion,
+  devolverDesdeRevisionDevolucion,
   autorizarDevolucion,
   rechazarDevolucion,
   devolverDevolucion,
@@ -16,7 +19,9 @@ import {
   marcarPagadoDevolucion,
   getArchivoDevolucionUrl,
 } from '../features/devolucion/services/devolucionService'
+import { getPlanContable } from '../features/solicitud/services/solicitudService'
 import type { DevolucionCliente } from '../features/devolucion/types/devolucion'
+import type { PlanContable } from '../features/solicitud/types/solicitud'
 
 function fmtMoney(val: number | null, moneda = 'PEN') {
   if (val == null) return '—'
@@ -31,15 +36,105 @@ function fmtDate(val: string | null) {
 
 function EstadoBadge({ estado }: { estado: DevolucionCliente['estado'] }) {
   const map: Record<string, string> = {
-    'Pendiente':  'bg-yellow-100 text-yellow-800',
-    'Autorizado': 'bg-green-100 text-green-800',
-    'Rechazado':  'bg-red-100 text-red-800',
-    'Observado':  'bg-amber-100 text-amber-800',
+    'Pendiente':   'bg-yellow-100 text-yellow-800',
+    'En Revision': 'bg-blue-100 text-blue-800',
+    'Evaluado':    'bg-purple-100 text-purple-800',
+    'Autorizado':  'bg-green-100 text-green-800',
+    'Rechazado':   'bg-red-100 text-red-800',
+    'Devuelto':    'bg-orange-100 text-orange-800',
+    'Observado':   'bg-amber-100 text-amber-800',
   }
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
       {estado}
     </span>
+  )
+}
+
+// ── Modal evaluar (asigna Plan Contable) ────────────────────────
+interface EvaluarModalProps {
+  open: boolean; onClose: () => void
+  onConfirm: (planId: number) => void; loading: boolean
+}
+function EvaluarDevolucionModal({ open, onClose, onConfirm, loading }: EvaluarModalProps) {
+  const [search,   setSearch]   = useState('')
+  const [planes,   setPlanes]   = useState<PlanContable[]>([])
+  const [selected, setSelected] = useState<PlanContable | null>(null)
+  const [dropOpen, setDropOpen] = useState(false)
+  const [loadingPC, setLoadingPC] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    setLoadingPC(true)
+    getPlanContable()
+      .then(setPlanes)
+      .catch(() => toast.error('No se pudo cargar el plan contable'))
+      .finally(() => setLoadingPC(false))
+  }, [open])
+
+  if (!open) return null
+
+  const filtered = planes.filter(p => {
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    return (
+      (p.tipo_gasto_costo ?? '').toLowerCase().includes(q) ||
+      (p.nombre_cuenta_contable ?? '').toLowerCase().includes(q) ||
+      (p.codigo_starsoft ?? '').toLowerCase().includes(q)
+    )
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col">
+        <div className="rounded-t-2xl px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Asignar Plan Contable</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Selecciona la cuenta para esta Devolución</p>
+        </div>
+        <div className="px-6 py-4 space-y-3 pb-64">
+          <div className="relative">
+            <BookOpen size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input value={search} onChange={e => { setSearch(e.target.value); setDropOpen(true) }}
+              onFocus={() => setDropOpen(true)}
+              placeholder="Buscar por tipo, cuenta o código…"
+              className="w-full h-10 pl-8 pr-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30"
+            />
+          </div>
+          {selected && (
+            <div className="bg-[#003D7D]/[0.04] border border-[#003D7D]/20 rounded-xl px-4 py-2.5 text-sm">
+              <span className="font-semibold text-[#003D7D]">{selected.codigo_starsoft}</span>
+              {' — '}
+              <span className="text-gray-700">{selected.nombre_cuenta_contable}</span>
+            </div>
+          )}
+          {dropOpen && (
+            <div className="absolute left-0 right-0 mt-1 bg-white rounded-xl border border-gray-200 shadow-xl z-10 max-h-56 overflow-y-auto mx-6">
+              {loadingPC ? (
+                <p className="px-4 py-3 text-sm text-gray-400">Cargando…</p>
+              ) : filtered.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-gray-400">Sin resultados</p>
+              ) : filtered.slice(0, 60).map(p => (
+                <button key={p.id} onClick={() => { setSelected(p); setDropOpen(false) }}
+                  className="w-full text-left px-4 py-2.5 hover:bg-[#003D7D]/[0.04] transition-colors">
+                  <p className="text-xs font-semibold text-[#003D7D]">{p.codigo_starsoft} — {p.tipo_gasto_costo}</p>
+                  <p className="text-xs text-gray-600 mt-0.5 truncate">{p.nombre_cuenta_contable}</p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="rounded-b-2xl px-6 py-4 border-t border-gray-100 flex gap-3">
+          <button onClick={onClose} disabled={loading}
+            className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+            Cancelar
+          </button>
+          <button onClick={() => selected && onConfirm(selected.id)} disabled={loading || !selected}
+            className="flex-1 h-10 rounded-xl bg-[#003D7D] text-white text-sm font-semibold hover:bg-[#002D5C] disabled:opacity-50">
+            {loading ? <Loader2 size={14} className="animate-spin mx-auto" /> : 'Confirmar'}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -59,6 +154,8 @@ export default function DevolucionDetallePage() {
   const [loading, setLoading] = useState(true)
 
   const [pagoOpen,        setPagoOpen]        = useState(false)
+  const [evaluarOpen,     setEvaluarOpen]     = useState(false)
+  const [devRevOpen,      setDevRevOpen]      = useState(false)
   const [autorizarOpen,   setAutorizarOpen]   = useState(false)
   const [rechazarOpen,    setRechazarOpen]    = useState(false)
   const [devolverOpen,    setDevolverOpen]    = useState(false)
@@ -78,6 +175,52 @@ export default function DevolucionDetallePage() {
     if (!id) return
     const d = await getDevolucionById(Number(id))
     setDev(d)
+  }
+
+  async function handleEnviar() {
+    if (!dev) return
+    setActionLoading(true)
+    try {
+      await enviarDevolucion(dev.id)
+      toast.success('Enviada a revisión')
+      await reload()
+    } catch {
+      toast.error('Error al enviar')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleEvaluar(planId: number) {
+    if (!dev || !user?.id) return
+    setActionLoading(true)
+    try {
+      await marcarEvaluadoDevolucion(dev.id, planId, user.id)
+      toast.success('Devolución marcada como Evaluada')
+      setEvaluarOpen(false)
+      await reload()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al evaluar')
+      setEvaluarOpen(false)
+      await reload()
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleDevolverRevision() {
+    if (!dev || !comentario.trim()) { toast.error('Ingresa el motivo'); return }
+    setActionLoading(true)
+    try {
+      await devolverDesdeRevisionDevolucion(dev.id, comentario.trim())
+      toast.success('Devolución devuelta')
+      setDevRevOpen(false); setComentario('')
+      await reload()
+    } catch {
+      toast.error('Error al devolver')
+    } finally {
+      setActionLoading(false)
+    }
   }
 
   async function handleAutorizar() {
@@ -163,12 +306,15 @@ export default function DevolucionDetallePage() {
   }
 
   const isAdmin        = userRole === ROLES.ADMIN
+  const isEvaluador    = userRole === ROLES.EVALUADOR
   const isAprobador    = userRole === ROLES.APROBADOR
   const isVisualizador = userRole === ROLES.VISUALIZADOR
 
-  const isOwner         = dev?.creador_id === user?.id
-  const canAutorizar    = dev?.estado === 'Pendiente' && (isAprobador || isAdmin)
-  const canMarcarPagado = dev?.estado === 'Autorizado' && !dev?.fecha_pago && (isVisualizador || isAdmin)
+  const isOwner          = dev?.creador_id === user?.id
+  const canEnviar        = ['Pendiente', 'Devuelto'].includes(dev?.estado ?? '') && (isAdmin || (userRole === ROLES.USUARIO && isOwner))
+  const canEvaluar       = dev?.estado === 'En Revision' && (isEvaluador || isAdmin)
+  const canAutorizar     = dev?.estado === 'Evaluado' && (isAprobador || isAdmin)
+  const canMarcarPagado  = dev?.estado === 'Autorizado' && !dev?.fecha_pago && (isVisualizador || isAdmin)
   const canReenviarConta = dev?.estado === 'Observado' && (isAdmin || (userRole === ROLES.USUARIO && isOwner))
 
   if (loading) {
@@ -211,6 +357,25 @@ export default function DevolucionDetallePage() {
             <span className="flex items-center gap-1 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
               Pagado {fmtDate(dev.fecha_pago)}
             </span>
+          )}
+          {canEnviar && (
+            <button onClick={handleEnviar} disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
+              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
+              Enviar a revisión
+            </button>
+          )}
+          {canEvaluar && (
+            <>
+              <button onClick={() => setEvaluarOpen(true)} disabled={actionLoading}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 transition-colors">
+                <BookOpen size={13} /> Evaluar
+              </button>
+              <button onClick={() => { setComentario(''); setDevRevOpen(true) }} disabled={actionLoading}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-orange-500 text-white text-xs font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors">
+                <RotateCcw size={13} /> Devolver
+              </button>
+            </>
           )}
           {canAutorizar && (
             <>
@@ -271,6 +436,17 @@ export default function DevolucionDetallePage() {
         </div>
       )}
 
+      {/* Alerta devuelto por evaluador */}
+      {dev.estado === 'Devuelto' && dev.comentario && (
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl px-5 py-4 flex items-start gap-3">
+          <AlertCircle size={16} className="text-orange-500 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-xs font-semibold text-orange-700 uppercase mb-1">Motivo de devolución</p>
+            <p className="text-sm text-orange-800">{dev.comentario}</p>
+          </div>
+        </div>
+      )}
+
       {/* Datos generales */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
@@ -288,6 +464,7 @@ export default function DevolucionDetallePage() {
             { label: dev.banco === 'BBVA' ? 'Número de cuenta' : 'Número CCI', value: dev.numero_cuenta },
             { label: 'Registrado por',   value: dev.creador_nombre },
             { label: 'Fecha registro',   value: fmtDate(dev.fecha_creacion) },
+            ...(dev.evaluador_nombre ? [{ label: 'Evaluado por', value: dev.evaluador_nombre }] : []),
             ...(dev.aprobador_nombre ? [{ label: dev.estado === 'Rechazado' ? 'Rechazado por' : 'Autorizado por', value: dev.aprobador_nombre }] : []),
             ...(dev.fecha_aprobacion ? [{ label: 'Fecha decisión', value: fmtDate(dev.fecha_aprobacion) }] : []),
           ].map(({ label, value }) => (
@@ -304,6 +481,28 @@ export default function DevolucionDetallePage() {
           </div>
         )}
       </div>
+
+      {/* Plan Contable */}
+      {dev.plan_contable && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <BookOpen size={15} className="text-[#003D7D]" /> Plan Contable
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {[
+              { label: 'Tipo de gasto',      value: dev.plan_contable.tipo_gasto_costo },
+              { label: 'Código Starsoft',    value: dev.plan_contable.codigo_starsoft },
+              { label: 'Cuenta contable',    value: dev.plan_contable.nombre_cuenta_contable },
+              { label: 'Partida presup.',    value: dev.plan_contable.partida_presupuestal },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <p className="text-xs text-gray-400 uppercase font-semibold mb-0.5">{label}</p>
+                <p className="text-sm text-gray-900 font-medium">{value ?? '—'}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Documentos */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
@@ -329,6 +528,36 @@ export default function DevolucionDetallePage() {
           })}
         </div>
       </div>
+
+      {/* Modal evaluar */}
+      <EvaluarDevolucionModal open={evaluarOpen} onClose={() => setEvaluarOpen(false)}
+        onConfirm={handleEvaluar} loading={actionLoading} />
+
+      {/* Modal devolver desde revisión */}
+      {devRevOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Devolver a Pendiente</h2>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Motivo *</label>
+              <textarea value={comentario} onChange={e => setComentario(e.target.value)} rows={3}
+                placeholder="Explica el motivo..."
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 resize-none" />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setDevRevOpen(false)} disabled={actionLoading}
+                className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={handleDevolverRevision} disabled={actionLoading || !comentario.trim()}
+                className="flex-1 h-10 rounded-xl bg-orange-500 text-white text-sm font-semibold hover:bg-orange-600 disabled:opacity-50 flex items-center justify-center gap-2">
+                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                Devolver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal autorizar */}
       {autorizarOpen && (

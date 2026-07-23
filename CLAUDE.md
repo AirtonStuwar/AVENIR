@@ -549,20 +549,35 @@ Registro de devoluciones de dinero a clientes (egreso). Sin líneas de detalle: 
 
 **Rutas:** `/devolucion` (listado), `/devolucion/nueva` (formulario), `/devolucion/:id` (detalle).
 
-**Sidebar:** "Devolución Cliente" con ícono `RotateCcw`, roles [1, 9, 10, 11] (sin EVALUADOR). Solo USUARIO y ADMIN crean.
+**Sidebar:** "Devolución Cliente" con ícono `RotateCcw`, roles [1, 8, 9, 10, 11]. Solo USUARIO y ADMIN crean.
 
 **Feature folder:** `src/features/devolucion/` — `types/devolucion.ts`, `services/devolucionService.ts`, `hooks/useDevolucion.ts`.
 
-**Tabla `devolucion_cliente`:** `id`, `codigo` (trigger `DVC-YY-0001`), `creador_id`, `proyecto_id`, `proyecto_partida_id`, `cliente_nombre`, `cliente_dni`, `monto`, `moneda` (PEN/USD), `banco`, `numero_cuenta`, 4 paths de archivos (`sustento_path`, `boucher_separacion_path`, `constancia_separacion_path`, `sustento_desistimiento_path`), `estado` CHECK (`Pendiente`/`Autorizado`/`Rechazado`), `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `fecha_pago`, `cuenta_pago_id`, `usuario_pago`.
+**Tabla `devolucion_cliente`:** `id`, `codigo` (trigger `DVC-YY-0001`), `creador_id`, `proyecto_id`, `proyecto_partida_id`, `cliente_nombre`, `cliente_dni`, `monto`, `moneda` (PEN/USD), `banco`, `numero_cuenta`, 4 paths de archivos (`sustento_path`, `boucher_separacion_path`, `constancia_separacion_path`, `sustento_desistimiento_path`), `estado` CHECK (`Pendiente`/`En Revision`/`Evaluado`/`Autorizado`/`Rechazado`/`Devuelto`/`Observado`), `plan_contable_id` (FK → `plan_contable_brash`, nullable), `usuario_evaluador` (UUID, nullable), `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `fecha_pago`, `cuenta_pago_id`, `usuario_pago`.
 
-**Flujo (sin evaluador):** Pendiente → APROBADOR/ADMIN Autoriza (comentario opcional) o Rechaza (comentario obligatorio) → VISUALIZADOR/ADMIN marca pagado (PagoModal). `fecha_pago` marca el pago, no es un estado.
+**Flujo (igualado a Solicitud/A Rendir/Reembolso/Caja Chica desde 2026-07-22):**
+```
+Pendiente
+  ↓ USUARIO/ADMIN → enviarDevolucion → En Revision
+En Revision
+  ├─ EVALUADOR/ADMIN → marcarEvaluadoDevolucion(planId, evaluadorId) → Evaluado
+  └─ EVALUADOR/ADMIN → devolverDesdeRevisionDevolucion(comentario) → Devuelto
+Evaluado
+  ├─ APROBADOR/ADMIN → autorizarDevolucion (comentario opcional) → Autorizado ✅
+  └─ APROBADOR/ADMIN → rechazarDevolucion(comentario obligatorio) → Rechazado ❌
+Autorizado
+  └─ VISUALIZADOR/ADMIN → marcarPagadoDevolucion (PagoModal) → `fecha_pago` (no es un estado)
+```
+`marcarEvaluadoDevolucion` incluye `.eq('estado', 'En Revision')` en el UPDATE — protección contra doble evaluación igual que en los demás módulos (ver [[protección contra doble evaluación]] más abajo): si otro evaluador ya la evaluó, lanza error y el toast lo muestra. A diferencia de Solicitud, **Autorizar no requiere firma** (solo comentario) — la Devolución nunca tuvo `FirmaModal` y no se agregó al implementar este flujo.
 
 **Storage:** bucket `devolucion-documentos`, path `{devolucionId}/{tipo}/{timestamp}.{ext}`. En el formulario de creación, Sustento es obligatorio; los otros 3 archivos son opcionales.
 
 **Integraciones:**
-- **Reportes:** `fetchDevoluciones` en `reportesService.ts` — tipo `'Devolución'`, color teal (`E0F2F1`), filtra `estado = 'Autorizado'` por `fecha_aprobacion`. `beneficiario` = cliente_nombre, `ruc` = cliente_dni.
-- **Dashboards:** `getDevolucionesAutorizadas()` (estados Pendiente + Autorizado) alimenta ADMIN (fila KPI), APROBADOR (fila KPI con cola "por autorizar" + fila 'Devolución' en gráficos Aprobado vs Pagado) y VISUALIZADOR (por pagar / pagado). Las filas KPI solo se renderizan si hay registros.
+- **Reportes:** `fetchDevoluciones` en `reportesService.ts` — tipo `'Devolución'`, color teal (`E0F2F1`), filtra `estado = 'Autorizado'` por `fecha_aprobacion`. `beneficiario` = cliente_nombre, `ruc` = cliente_dni. Incluye columnas de plan contable (`pcFields`) desde que se agregó `plan_contable_id`.
+- **Dashboards:** `getDevolucionesAutorizadas()` (estados Pendiente + En Revision + Evaluado + Autorizado) alimenta ADMIN (fila KPI "por autorizar" ahora cuenta `estado === 'Evaluado'`, no Pendiente), APROBADOR (fila KPI con cola "por autorizar" + fila 'Devolución' en gráficos Aprobado vs Pagado) y VISUALIZADOR (por pagar / pagado, filtro default `['Evaluado','Autorizado']`). Las filas KPI solo se renderizan si hay registros.
 - **Excel BBVA:** botón en `DevolucionPage` para VISUALIZADOR/ADMIN — DOI `'L'` + DNI del cliente, nombre con `sanitizeBBVA`, referencia `'Devolucion Cliente'`.
+
+**RLS:** `es_rol_privilegiado()` ya cubre EVALUADOR (rol 8), así que no fue necesario tocar policies SELECT/UPDATE al agregar el paso de evaluación — solo se amplió el CHECK constraint de `estado` y se agregaron las 2 columnas nuevas.
 
 ---
 

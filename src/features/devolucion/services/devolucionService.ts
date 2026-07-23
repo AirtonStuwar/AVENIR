@@ -6,13 +6,14 @@ import type {
 import { ROLES } from '../../solicitud/types/solicitud'
 
 const BUCKET = 'devolucion-documentos'
-const SEL = '*, proyecto:proyecto_id(id,nombre), proyecto_partida:proyecto_partida_id(id,nombre)'
+const SEL = '*, proyecto:proyecto_id(id,nombre), proyecto_partida:proyecto_partida_id(id,nombre), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)'
 
 // ── Enrich helper ──────────────────────────────────────────────
 async function enrichDevoluciones(items: DevolucionCliente[]): Promise<DevolucionCliente[]> {
   const uids = [...new Set([
     ...items.map(i => i.creador_id).filter(Boolean),
     ...items.map(i => i.usuario_aprobador).filter(Boolean),
+    ...items.map(i => i.usuario_evaluador).filter(Boolean),
   ])] as string[]
   if (uids.length === 0) return items
   const { data: users } = await supabase
@@ -25,6 +26,7 @@ async function enrichDevoluciones(items: DevolucionCliente[]): Promise<Devolucio
     creador_nombre:   map[i.creador_id ?? '']?.nombre_completo ?? null,
     creador_email:    map[i.creador_id ?? '']?.correo ?? null,
     aprobador_nombre: map[i.usuario_aprobador ?? '']?.nombre_completo ?? null,
+    evaluador_nombre: map[i.usuario_evaluador ?? '']?.nombre_completo ?? null,
   }))
 }
 
@@ -33,12 +35,12 @@ export async function getDevoluciones(filtros: DevolucionFiltros = {}): Promise<
   const { page = 1, pageSize = 10, role, userId, estado, proyectoId } = filtros
   let q = supabase.from('devolucion_cliente').select(SEL, { count: 'exact' })
   if (role === ROLES.USUARIO && userId) q = q.eq('creador_id', userId)
-  if (role === ROLES.APROBADOR) {
+  if (role === ROLES.EVALUADOR && userId) {
+    q = q.or(`estado.eq.En Revision,usuario_evaluador.eq.${userId}`)
+  }
+  if (role === ROLES.VISUALIZADOR) {
     if (estado) q = q.eq('estado', estado)
-    else q = q.in('estado', ['Pendiente', 'Autorizado', 'Rechazado'])
-  } else if (role === ROLES.VISUALIZADOR) {
-    if (estado) q = q.eq('estado', estado)
-    else q = q.eq('estado', 'Autorizado')
+    else q = q.in('estado', ['Evaluado', 'Autorizado'])
   } else if (estado) {
     q = q.eq('estado', estado)
   }
@@ -76,6 +78,36 @@ export async function updateDevolucion(id: number, payload: Partial<DevolucionCl
 }
 
 // ── Estado helpers ─────────────────────────────────────────────
+
+/** USUARIO/ADMIN: envía a revisión (Pendiente/Devuelto → En Revision) */
+export async function enviarDevolucion(id: number): Promise<void> {
+  const { error } = await supabase.from('devolucion_cliente')
+    .update({ estado: 'En Revision' }).eq('id', id)
+  if (error) throw error
+}
+
+/** EVALUADOR/ADMIN: asigna plan contable y marca Evaluado */
+export async function marcarEvaluadoDevolucion(
+  id: number,
+  planContableId: number,
+  evaluadorId: string,
+): Promise<void> {
+  const { data, error } = await supabase.from('devolucion_cliente')
+    .update({ estado: 'Evaluado', plan_contable_id: planContableId, usuario_evaluador: evaluadorId })
+    .eq('id', id)
+    .eq('estado', 'En Revision')
+    .select()
+    .maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('Esta devolución ya fue evaluada por otro evaluador — recarga la página para ver el estado actual.')
+}
+
+/** EVALUADOR/ADMIN: devuelve desde revisión con comentario */
+export async function devolverDesdeRevisionDevolucion(id: number, comentario: string): Promise<void> {
+  const { error } = await supabase.from('devolucion_cliente')
+    .update({ estado: 'Devuelto', comentario }).eq('id', id)
+  if (error) throw error
+}
 
 /** APROBADOR/ADMIN: autoriza la devolución */
 export async function autorizarDevolucion(id: number, usuarioId: string, comentario?: string): Promise<void> {
@@ -157,7 +189,7 @@ export async function getDevolucionesAutorizadas(): Promise<DevolucionRow[]> {
   const { data, error } = await supabase
     .from('devolucion_cliente')
     .select('id, monto, moneda, estado, proyecto_id, fecha_pago')
-    .in('estado', ['Pendiente', 'Autorizado'])
+    .in('estado', ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado'])
   if (error) throw error
   return (data ?? []) as DevolucionRow[]
 }

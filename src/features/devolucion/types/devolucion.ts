@@ -14,7 +14,7 @@ export interface DevolucionCliente {
   boucher_separacion_path: string | null
   constancia_separacion_path: string | null
   sustento_desistimiento_path: string | null
-  estado: 'Pendiente' | 'Autorizado' | 'Rechazado' | 'Observado'
+  estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto' | 'Observado'
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
   comentario: string | null
@@ -22,15 +22,19 @@ export interface DevolucionCliente {
   fecha_pago: string | null
   cuenta_pago_id: number | null
   usuario_pago: string | null
+  plan_contable_id: number | null
+  usuario_evaluador: string | null
 
   // Joins
   proyecto?: { id: number; nombre: string } | null
   proyecto_partida?: { id: number; nombre: string } | null
+  plan_contable?: { id: number; tipo_gasto_costo: string | null; codigo_starsoft: string | null; nombre_cuenta_contable: string | null; partida_presupuestal: string | null } | null
 
   // Enriquecidos
   creador_nombre?: string | null
   creador_email?: string | null
   aprobador_nombre?: string | null
+  evaluador_nombre?: string | null
 }
 
 export type DevolucionClienteInsert = Omit<
@@ -38,8 +42,9 @@ export type DevolucionClienteInsert = Omit<
   | 'id' | 'codigo' | 'fecha_creacion'
   | 'usuario_aprobador' | 'fecha_aprobacion' | 'comentario'
   | 'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago'
-  | 'proyecto' | 'proyecto_partida'
-  | 'creador_nombre' | 'creador_email' | 'aprobador_nombre'
+  | 'plan_contable_id' | 'usuario_evaluador'
+  | 'proyecto' | 'proyecto_partida' | 'plan_contable'
+  | 'creador_nombre' | 'creador_email' | 'aprobador_nombre' | 'evaluador_nombre'
 >
 
 export interface DevolucionFiltros {

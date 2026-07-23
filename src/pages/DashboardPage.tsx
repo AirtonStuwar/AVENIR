@@ -173,7 +173,7 @@ function AdminDashboard() {
   const reembolsoPEN   = montoReembolso(reembolso, 'PEN')
   const reembolsoUSD   = montoReembolso(reembolso, 'USD')
   const devAutorizadas = devoluciones.filter(d => d.estado === 'Autorizado')
-  const devPendientes  = devoluciones.filter(d => d.estado === 'Pendiente')
+  const devPendientes  = devoluciones.filter(d => d.estado === 'Evaluado')
 
   const donutData = Object.entries(porEstado).filter(([, v]) => v > 0).map(([name, value]) => ({ name, value }))
 
@@ -387,7 +387,7 @@ function AprobadorDashboard() {
   const cajaChicaFil = proyectoFilter ? cajaChica.filter(c => c.proyecto_id === proyectoFilter) : cajaChica
   const cajaChicaPag = cajaChicaFil.filter(c => c.fecha_pago)
   const devFil       = proyectoFilter ? devoluciones.filter(d => d.proyecto_id === proyectoFilter) : devoluciones
-  const devPend      = devFil.filter(d => d.estado === 'Pendiente')
+  const devPend      = devFil.filter(d => d.estado === 'Evaluado')
   const devAut       = devFil.filter(d => d.estado === 'Autorizado')
   const devPag       = devAut.filter(d => d.fecha_pago)
 
