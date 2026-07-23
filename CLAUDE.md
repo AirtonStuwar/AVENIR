@@ -135,7 +135,7 @@ Order of cards in detail page: **Info general → Presupuesto (ADMIN+APROBADOR) 
 - `APROBADOR` — cola de aprobación, montos, dona Aprobadas/Rechazadas/en cola, filtro por proyecto (client-side), KPIs de A Rendir (montos y conteos filtrados por proyecto seleccionado), KPIs de Reembolso, **tarjetas de totales consolidados** ("Total comprometido S/" y "Total comprometido $" = OC Aprobadas + A Rendir Autorizados + Reembolso Autorizado, todos filtrados por proyecto con desglose), panel de métricas de proveedores. Usa `getAprobadorData()` + `getProveedorMetricas()`.
   - Filtro de proyecto aplica a: OC (via `applyFilter`), KPIs A Rendir (`arendirKpi`), totales A Rendir (`arendirAuthFil` — solo `Autorizado`), totales Reembolso (`reembolsoAuthFil` — solo `Autorizado`).
   - `ARendirRow` y `ReembolsoRow` incluyen `proyecto_id: number | null` (seleccionado en `getARendirAutorizados` / `getReembolsoAutorizados`) para permitir el filtrado client-side por proyecto.
-- `EVALUADOR` — cola En Revision, promedio de días de espera, lista de más antiguas con alerta ≥3 días. Usa `getEvaluadorData()`.
+- `EVALUADOR` — cola En Revision, promedio de días de espera, lista de más antiguas con alerta ≥3 días de Solicitudes, más 4 filas de KPIs "por evaluar vs evaluado" (S/ y $) para Solicitudes, A Rendir, Reembolso y Devolución de Cliente. Usa `getEvaluadorData()`, que ahora también trae A Rendir (`En Revision`/`Cerrado`), Reembolso y Devolución (`En Revision`/`Evaluado`). Para A Rendir el monto "en cola/cerrado" usa `total_reembolso` (gasto real ya rendido), no `importe` (adelanto) — helper `montoARendirGasto()` en `DashboardPage.tsx`, distinto de `montoARendir()` que usa `importe` para los demás paneles.
 - `VISUALIZADOR` — solicitudes aprobadas separadas en OC y RxH (4 KPIs: OC S/, OC $, RxH S/, RxH $), KPIs de A Rendir (Evaluado + Autorizado), tabla de aprobadas. Usa `getVisualizadorData()`. Los KPIs RxH usan `color="indigo"`.
 - `USUARIO` — mis solicitudes, breakdown por estado, monto aprobado (estado Aprobado), acceso rápido a nueva solicitud. Usa `getUsuarioData(userId)`.
 
@@ -247,32 +247,33 @@ Gestión de **rendición de gastos con adelantos**. Un empleado solicita un adel
 - `{solicitudId}/firma_aprobador/{timestamp}.png` — firma del aprobador
 - Signed URLs con 1 hora de expiración.
 
-**Flujo de estados:**
+**Flujo de estados (real, distinto al de Solicitud/Reembolso/Devolución — sin evaluador con plan contable, es un adelanto de dinero):**
 ```
 Pendiente
-  ↓ USUARIO/ADMIN → enviarARendir
+  ↓ APROBADOR/ADMIN → aprobarARendir → Aprobado
+Aprobado
+  ├─ VISUALIZADOR/ADMIN → marcarPagadoARendir → Pagado  (dinero entregado)
+  └─ VISUALIZADOR/ADMIN → devolverARendir(comentario)   → Observado
+Pagado
+  ↓ USUARIO/ADMIN (dueño) → enviarRendicion → En Revision  (sube comprobantes y envía)
 En Revision
-  ├─ EVALUADOR/ADMIN → marcarEvaluadoARendir(planId, userId) → Evaluado
-  └─ EVALUADOR/ADMIN → devolverDesdeRevision(comentario)    → Devuelto
-Evaluado
-  ├─ APROBADOR/ADMIN → autorizarARendir (requiere firma) → Autorizado ✅
-  ├─ APROBADOR/ADMIN → rechazarARendir(comentario)       → Rechazado ❌
-  └─ APROBADOR/ADMIN → devolverARendir(comentario)       → Devuelto
-                                             ↓ USUARIO/ADMIN → enviarARendir
-                                          En Revision
+  ↓ VISUALIZADOR/EVALUADOR/ADMIN → cerrarRendicion → Cerrado ✅ (estado terminal, sin plan contable)
+Observado
+  ↓ USUARIO/ADMIN (dueño) → reenviarContabilidadARendir → Aprobado  (sin volver a pasar por aprobador)
 ```
+El EVALUADOR aquí **no asigna plan contable** — su única acción es "Cerrar rendición" desde En Revision, un simple cambio de estado (`cerrarRendicion`, compartido con VISUALIZADOR). Por eso [[protección contra doble evaluación]] no aplica a A Rendir.
 
 **Wizard de creación (2 pasos):**
 1. **Datos generales** — beneficiario (read-only, usuario logueado), DNI (editable, guardado en `usuario`), proyecto (opcional), moneda (PEN/USD), importe adelanto, fecha de rendición, banco (select de `bancos.ts`), número de cuenta/CCI (label y maxLength según banco, se limpia al cambiar banco), documento sustento (opcional). Al completar: crea registro en `Pendiente`. `banco` y `numero_cuenta` se guardan en `solicitud_arendir` pero **no aparecen en el PDF** — solo se usan en la descarga Excel BBVA.
 2. **Detalle de gastos** — tabla editable de líneas (fecha, proveedor, tipo doc, N° doc, concepto, importe, archivo adjunto). Muestra balance: si adelanto > total → "usuario devuelve diferencia"; si adelanto < total → "empresa reembolsa diferencia". Permite subir firma del beneficiario, generar PDF y enviar a revisión.
 
 **ARendirDetallePage — acciones por rol y estado:**
-- USUARIO/ADMIN en Pendiente o Devuelto: "Enviar a revisión"
-- EVALUADOR/ADMIN en En Revision: "Evaluar" (abre `EvaluarARendirModal` para asignar plan contable → Evaluado), "Devolver" (modal comentario → Devuelto)
-- APROBADOR/ADMIN en Evaluado: "Autorizar" (abre `FirmaModal`, sube `firma_aprobador`, genera PDF → Autorizado), "Devolver" (modal comentario), "Rechazar" (modal comentario)
-- VISUALIZADOR en Autorizado (sin `fecha_pago`): "Marcar pagado" (abre `PagoModal`)
+- APROBADOR/ADMIN en Pendiente: "Aprobar adelanto" → Aprobado
+- VISUALIZADOR/ADMIN en Aprobado: "Marcar dinero entregado" (abre `PagoModal`) → Pagado, o "Devolver" (comentario) → Observado
+- USUARIO (dueño)/ADMIN en Pagado: "Enviar rendición" → En Revision
+- VISUALIZADOR/EVALUADOR/ADMIN en En Revision: "Cerrar rendición" → Cerrado
+- ADMIN/USUARIO (dueño) en Observado: "Reenviar a contabilidad" → Aprobado
 - Todos desde En Revision en adelante: "Descargar PDF"
-- Si estado es Rechazado o Devuelto: alerta visible con el motivo (`comentario`)
 - Badge "Pagado dd/mm/yyyy" en header cuando `fecha_pago` está presente
 
 **Orden estable de gastos:** `getCajaChicaById` ordena los `detalles` embebidos por `id` ascendente (`.order('id', { ascending: true, foreignTable: 'caja_chica_detalle' })`) — antes no tenía orden explícito, así que la lista podía mostrarse en distinto orden cada vez que se recargaba (por ejemplo al editar un gasto), dando la sensación de que los ítems "se movían". Ordenar por `id` (que nunca cambia) garantiza que cada gasto se quede siempre en la misma posición, sin importar qué campo se edite.
@@ -324,11 +325,11 @@ Evaluado
 **Diferencias clave vs. módulo Solicitud (OC):**
 - Con moneda PEN/USD (campo `moneda`, DEFAULT 'PEN') — se elige en Step 1
 - Sin IGV
-- Tiene plan contable asignado por EVALUADOR igual que en Solicitud
+- **Sin plan contable** — a diferencia de Solicitud/Reembolso/Devolución, el evaluador no asigna plan contable, solo "cierra" la rendición (ver flujo real arriba)
 - Sin encuesta de proveedor
 - Solo 2 pasos en el wizard (vs 4)
-- Estado terminal positivo: `Autorizado` (en lugar de Aprobado)
-- El monto cuenta en el dashboard cuando `estado = 'Autorizado'`
+- Es un adelanto de dinero, no un gasto directo: primero se aprueba y se entrega el dinero (`Aprobado` → `Pagado`), luego el usuario rinde comprobantes (`En Revision` → `Cerrado`)
+- El monto cuenta en el dashboard/presupuesto cuando `estado` está en `Aprobado`, `Pagado`, `En Revision`, `Cerrado` u `Observado`
 
 ---
 

@@ -124,23 +124,48 @@ export interface EvaluadorData {
   devueltas: SolicitudRow[]   // estado = Pendiente (devueltas)
   aprobadas: SolicitudRow[]   // estado = Aprobado
   detalles: DetalleRow[]
+  // A Rendir: sin plan contable — el evaluador solo "cierra" la rendición
+  arendirEnRevision: ARendirRow[]  // estado = En Revision
+  arendirCerrados: ARendirRow[]    // estado = Cerrado
+  // Reembolso y Devolución: el evaluador asigna plan contable → Evaluado
+  reembolsoEnRevision: ReembolsoRow[]
+  reembolsoEvaluados: ReembolsoRow[]
+  devolucionEnRevision: DevolucionRow[]
+  devolucionEvaluadas: DevolucionRow[]
 }
 
 export async function getEvaluadorData(): Promise<EvaluadorData> {
-  const [solRes, detRes] = await Promise.all([
+  const [solRes, detRes, arendirRes, reembolsoRes, devolucionRes] = await Promise.all([
     supabase.from('solicitud').select(SOL_SELECT).order('fecha_creacion', { ascending: true }),
     supabase.from('solicitud_detalle').select('solicitud_id, valor_total, cantidad, valor_unitario'),
+    supabase.from('solicitud_arendir').select('id, importe, moneda, total_reembolso, estado, proyecto_id, fecha_pago').in('estado', ['En Revision', 'Cerrado']),
+    supabase.from('solicitud_reembolso').select('id, moneda, total_reembolso, estado, proyecto_id, fecha_pago').in('estado', ['En Revision', 'Evaluado']),
+    supabase.from('devolucion_cliente').select('id, monto, moneda, estado, proyecto_id, fecha_pago').in('estado', ['En Revision', 'Evaluado']),
   ])
 
   if (solRes.error) throw solRes.error
   if (detRes.error) throw detRes.error
-  const all = (solRes.data ?? []) as unknown as SolicitudRow[]
+  if (arendirRes.error) throw arendirRes.error
+  if (reembolsoRes.error) throw reembolsoRes.error
+  if (devolucionRes.error) throw devolucionRes.error
+
+  const all         = (solRes.data ?? []) as unknown as SolicitudRow[]
+  const arendirAll   = (arendirRes.data ?? []) as ARendirRow[]
+  const reembolsoAll = (reembolsoRes.data ?? []) as ReembolsoRow[]
+  const devolucionAll = (devolucionRes.data ?? []) as DevolucionRow[]
+
   return {
     enRevision: all.filter(s => s.estado_soli?.nombre === 'En Revision'),
     evaluadas:  all.filter(s => s.estado_soli?.nombre === 'Evaluado'),
     devueltas:  all.filter(s => s.estado_soli?.nombre === 'Pendiente'),
     aprobadas:  all.filter(s => s.estado_soli?.nombre === 'Aprobado'),
     detalles:   (detRes.data ?? []) as DetalleRow[],
+    arendirEnRevision:   arendirAll.filter(a => a.estado === 'En Revision'),
+    arendirCerrados:     arendirAll.filter(a => a.estado === 'Cerrado'),
+    reembolsoEnRevision: reembolsoAll.filter(r => r.estado === 'En Revision'),
+    reembolsoEvaluados:  reembolsoAll.filter(r => r.estado === 'Evaluado'),
+    devolucionEnRevision: devolucionAll.filter(d => d.estado === 'En Revision'),
+    devolucionEvaluadas:  devolucionAll.filter(d => d.estado === 'Evaluado'),
   }
 }
 

@@ -9,6 +9,7 @@ import {
   FolderOpen, TrendingUp, CheckCircle, XCircle,
   FileText, Send, ThumbsUp, Plus,
   Hourglass, Receipt, Star, Users, ThumbsDown,
+  RefreshCw, RotateCcw,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import {
@@ -103,6 +104,13 @@ function montoARendir(rows: ARendirRow[], moneda: 'PEN' | 'USD') {
   return rows
     .filter(r => (r.moneda ?? 'PEN') === moneda)
     .reduce((sum, r) => sum + (r.importe ?? 0), 0)
+}
+
+// En Revision/Cerrado ya se rindió — el monto real es el gasto (total_reembolso), no el adelanto
+function montoARendirGasto(rows: ARendirRow[], moneda: 'PEN' | 'USD') {
+  return rows
+    .filter(r => (r.moneda ?? 'PEN') === moneda)
+    .reduce((sum, r) => sum + (r.total_reembolso ?? 0), 0)
 }
 
 function montoReembolso(rows: ReembolsoRow[], moneda: 'PEN' | 'USD') {
@@ -634,13 +642,39 @@ function EvaluadorDashboard() {
   if (loading) return <Spinner />
   if (error || !data) return <ErrorState />
 
-  const { enRevision, evaluadas, devueltas, aprobadas: evalAprobadas, detalles: evalDetalles } = data
+  const {
+    enRevision, evaluadas, devueltas, aprobadas: evalAprobadas, detalles: evalDetalles,
+    arendirEnRevision, arendirCerrados,
+    reembolsoEnRevision, reembolsoEvaluados,
+    devolucionEnRevision, devolucionEvaluadas,
+  } = data
 
   const cmk          = currentMonthKey()
   const evaluadasMes = evaluadas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
   const enRevisionMes = enRevision.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
   const montoEvalPEN  = montoSolicitudes(evalAprobadas, evalDetalles, 'PEN')
   const montoEvalUSD  = montoSolicitudes(evalAprobadas, evalDetalles, 'USD')
+
+  // Monto en cola (por evaluar) vs ya evaluado, por módulo
+  const solEnColaPEN = montoSolicitudes(enRevision, evalDetalles, 'PEN')
+  const solEnColaUSD = montoSolicitudes(enRevision, evalDetalles, 'USD')
+  const solEvalPEN   = montoSolicitudes(evaluadas, evalDetalles, 'PEN')
+  const solEvalUSD   = montoSolicitudes(evaluadas, evalDetalles, 'USD')
+
+  const arendirEnColaPEN = montoARendirGasto(arendirEnRevision, 'PEN')
+  const arendirEnColaUSD = montoARendirGasto(arendirEnRevision, 'USD')
+  const arendirCerrPEN   = montoARendirGasto(arendirCerrados, 'PEN')
+  const arendirCerrUSD   = montoARendirGasto(arendirCerrados, 'USD')
+
+  const reembolsoEnColaPEN = montoReembolso(reembolsoEnRevision, 'PEN')
+  const reembolsoEnColaUSD = montoReembolso(reembolsoEnRevision, 'USD')
+  const reembolsoEvalPEN   = montoReembolso(reembolsoEvaluados, 'PEN')
+  const reembolsoEvalUSD   = montoReembolso(reembolsoEvaluados, 'USD')
+
+  const devolucionEnColaPEN = montoDevolucion(devolucionEnRevision, 'PEN')
+  const devolucionEnColaUSD = montoDevolucion(devolucionEnRevision, 'USD')
+  const devolucionEvalPEN   = montoDevolucion(devolucionEvaluadas, 'PEN')
+  const devolucionEvalUSD   = montoDevolucion(devolucionEvaluadas, 'USD')
 
   const masAntiguas = [...enRevision]
     .sort((a, b) => new Date(a.fecha_creacion ?? '').getTime() - new Date(b.fecha_creacion ?? '').getTime())
@@ -669,6 +703,47 @@ function EvaluadorDashboard() {
           <KpiCard label="Evaluadas este mes" value={evaluadasMes} sub={`${enRevisionMes} ingresaron este mes`} icon={<CheckCircle size={18} />} color="green" />
           <KpiCard label="Aprobado S/" value={fmtMoney(montoEvalPEN, 'PEN')} sub="total aprobado soles" icon={<DollarSign size={18} />} color="indigo" />
           <KpiCard label="Aprobado $" value={fmtMoney(montoEvalUSD, 'USD')} sub="total aprobado dólares" icon={<DollarSign size={18} />} color="green" />
+        </div>
+
+        {/* Monto por evaluar vs ya evaluado — por módulo */}
+        <div>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Solicitudes — por evaluar vs evaluado</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="Por evaluar S/" value={fmtMoney(solEnColaPEN, 'PEN')} sub={`${enRevision.length} en cola`} icon={<Hourglass size={18} />} color="amber" alert={solEnColaPEN > 0} onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="Por evaluar $" value={fmtMoney(solEnColaUSD, 'USD')} sub={`${enRevision.length} en cola`} icon={<Hourglass size={18} />} color="amber" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="Evaluado S/" value={fmtMoney(solEvalPEN, 'PEN')} sub={`${evaluadas.length} evaluadas`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/solicitudes')} />
+            <KpiCard label="Evaluado $" value={fmtMoney(solEvalUSD, 'USD')} sub={`${evaluadas.length} evaluadas`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/solicitudes')} />
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">A Rendir — por cerrar vs cerrado</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="Por cerrar S/" value={fmtMoney(arendirEnColaPEN, 'PEN')} sub={`${arendirEnRevision.length} en cola`} icon={<Receipt size={18} />} color="amber" alert={arendirEnColaPEN > 0} onClick={() => navigate('/arendir')} />
+            <KpiCard label="Por cerrar $" value={fmtMoney(arendirEnColaUSD, 'USD')} sub={`${arendirEnRevision.length} en cola`} icon={<Receipt size={18} />} color="amber" onClick={() => navigate('/arendir')} />
+            <KpiCard label="Cerrado S/" value={fmtMoney(arendirCerrPEN, 'PEN')} sub={`${arendirCerrados.length} cerrados`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/arendir')} />
+            <KpiCard label="Cerrado $" value={fmtMoney(arendirCerrUSD, 'USD')} sub={`${arendirCerrados.length} cerrados`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/arendir')} />
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Reembolso — por evaluar vs evaluado</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="Por evaluar S/" value={fmtMoney(reembolsoEnColaPEN, 'PEN')} sub={`${reembolsoEnRevision.length} en cola`} icon={<RefreshCw size={18} />} color="amber" alert={reembolsoEnColaPEN > 0} onClick={() => navigate('/reembolso')} />
+            <KpiCard label="Por evaluar $" value={fmtMoney(reembolsoEnColaUSD, 'USD')} sub={`${reembolsoEnRevision.length} en cola`} icon={<RefreshCw size={18} />} color="amber" onClick={() => navigate('/reembolso')} />
+            <KpiCard label="Evaluado S/" value={fmtMoney(reembolsoEvalPEN, 'PEN')} sub={`${reembolsoEvaluados.length} evaluados`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/reembolso')} />
+            <KpiCard label="Evaluado $" value={fmtMoney(reembolsoEvalUSD, 'USD')} sub={`${reembolsoEvaluados.length} evaluados`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/reembolso')} />
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Devolución de Cliente — por evaluar vs evaluado</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="Por evaluar S/" value={fmtMoney(devolucionEnColaPEN, 'PEN')} sub={`${devolucionEnRevision.length} en cola`} icon={<RotateCcw size={18} />} color="amber" alert={devolucionEnColaPEN > 0} onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Por evaluar $" value={fmtMoney(devolucionEnColaUSD, 'USD')} sub={`${devolucionEnRevision.length} en cola`} icon={<RotateCcw size={18} />} color="amber" onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Evaluado S/" value={fmtMoney(devolucionEvalPEN, 'PEN')} sub={`${devolucionEvaluadas.length} evaluadas`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/devolucion')} />
+            <KpiCard label="Evaluado $" value={fmtMoney(devolucionEvalUSD, 'USD')} sub={`${devolucionEvaluadas.length} evaluadas`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/devolucion')} />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
