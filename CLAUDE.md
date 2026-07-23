@@ -286,7 +286,7 @@ El EVALUADOR aquí **no asigna plan contable** — su única acción es "Cerrar 
 
 **Excel BBVA — descarga masiva de pagos (`ARendirPage`):**
 - Disponible para VISUALIZADOR y ADMIN mediante selección múltiple + botón "Excel"
-- Formato de 14 columnas compatible con BBVA Pagos Masivos:
+- Formato de 14 columnas compatible con BBVA Pagos Masivos, más una **columna 15 "Moneda"** (`'Soles'`/`'Dólares'` según `moneda`) — solo de referencia visual para el usuario antes de subir el archivo al banco, **no forma parte del formato oficial BBVA** y debe quitarse/ignorarse al cargar. Presente en los 4 exports BBVA (Solicitudes, A Rendir, Reembolso, Devolución de Cliente).
 
 | Col | Campo | Valor |
 |---|---|---|

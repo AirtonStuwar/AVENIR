@@ -95,7 +95,7 @@ export default function SolicitudesPage() {
     ws.addRow([
       'DOI tipo', 'DOI Numero', 'Tipo abono', 'Cuenta', 'Nombre del beneficiario',
       'Importe abonar', 'Tipo recibo', 'Numero documento', 'Abono Agrupado', 'Referencia',
-      'Indicador de Aviso', 'Medio de aviso', 'Persona Contacto', 'Validacion',
+      'Indicador de Aviso', 'Medio de aviso', 'Persona Contacto', 'Validacion', 'Moneda',
     ])
 
     for (const s of selected) {
@@ -114,6 +114,7 @@ export default function SolicitudesPage() {
         s.creador_email ?? '',
         '',
         '',
+        (s.moneda ?? 'PEN') === 'USD' ? 'Dólares' : 'Soles',
       ])
     }
 
