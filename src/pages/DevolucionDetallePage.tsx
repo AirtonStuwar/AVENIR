@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
-  ChevronLeft, Loader2, CheckCircle2, XCircle, ExternalLink, RotateCcw, AlertCircle, FileText, BookOpen,
+  ChevronLeft, Loader2, CheckCircle2, XCircle, ExternalLink, RotateCcw, AlertCircle, FileText, BookOpen, Pencil, Upload,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -17,8 +17,11 @@ import {
   devolverDevolucion,
   reenviarContabilidadDevolucion,
   marcarPagadoDevolucion,
+  updateDevolucion,
+  uploadArchivoDevolucion,
   getArchivoDevolucionUrl,
 } from '../features/devolucion/services/devolucionService'
+import type { TipoArchivoDevolucion } from '../features/devolucion/services/devolucionService'
 import { getPlanContable } from '../features/solicitud/services/solicitudService'
 import type { DevolucionCliente } from '../features/devolucion/types/devolucion'
 import type { PlanContable } from '../features/solicitud/types/solicitud'
@@ -138,11 +141,11 @@ function EvaluarDevolucionModal({ open, onClose, onConfirm, loading }: EvaluarMo
   )
 }
 
-const ARCHIVO_LABELS: { field: keyof DevolucionCliente; label: string }[] = [
-  { field: 'sustento_path',               label: 'Sustento' },
-  { field: 'boucher_separacion_path',     label: 'Boucher de Separación' },
-  { field: 'constancia_separacion_path',  label: 'Constancia de Separación' },
-  { field: 'sustento_desistimiento_path', label: 'Sustento Desistimiento' },
+const ARCHIVO_LABELS: { field: keyof DevolucionCliente; tipo: TipoArchivoDevolucion; label: string }[] = [
+  { field: 'sustento_path',               tipo: 'sustento',               label: 'Sustento' },
+  { field: 'boucher_separacion_path',     tipo: 'boucher_separacion',     label: 'Boucher de Separación' },
+  { field: 'constancia_separacion_path',  tipo: 'constancia_separacion',  label: 'Constancia de Separación' },
+  { field: 'sustento_desistimiento_path', tipo: 'sustento_desistimiento', label: 'Sustento Desistimiento' },
 ]
 
 export default function DevolucionDetallePage() {
@@ -161,6 +164,11 @@ export default function DevolucionDetallePage() {
   const [devolverOpen,    setDevolverOpen]    = useState(false)
   const [comentario,      setComentario]      = useState('')
   const [actionLoading,   setActionLoading]   = useState(false)
+
+  const [editingConcepto, setEditingConcepto] = useState(false)
+  const [conceptoDraft,   setConceptoDraft]   = useState('')
+  const [savingConcepto,  setSavingConcepto]  = useState(false)
+  const [uploadingTipo,   setUploadingTipo]   = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
@@ -305,6 +313,36 @@ export default function DevolucionDetallePage() {
     }
   }
 
+  async function handleGuardarConcepto() {
+    if (!dev || !conceptoDraft.trim()) { toast.error('Ingresa el concepto'); return }
+    setSavingConcepto(true)
+    try {
+      await updateDevolucion(dev.id, { concepto: conceptoDraft.trim() })
+      toast.success('Concepto actualizado')
+      setEditingConcepto(false)
+      await reload()
+    } catch {
+      toast.error('Error al guardar el concepto')
+    } finally {
+      setSavingConcepto(false)
+    }
+  }
+
+  async function handleReemplazarArchivo(field: keyof DevolucionCliente, tipo: TipoArchivoDevolucion, file: File) {
+    if (!dev) return
+    setUploadingTipo(tipo)
+    try {
+      const path = await uploadArchivoDevolucion(file, dev.id, tipo)
+      await updateDevolucion(dev.id, { [field]: path })
+      toast.success('Documento actualizado')
+      await reload()
+    } catch {
+      toast.error('Error al subir el documento')
+    } finally {
+      setUploadingTipo(null)
+    }
+  }
+
   const isAdmin        = userRole === ROLES.ADMIN
   const isEvaluador    = userRole === ROLES.EVALUADOR
   const isAprobador    = userRole === ROLES.APROBADOR
@@ -316,6 +354,7 @@ export default function DevolucionDetallePage() {
   const canAutorizar     = dev?.estado === 'Evaluado' && (isAprobador || isAdmin)
   const canMarcarPagado  = dev?.estado === 'Autorizado' && !dev?.fecha_pago && (isVisualizador || isAdmin)
   const canReenviarConta = dev?.estado === 'Observado' && (isAdmin || (userRole === ROLES.USUARIO && isOwner))
+  const canEditDet       = ['Pendiente', 'Devuelto', 'Observado'].includes(dev?.estado ?? '') && (isAdmin || (userRole === ROLES.USUARIO && isOwner))
 
   if (loading) {
     return (
@@ -480,6 +519,36 @@ export default function DevolucionDetallePage() {
             <p className="text-sm text-gray-700">{dev.comentario}</p>
           </div>
         )}
+
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-gray-400 uppercase font-semibold">Concepto</p>
+            {canEditDet && !editingConcepto && (
+              <button onClick={() => { setConceptoDraft(dev.concepto ?? ''); setEditingConcepto(true) }}
+                className="flex items-center gap-1 text-xs text-[#003D7D] font-semibold hover:underline">
+                <Pencil size={11} /> Editar
+              </button>
+            )}
+          </div>
+          {editingConcepto ? (
+            <div className="space-y-2">
+              <textarea value={conceptoDraft} onChange={e => setConceptoDraft(e.target.value)} rows={2}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 resize-none" />
+              <div className="flex gap-2">
+                <button onClick={() => setEditingConcepto(false)} disabled={savingConcepto}
+                  className="h-8 px-3 rounded-lg border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button onClick={handleGuardarConcepto} disabled={savingConcepto || !conceptoDraft.trim()}
+                  className="h-8 px-3 rounded-lg bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50">
+                  {savingConcepto ? <Loader2 size={12} className="animate-spin mx-auto" /> : 'Guardar'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-900 font-medium whitespace-pre-wrap">{dev.concepto ?? '—'}</p>
+          )}
+        </div>
       </div>
 
       {/* Plan Contable */}
@@ -508,20 +577,37 @@ export default function DevolucionDetallePage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <h2 className="text-sm font-semibold text-gray-900 mb-4">Documentos</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {ARCHIVO_LABELS.map(({ field, label }) => {
+          {ARCHIVO_LABELS.map(({ field, tipo, label }) => {
             const path = dev[field] as string | null
+            const isUploading = uploadingTipo === tipo
             return (
-              <div key={field} className={`rounded-xl border-2 p-4 flex items-center gap-3 ${
+              <div key={field} className={`rounded-xl border-2 p-4 flex flex-col gap-2 ${
                 path ? 'border-green-200 bg-green-50' : 'border-dashed border-gray-200 bg-gray-50'
               }`}>
-                <span className="flex-1 text-sm font-semibold text-gray-800">{label}</span>
-                {path ? (
-                  <button onClick={() => handleVerArchivo(path)}
-                    className="flex items-center gap-1 text-xs text-[#003D7D] font-semibold hover:underline">
-                    <ExternalLink size={12} /> Ver
-                  </button>
-                ) : (
-                  <span className="text-xs text-gray-400 italic">No adjuntado</span>
+                <div className="flex items-center gap-3">
+                  <span className="flex-1 text-sm font-semibold text-gray-800">{label}</span>
+                  {path ? (
+                    <button onClick={() => handleVerArchivo(path)}
+                      className="flex items-center gap-1 text-xs text-[#003D7D] font-semibold hover:underline">
+                      <ExternalLink size={12} /> Ver
+                    </button>
+                  ) : (
+                    <span className="text-xs text-gray-400 italic">No adjuntado</span>
+                  )}
+                </div>
+                {canEditDet && (
+                  <label className="w-full flex items-center justify-center gap-2 py-1.5 text-xs text-gray-500 hover:text-[#003D7D] hover:bg-white rounded-lg border border-gray-200 transition-all cursor-pointer">
+                    {isUploading
+                      ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#003D7D] border-t-transparent" />
+                      : <><Upload size={12} /> {path ? 'Reemplazar archivo' : 'Subir archivo'}</>
+                    }
+                    <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" disabled={isUploading}
+                      onChange={e => {
+                        const f = e.target.files?.[0]
+                        if (f) handleReemplazarArchivo(field, tipo, f)
+                        e.target.value = ''
+                      }} />
+                  </label>
                 )}
               </div>
             )

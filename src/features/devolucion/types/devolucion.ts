@@ -6,6 +6,7 @@ export interface DevolucionCliente {
   proyecto_partida_id: number | null
   cliente_nombre: string
   cliente_dni: string | null
+  concepto: string | null
   monto: number
   moneda: 'PEN' | 'USD'
   banco: string | null

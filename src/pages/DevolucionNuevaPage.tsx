@@ -44,6 +44,7 @@ export default function DevolucionNuevaPage() {
   const [moneda,     setMoneda]     = useState<'PEN' | 'USD'>('PEN')
   const [nombre,     setNombre]     = useState('')
   const [dni,        setDni]        = useState('')
+  const [concepto,   setConcepto]   = useState('')
   const [monto,      setMonto]      = useState('')
   const [banco,      setBanco]      = useState('')
   const [cuenta,     setCuenta]     = useState('')
@@ -72,6 +73,7 @@ export default function DevolucionNuevaPage() {
     if (!user?.id) return
     if (!nombre.trim()) { toast.error('Ingresa el nombre del cliente'); return }
     if (!dni.trim()) { toast.error('Ingresa el DNI del cliente'); return }
+    if (!concepto.trim()) { toast.error('Ingresa el concepto de la devolución'); return }
     if (!monto || parseFloat(monto) <= 0) { toast.error('Ingresa el monto a devolver'); return }
     if (!banco) { toast.error('Selecciona el banco'); return }
     if (!cuenta.trim()) { toast.error(`Ingresa el ${labelNumeroCuenta(banco).toLowerCase()}`); return }
@@ -86,6 +88,7 @@ export default function DevolucionNuevaPage() {
         proyecto_partida_id: partidaId,
         cliente_nombre: nombre.trim(),
         cliente_dni: dni.trim(),
+        concepto: concepto.trim(),
         monto: parseFloat(monto),
         moneda,
         banco,
@@ -172,6 +175,11 @@ export default function DevolucionNuevaPage() {
             <label className={LABEL}>DNI del cliente *</label>
             <input className={INPUT} value={dni} maxLength={8}
               onChange={e => setDni(e.target.value.replace(/\D/g, ''))} placeholder="8 dígitos" />
+          </div>
+          <div className="md:col-span-2">
+            <label className={LABEL}>Concepto *</label>
+            <textarea className={INPUT} value={concepto} onChange={e => setConcepto(e.target.value)}
+              rows={2} placeholder="Explica el motivo de la devolución (ej. desistimiento de compra, anulación de separación...)" />
           </div>
           <div>
             <label className={LABEL}>Banco *</label>

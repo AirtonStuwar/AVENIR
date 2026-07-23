@@ -474,7 +474,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
 
   let q = supabase
     .from('devolucion_cliente')
-    .select('id, codigo, creador_id, proyecto_id, cliente_nombre, cliente_dni, monto, moneda, banco, numero_cuenta, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)')
+    .select('id, codigo, creador_id, proyecto_id, cliente_nombre, cliente_dni, concepto, monto, moneda, banco, numero_cuenta, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)')
     .eq('estado', 'Autorizado')
     .gte('fecha_aprobacion', fechaDesde)
     .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
@@ -485,7 +485,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
 
   const rows = (data ?? []) as unknown as {
     id: number; codigo: string | null; creador_id: string | null
-    cliente_nombre: string; cliente_dni: string | null
+    cliente_nombre: string; cliente_dni: string | null; concepto: string | null
     monto: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null
     sustento_path: string | null; boucher_separacion_path: string | null
@@ -512,11 +512,11 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
       requerido_por: u?.nombre ?? null,
       area:          u?.area ?? null,
       beneficiario:  r.cliente_nombre,
-      documento:     null,
+      documento:     'Devolución',
       ruc:           r.cliente_dni,
       proyecto:      r.proyecto?.nombre ?? null,
       partida:       r.proyecto_partida?.nombre ?? null,
-      concepto:      'Devolución de cliente',
+      concepto:      r.concepto ?? 'Devolución de cliente',
       moneda:        r.moneda ?? 'PEN',
       subtotal_usd:  0,
       subtotal_pen:  0,
