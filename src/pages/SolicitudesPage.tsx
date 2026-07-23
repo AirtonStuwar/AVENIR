@@ -19,7 +19,7 @@ import type { Solicitud } from '../features/solicitud/types/solicitud'
 export default function SolicitudesPage() {
   const navigate = useNavigate()
   const { userRole, user } = useAuthStore()
-  const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, setProyectoFilter, setMesAprobacion, setPagoFilter, refresh } = useSolicitudes()
+  const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, setProyectoFilter, setMesAprobacion, setPagoFilter, setAreaFilter, setOrdenVencimiento, refresh } = useSolicitudes()
 
   const isVisualizador = userRole === ROLES.VISUALIZADOR
 
@@ -42,6 +42,20 @@ export default function SolicitudesPage() {
   const handlePagoChange = (v: 'pendiente' | 'pagado' | null) => {
     setPagoLocal(v)
     setPagoFilter(v)
+  }
+
+  // ── Filtro área ────────────────────────────────────────────────
+  const [areaFilter, setAreaFilterLocal] = useState<number | null>(null)
+  const handleAreaChange = (id: number | null) => {
+    setAreaFilterLocal(id)
+    setAreaFilter(id)
+  }
+
+  // ── Orden por vencimiento más urgente ────────────────────────
+  const [ordenVencimiento, setOrdenVencimientoLocal] = useState(false)
+  const handleOrdenVencimientoChange = (activo: boolean) => {
+    setOrdenVencimientoLocal(activo)
+    setOrdenVencimiento(activo)
   }
 
   // ── Selección ─────────────────────────────────────────────────
@@ -315,6 +329,10 @@ export default function SolicitudesPage() {
         onMesAprobacionChange={isVisualizador ? handleMesChange : undefined}
         pagoFilter={isVisualizador ? pagoLocal : undefined}
         onPagoFilterChange={isVisualizador ? handlePagoChange : undefined}
+        areaFilter={areaFilter}
+        onAreaFilterChange={handleAreaChange}
+        ordenVencimiento={ordenVencimiento}
+        onOrdenVencimientoChange={handleOrdenVencimientoChange}
       />
 
       <ConfirmModal

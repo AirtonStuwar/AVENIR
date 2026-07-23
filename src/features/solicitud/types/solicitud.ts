@@ -177,6 +177,8 @@ export interface SolicitudFiltros {
   estado_id?: number | null
   mes_aprobacion?: number | null
   pagoFilter?: 'pendiente' | 'pagado' | null
+  areaId?: number | null
+  ordenVencimiento?: boolean
   page?: number
   pageSize?: number
   role?: number | null

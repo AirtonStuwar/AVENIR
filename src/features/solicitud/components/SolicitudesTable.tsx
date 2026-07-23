@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Search, RefreshCw, FolderOpen, FileText, XCircle, ChevronRight } from 'lucide-react'
+import { Search, RefreshCw, FolderOpen, FileText, XCircle, ChevronRight, ArrowDownWideNarrow } from 'lucide-react'
 import type { Solicitud } from '../types/solicitud'
 import { getProyectos } from '../../proyecto/services/proyectoService'
+import { getAreas } from '../../usuario/services/usuarioService'
 
 function fmtDate(d: string | null): string {
   if (!d) return '—'
@@ -45,6 +46,10 @@ interface Props {
   onProyectoFilterChange?: (id: number | null) => void
   pagoFilter?: 'pendiente' | 'pagado' | null
   onPagoFilterChange?: (v: 'pendiente' | 'pagado' | null) => void
+  areaFilter?: number | null
+  onAreaFilterChange?: (id: number | null) => void
+  ordenVencimiento?: boolean
+  onOrdenVencimientoChange?: (activo: boolean) => void
 }
 
 export default function SolicitudesTable({
@@ -52,9 +57,11 @@ export default function SolicitudesTable({
   onSearch, onPageChange, onRefresh, onCreate, onView, onCancel,
   selectedIds, onSelectionChange, mesAprobacion, onMesAprobacionChange,
   proyectoFilter, onProyectoFilterChange, pagoFilter, onPagoFilterChange,
+  areaFilter, onAreaFilterChange, ordenVencimiento, onOrdenVencimientoChange,
 }: Props) {
   const [searchVal, setSearchVal] = useState('')
   const [proyectos, setProyectos] = useState<Array<{id: number; nombre: string}>>([])
+  const [areas, setAreas] = useState<Array<{id: number; nombre: string}>>([])
   const selectAllRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -63,6 +70,11 @@ export default function SolicitudesTable({
       .then(res => setProyectos(res.data))
       .catch(() => {})
   }, [onProyectoFilterChange])
+
+  useEffect(() => {
+    if (!onAreaFilterChange) return
+    getAreas().then(setAreas).catch(() => {})
+  }, [onAreaFilterChange])
 
   const selectable       = !!onSelectionChange
   const selected         = selectedIds ?? new Set<number>()
@@ -197,6 +209,33 @@ export default function SolicitudesTable({
               <option value="pendiente">Por pagar</option>
               <option value="pagado">Pagados</option>
             </select>
+          )}
+
+          {onAreaFilterChange && (
+            <select
+              value={areaFilter ?? ''}
+              onChange={e => onAreaFilterChange(e.target.value ? Number(e.target.value) : null)}
+              className="h-9 flex-1 sm:flex-none rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 min-w-0"
+            >
+              <option value="">Todas las áreas</option>
+              {areas.map(a => (
+                <option key={a.id} value={a.id}>{a.nombre}</option>
+              ))}
+            </select>
+          )}
+
+          {onOrdenVencimientoChange && (
+            <button
+              onClick={() => onOrdenVencimientoChange(!ordenVencimiento)}
+              title="Ordenar por vencimiento más próximo"
+              className={`h-9 flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border px-3 text-sm font-medium transition-colors shrink-0 ${
+                ordenVencimiento
+                  ? 'bg-[#003D7D] border-[#003D7D] text-white'
+                  : 'bg-gray-50 border-gray-200 text-gray-600'
+              }`}
+            >
+              <ArrowDownWideNarrow size={14} /> Más urgentes
+            </button>
           )}
 
           <div className="relative flex-1 sm:flex-none">

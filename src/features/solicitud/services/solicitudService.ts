@@ -112,15 +112,18 @@ export async function updateUsuario(id: string, payload: Partial<Omit<Usuario, '
 }
 
 export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<SolicitudPaginado> {
-  const { search, proyecto_id, estado_id, mes_aprobacion, pagoFilter, page = 1, pageSize = 10, role, userId } = filtros
+  const { search, proyecto_id, estado_id, mes_aprobacion, pagoFilter, areaId, ordenVencimiento, page = 1, pageSize = 10, role, userId } = filtros
   const from = (page - 1) * pageSize
   const to   = from + pageSize - 1
 
   let query: any = supabase
     .from(TABLE)
     .select(SOL_SEL, { count: 'exact' })
-    .order('fecha_creacion', { ascending: false })
     .range(from, to)
+
+  query = ordenVencimiento
+    ? query.order('fecha_vencimiento_factura', { ascending: true, nullsFirst: false })
+    : query.order('fecha_creacion', { ascending: false })
 
   // ── Filtro por rol ──────────────────────────────────────────────
   if (role === ROLES.USUARIO && userId) {
@@ -161,6 +164,15 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
     query = query
       .gte('fecha_aprobacion', `${year}-${mm}-01`)
       .lt('fecha_aprobacion',  `${nextYear}-${nextMm}-01`)
+  }
+  if (areaId !== undefined && areaId !== null) {
+    const { data: areaRows } = await supabase
+      .from('area_usuario')
+      .select('usuario_id')
+      .eq('area_id', areaId)
+      .eq('estado', 1)
+    const usuarioIds = (areaRows ?? []).map((r: any) => r.usuario_id).filter(Boolean)
+    query = usuarioIds.length > 0 ? query.in('usuario_creador', usuarioIds) : query.eq('id', -1)
   }
 
   const { data, error, count } = await query

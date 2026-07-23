@@ -36,6 +36,11 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 
 **Data access pattern:** Feature-level service files (`*Service.ts`) wrap Supabase queries. Custom hooks (`useSolicitudes`, `useProyectos`) own local state for pagination and filters, call the services, and expose data + handlers to page components. `useSolicitudes` automatically syncs `role` and `userId` from the auth store into query filters via a `useEffect`. El hook expone `setProyectoFilter` para filtrar por proyecto (aplica a todos los roles) y `setPagoFilter` (`'pendiente' | 'pagado' | null`) para filtrar por estado de pago — solo visible para VISUALIZADOR en `SolicitudesPage`.
 
+**Filtros adicionales en `SolicitudesTable`/`useSolicitudes`** (visibles para todos los roles, incluido EVALUADOR):
+- `setAreaFilter(areaId)` — filtra por área del **creador** de la solicitud (misma tabla `area_usuario` que usa el módulo Gasto por Área). En `getSolicitudes()`, como el área no es una columna de `solicitud`, primero se consulta `area_usuario` para obtener los `usuario_id` de esa área y luego se filtra `solicitud.usuario_creador IN (...)` — si no hay usuarios en esa área, fuerza 0 resultados (`.eq('id', -1)`).
+- `setOrdenVencimiento(true)` — cambia el `order()` de la query de `fecha_creacion DESC` (default) a `fecha_vencimiento_factura ASC` con `nullsFirst: false` (las solicitudes sin fecha de vencimiento quedan al final). Botón toggle "Más urgentes" en la tabla.
+- El buscador (`onSearch`) y el filtro de empresa (`proyectoFilter`) ya existían para todos los roles — no eran exclusivos de ningún rol, aunque no siempre evidente en la UI.
+
 **Routing** (`App.tsx`):
 - `/login` — public
 - `/dashboard`, `/solicitudes`, `/solicitudes/nueva`, `/solicitudes/:id`, `/proyectos`, `/proveedores` — all behind `ProtectedRoute`
