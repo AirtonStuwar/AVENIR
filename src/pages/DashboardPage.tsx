@@ -149,6 +149,7 @@ function AdminDashboard() {
   const [data,    setData]    = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(false)
+  const [estadoEmpresa, setEstadoEmpresa] = useState('Aprobado')
 
   useEffect(() => {
     getDashboardData().then(setData).catch(() => setError(true)).finally(() => setLoading(false))
@@ -192,17 +193,25 @@ function AdminDashboard() {
     Aprobadas: solicitudes.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === key && s.estado_soli?.nombre === 'Aprobado').length,
   }))
 
-  const montoByProyecto: Record<string, number> = {}
-  for (const s of solicitudes) {
-    const nombre = s.proyecto?.nombre ?? 'Sin empresa'
-    const subtotal = detalles.filter(d => d.solicitud_id === s.id).reduce((acc, d) => acc + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-    const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
-    montoByProyecto[nombre] = (montoByProyecto[nombre] ?? 0) + (isRxH ? subtotal : subtotal * 1.18)
+  const estadosEmpresaDisponibles = Object.keys(porEstado).sort()
+
+  const montoPorEmpresa = (moneda: 'PEN' | 'USD') => {
+    const map: Record<string, number> = {}
+    for (const s of solicitudes) {
+      if ((s.estado_soli?.nombre ?? 'Sin estado') !== estadoEmpresa) continue
+      if ((s.moneda ?? 'PEN') !== moneda) continue
+      const nombre = s.proyecto?.nombre ?? 'Sin empresa'
+      const subtotal = detalles.filter(d => d.solicitud_id === s.id).reduce((acc, d) => acc + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+      const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+      map[nombre] = (map[nombre] ?? 0) + (isRxH ? subtotal : subtotal * 1.18)
+    }
+    return Object.entries(map).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a).slice(0, 5).map(([name, monto]) => ({
+      name: name.length > 22 ? name.slice(0, 22) + '…' : name,
+      monto,
+    }))
   }
-  const barProyecto = Object.entries(montoByProyecto).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a).slice(0, 5).map(([name, monto]) => ({
-    name: name.length > 22 ? name.slice(0, 22) + '…' : name,
-    monto,
-  }))
+  const barProyectoPEN = montoPorEmpresa('PEN')
+  const barProyectoUSD = montoPorEmpresa('USD')
 
   const proyEstados = proyectos.reduce<Record<string, number>>((acc, p) => {
     const e = p.estado ?? 'Sin estado'; acc[e] = (acc[e] ?? 0) + 1; return acc
@@ -289,19 +298,48 @@ function AdminDashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2">
-            <ChartCard title="Monto por empresa" subtitle="Top 5 — solicitudes aprobadas">
-              {barProyecto.length === 0 ? <EmptyChart /> : (
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={barProyecto} layout="vertical" barSize={16} margin={{ left: 8, right: 20 }}>
-                    <XAxis type="number" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `S/${(v / 1000).toFixed(0)}K`} />
-                    <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11, fill: '#6B7280' }} axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }} cursor={{ fill: '#F9FAFB' }} formatter={(v) => [fmtMoneyFull(Number(v)), 'Monto']} />
-                    <Bar dataKey="monto" fill="#F65740" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </ChartCard>
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+              <div>
+                <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Monto por empresa</h2>
+                <p className="text-xs text-gray-400 mt-0.5">Top 5 por moneda, según estado</p>
+              </div>
+              <select
+                value={estadoEmpresa}
+                onChange={e => setEstadoEmpresa(e.target.value)}
+                className="h-8 rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+              >
+                {estadosEmpresaDisponibles.map(e => <option key={e} value={e}>{e}</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-2">Soles (S/)</p>
+                {barProyectoPEN.length === 0 ? <EmptyChart /> : (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={barProyectoPEN} layout="vertical" barSize={14} margin={{ left: 8, right: 20 }}>
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `S/${(v / 1000).toFixed(0)}K`} />
+                      <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10, fill: '#6B7280' }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }} cursor={{ fill: '#F9FAFB' }} formatter={(v) => [fmtMoney(Number(v), 'PEN'), 'Monto']} />
+                      <Bar dataKey="monto" fill="#F65740" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-2">Dólares ($)</p>
+                {barProyectoUSD.length === 0 ? <EmptyChart /> : (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart data={barProyectoUSD} layout="vertical" barSize={14} margin={{ left: 8, right: 20 }}>
+                      <XAxis type="number" tick={{ fontSize: 10, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}K`} />
+                      <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10, fill: '#6B7280' }} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ borderRadius: 10, border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,.1)', fontSize: 12 }} cursor={{ fill: '#F9FAFB' }} formatter={(v) => [fmtMoney(Number(v), 'USD'), 'Monto']} />
+                      <Bar dataKey="monto" fill="#3B82F6" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
           </div>
 
           <ChartCard title="Estado de empresas" subtitle={`${proyectos.length} empresas registradas`}>
