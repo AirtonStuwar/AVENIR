@@ -509,25 +509,28 @@ Las tablas y vistas de Supabase son accesibles directamente. Power BI puede leer
 
 Consolidación de registros aprobados/autorizados de todos los módulos en un Excel descargable.
 
-**Ruta:** `/reportes` — visible para ADMIN (1) y VISUALIZADOR (10).
+**Ruta:** `/reportes` — visible para ADMIN (1), EVALUADOR (8) y VISUALIZADOR (10).
 
 **Feature folder:** `src/features/reportes/services/reportesService.ts` — sin types propios ni hooks; solo servicio + exportación.
 
 **Página:** `src/pages/ReportesPage.tsx` — filtros (fecha desde/hasta, proyecto opcional), botón "Buscar", tarjetas KPI por módulo, barra de totales consolidados, tabla de vista previa, botón "Exportar Excel".
 
-**Fuentes de datos (filtradas por `fecha_aprobacion` dentro del rango):**
+**Fuentes de datos (filtradas por `fecha_aprobacion` dentro del rango, para ADMIN/VISUALIZADOR):**
 - **OC y RxH** — `solicitud` con `estado = 'Aprobado'`. Subtotal de `solicitud_detalle`; IGV 18% solo para OC. Distingue OC vs RxH por `solicitud_tipo.nombre === 'Recibo por Honorarios'`.
-- **A Rendir** — `solicitud_arendir` con `estado = 'Autorizado'`. Monto = `total_reembolso`.
+- **A Rendir** — `solicitud_arendir` con `estado IN ('Aprobado','Pagado','En Revision','Cerrado')`. Monto = `total_reembolso`.
 - **Reembolso** — `solicitud_reembolso` con `estado = 'Autorizado'`. Monto = `total_reembolso`.
 - **Caja Chica** — `caja_chica` con `estado = 'Autorizado'`. Monto = `total_gastos`. Color: púrpura.
+- **Devolución** — `devolucion_cliente` con `estado = 'Autorizado'`.
 
-**`ReporteRow` interface:** `tipo` (`'OC'|'RxH'|'A Rendir'|'Reembolso'|'Caja Chica'`), `codigo`, `fecha_solicitud`, `fecha_requerida`, `fecha_aprobada`, `fecha_emision`, `fecha_pago`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para otros), `ruc` (RUC para OC/RxH, DNI para A Rendir/Reembolso/Caja Chica), `proyecto`, `partida`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`, `archivo_contrato`, `archivo_sustento`, `archivo_cotizacion`, `archivo_factura`, `archivo_otros`.
+**Modo "todos los estados" para EVALUADOR (`ReporteFiltros.todosEstados`):** el EVALUADOR trabaja con registros en Pendiente/En Revision/Evaluado, no solo Aprobado/Autorizado, así que `ReportesPage` detecta `userRole === ROLES.EVALUADOR` y pasa `todosEstados: true` a `getReporteData()`/`exportarReporteExcel()`. En ese modo, cada uno de los 5 fetchers (`fetchSolicitudes`, `fetchARendir`, `fetchReembolso`, `fetchCajaChica`, `fetchDevoluciones`) **omite el filtro de `estado`** (trae cualquier estado) y **filtra por `fecha_creacion` en vez de `fecha_aprobacion`** (muchos registros aún no tienen fecha de aprobación). El ordenamiento final también usa `fecha_solicitud` en este modo. Los labels de fecha en la UI cambian a "Fecha desde/hasta (creación)" cuando `isEvaluador`.
+
+**`ReporteRow` interface:** `tipo` (`'OC'|'RxH'|'A Rendir'|'Reembolso'|'Caja Chica'|'Devolución'`), **`estado`** (nombre del estado actual del registro — siempre poblado, no solo en modo evaluador), `codigo`, `fecha_solicitud`, `fecha_requerida`, `fecha_aprobada`, `fecha_emision`, `fecha_pago`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para otros), `ruc` (RUC para OC/RxH, DNI para A Rendir/Reembolso/Caja Chica), `proyecto`, `partida`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`, `archivo_contrato`, `archivo_sustento`, `archivo_cotizacion`, `archivo_factura`, `archivo_otros`.
 
 **Detracción en reportes:** `detraccion` siempre en S/ (SUNAT), sin importar la moneda de la solicitud. `girar_usd` descuenta la detracción en dólares: `total - (total × porcentaje / 100)`, **sin redondear** el descuento intermedio (solo el resultado final a 2 decimales) — el redondeo a soles enteros solo aplica al depósito SUNAT (`monto_detraccion`), no al monto girado en dólares. `girar_pen` descuenta detracción y retención en soles.
 
 **`exportarReporteExcel(rows, filtros, proyectoNombre)`:** ExcelJS workbook con 1 hoja "Reporte":
 - Fila 1: título mergeado, fondo `#003D7D`, fuente blanca.
-- Fila 2: **39 cabeceras** — #, MÓDULO, CÓDIGO, F.SOLICITUD, F.REQUERIDA, F.APROBADA, F.EMISIÓN, REQUERIDO POR, ÁREA, BENEFICIARIO, DOCUMENTO, RUC/DNI, EMPRESA, CENTRO DE COSTO, CONCEPTO, CUENTA CONTABLE, NOMBRE CUENTA, PARTIDA PRESUP., PARTIDA N1, PARTIDA N2 (plan contable del registro, sin tipo de gasto ni código Starsoft; vacías para Devolución), **SUBTOTAL $, SUBTOTAL S/., IGV $, IGV S/.** (solo Solicitudes OC/RxH tienen valor — OC con 18%, RxH siempre 0; vacías para A Rendir/Reembolso/Caja Chica/Devolución, que no manejan IGV), TOTAL $, TOTAL S/., DETRACCIÓN, RETENCIÓN, GIRAR $, GIRAR S/., BANCO, CUENTA/CCI, CORREO, F.PAGO, CONTRATO, SUSTENTO, COTIZACIÓN, FACTURA, OTROS. Fondo `#1F497D`, fuente blanca bold, freeze panes 1-2. La fila TOTALES mergea columnas 1-20 y las sumas van en 21-30.
+- Fila 2: **40 cabeceras** — #, MÓDULO, **ESTADO**, CÓDIGO, F.SOLICITUD, F.REQUERIDA, F.APROBADA, F.EMISIÓN, REQUERIDO POR, ÁREA, BENEFICIARIO, DOCUMENTO, RUC/DNI, EMPRESA, CENTRO DE COSTO, CONCEPTO, CUENTA CONTABLE, NOMBRE CUENTA, PARTIDA PRESUP., PARTIDA N1, PARTIDA N2 (plan contable del registro, sin tipo de gasto ni código Starsoft; vacías para Devolución), **SUBTOTAL $, SUBTOTAL S/., IGV $, IGV S/.** (solo Solicitudes OC/RxH tienen valor — OC con 18%, RxH siempre 0; vacías para A Rendir/Reembolso/Caja Chica/Devolución, que no manejan IGV), TOTAL $, TOTAL S/., DETRACCIÓN, RETENCIÓN, GIRAR $, GIRAR S/., BANCO, CUENTA/CCI, CORREO, F.PAGO, CONTRATO, SUSTENTO, COTIZACIÓN, FACTURA, OTROS. Fondo `#1F497D`, fuente blanca bold, freeze panes 1-2. La fila TOTALES mergea columnas 1-21 y las sumas van en 22-31.
 - Columnas CONTRATO/SUSTENTO/COTIZACIÓN/FACTURA/OTROS muestran `'SI'` o vacío según si existe archivo adjunto.
 - Filas de datos: coloreadas por tipo (OC=azul tenue, RxH=verde tenue, A Rendir=amarillo tenue, Reembolso=rosa tenue, Caja Chica=púrpura tenue).
 - Última fila: "TOTALES" mergeada en columnas 1-15, sumas de columnas numéricas, fondo `#D9E1F2`.

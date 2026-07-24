@@ -7,10 +7,13 @@ export interface ReporteFiltros {
   fechaDesde: string   // YYYY-MM-DD
   fechaHasta: string
   proyectoId?: number | null
+  /** Si es true: incluye cualquier estado (no solo Aprobado/Autorizado) y filtra por fecha de creación en vez de fecha de aprobación. Usado por el reporte del EVALUADOR. */
+  todosEstados?: boolean
 }
 
 export interface ReporteRow {
   tipo:           'OC' | 'RxH' | 'A Rendir' | 'Reembolso' | 'Caja Chica' | 'Devolución'
+  estado:         string | null
   codigo:         string | null
   fecha_solicitud: string | null
   fecha_requerida: string | null
@@ -100,7 +103,8 @@ function pcFields(pc: PlanContableJoin | null | undefined) {
 // ── Fetchers ───────────────────────────────────────────────────────────────
 
 async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> {
-  const { fechaDesde, fechaHasta, proyectoId } = filtros
+  const { fechaDesde, fechaHasta, proyectoId, todosEstados } = filtros
+  const dateField = todosEstados ? 'fecha_creacion' : 'fecha_aprobacion'
 
   let q = supabase
     .from('solicitud')
@@ -117,12 +121,12 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       'detraccion:detraccion_id(porcentaje)',
       `plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(${PC_COLS})`,
     ].join(', '))
-    .gte('fecha_aprobacion', fechaDesde)
-    .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
+    .gte(dateField, fechaDesde)
+    .lte(dateField, fechaHasta + 'T23:59:59')
 
   if (proyectoId) q = q.eq('proyecto_id', proyectoId)
 
-  const { data, error } = await q.order('fecha_aprobacion')
+  const { data, error } = await q.order(dateField)
   if (error) throw error
 
   const rows = (data ?? []) as unknown as {
@@ -141,8 +145,8 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     plan_contable: PlanContableJoin | null
   }[]
 
-  // Filter only Aprobado (PostgREST filters on joined tables need manual filter)
-  const aprobadas = rows.filter(r => r.estado_soli?.nombre === 'Aprobado')
+  // Filter only Aprobado (PostgREST filters on joined tables need manual filter) — salvo modo "todosEstados"
+  const aprobadas = todosEstados ? rows : rows.filter(r => r.estado_soli?.nombre === 'Aprobado')
   if (!aprobadas.length) return []
 
   // Batch detalles
@@ -191,6 +195,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
 
     return {
       tipo:           isRxH ? 'RxH' : 'OC',
+      estado:         s.estado_soli?.nombre ?? null,
       codigo:         s.codigo,
       fecha_solicitud: s.fecha_creacion,
       fecha_requerida: s.fecha_requerida,
@@ -230,21 +235,22 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
 }
 
 async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
-  const { fechaDesde, fechaHasta, proyectoId } = filtros
+  const { fechaDesde, fechaHasta, proyectoId, todosEstados } = filtros
+  const dateField = todosEstados ? 'fecha_creacion' : 'fecha_aprobacion'
 
   let q = supabase
     .from('solicitud_arendir')
-    .select(`id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_rendicion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
-    .in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'])
-    .gte('fecha_aprobacion', fechaDesde)
-    .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
+    .select(`id, codigo, estado, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_rendicion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
+    .gte(dateField, fechaDesde)
+    .lte(dateField, fechaHasta + 'T23:59:59')
 
+  if (!todosEstados) q = q.in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'])
   if (proyectoId) q = q.eq('proyecto_id', proyectoId)
-  const { data, error } = await q.order('fecha_aprobacion')
+  const { data, error } = await q.order(dateField)
   if (error) throw error
 
   const rows = (data ?? []) as unknown as {
-    id: number; codigo: string | null; beneficiario_id: string | null
+    id: number; codigo: string | null; estado: string | null; beneficiario_id: string | null
     importe: number; total_reembolso: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null; fecha_aprobacion: string | null
     fecha_creacion: string | null; fecha_rendicion: string | null; fecha_pago: string | null
@@ -278,6 +284,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     const hasArch = tieneArchivo[r.id] || false
     return {
       tipo:            'A Rendir',
+      estado:          r.estado,
       codigo:          r.codigo,
       fecha_solicitud: r.fecha_creacion,
       fecha_requerida: r.fecha_rendicion,
@@ -317,21 +324,22 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 }
 
 async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
-  const { fechaDesde, fechaHasta, proyectoId } = filtros
+  const { fechaDesde, fechaHasta, proyectoId, todosEstados } = filtros
+  const dateField = todosEstados ? 'fecha_creacion' : 'fecha_aprobacion'
 
   let q = supabase
     .from('solicitud_reembolso')
-    .select(`id, codigo, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
-    .eq('estado', 'Autorizado')
-    .gte('fecha_aprobacion', fechaDesde)
-    .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
+    .select(`id, codigo, estado, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
+    .gte(dateField, fechaDesde)
+    .lte(dateField, fechaHasta + 'T23:59:59')
 
+  if (!todosEstados) q = q.eq('estado', 'Autorizado')
   if (proyectoId) q = q.eq('proyecto_id', proyectoId)
-  const { data, error } = await q.order('fecha_aprobacion')
+  const { data, error } = await q.order(dateField)
   if (error) throw error
 
   const rows = (data ?? []) as unknown as {
-    id: number; codigo: string | null; beneficiario_id: string | null
+    id: number; codigo: string | null; estado: string | null; beneficiario_id: string | null
     total_reembolso: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null; fecha_aprobacion: string | null
     fecha_creacion: string | null; fecha_requerida: string | null; fecha_pago: string | null
@@ -364,6 +372,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     const hasArch = tieneArchivoR[r.id] || false
     return {
       tipo:            'Reembolso',
+      estado:          r.estado,
       codigo:          r.codigo,
       fecha_solicitud: r.fecha_creacion,
       fecha_requerida: r.fecha_requerida,
@@ -403,21 +412,22 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 }
 
 async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
-  const { fechaDesde, fechaHasta, proyectoId } = filtros
+  const { fechaDesde, fechaHasta, proyectoId, todosEstados } = filtros
+  const dateField = todosEstados ? 'fecha_creacion' : 'fecha_aprobacion'
 
   let q = supabase
     .from('caja_chica')
-    .select(`id, codigo, responsable_id, proyecto_id, total_gastos, monto_asignado, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
-    .eq('estado', 'Autorizado')
-    .gte('fecha_aprobacion', fechaDesde)
-    .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
+    .select(`id, codigo, estado, responsable_id, proyecto_id, total_gastos, monto_asignado, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
+    .gte(dateField, fechaDesde)
+    .lte(dateField, fechaHasta + 'T23:59:59')
 
+  if (!todosEstados) q = q.eq('estado', 'Autorizado')
   if (proyectoId) q = q.eq('proyecto_id', proyectoId)
-  const { data, error } = await q.order('fecha_aprobacion')
+  const { data, error } = await q.order(dateField)
   if (error) throw error
 
   const rows = (data ?? []) as unknown as {
-    id: number; codigo: string | null; responsable_id: string | null
+    id: number; codigo: string | null; estado: string | null; responsable_id: string | null
     total_gastos: number; monto_asignado: number
     fecha_aprobacion: string | null; fecha_creacion: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
@@ -431,6 +441,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
     const u = r.responsable_id ? (userMap[r.responsable_id] ?? null) : null
     return {
       tipo:            'Caja Chica',
+      estado:          r.estado,
       codigo:          r.codigo,
       fecha_solicitud: r.fecha_creacion,
       fecha_requerida: null,
@@ -470,21 +481,22 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 }
 
 async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]> {
-  const { fechaDesde, fechaHasta, proyectoId } = filtros
+  const { fechaDesde, fechaHasta, proyectoId, todosEstados } = filtros
+  const dateField = todosEstados ? 'fecha_creacion' : 'fecha_aprobacion'
 
   let q = supabase
     .from('devolucion_cliente')
-    .select('id, codigo, creador_id, proyecto_id, cliente_nombre, cliente_dni, concepto, monto, moneda, banco, numero_cuenta, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)')
-    .eq('estado', 'Autorizado')
-    .gte('fecha_aprobacion', fechaDesde)
-    .lte('fecha_aprobacion', fechaHasta + 'T23:59:59')
+    .select('id, codigo, estado, creador_id, proyecto_id, cliente_nombre, cliente_dni, concepto, monto, moneda, banco, numero_cuenta, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)')
+    .gte(dateField, fechaDesde)
+    .lte(dateField, fechaHasta + 'T23:59:59')
 
+  if (!todosEstados) q = q.eq('estado', 'Autorizado')
   if (proyectoId) q = q.eq('proyecto_id', proyectoId)
-  const { data, error } = await q.order('fecha_aprobacion')
+  const { data, error } = await q.order(dateField)
   if (error) throw error
 
   const rows = (data ?? []) as unknown as {
-    id: number; codigo: string | null; creador_id: string | null
+    id: number; codigo: string | null; estado: string | null; creador_id: string | null
     cliente_nombre: string; cliente_dni: string | null; concepto: string | null
     monto: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null
@@ -504,6 +516,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
     const u     = r.creador_id ? (userMap[r.creador_id] ?? null) : null
     return {
       tipo:            'Devolución',
+      estado:          r.estado,
       codigo:          r.codigo,
       fecha_solicitud: r.fecha_creacion,
       fecha_requerida: null,
@@ -550,8 +563,9 @@ export async function getReporteData(filtros: ReporteFiltros): Promise<ReporteRo
     fetchCajaChica(filtros),
     fetchDevoluciones(filtros),
   ])
+  const dateKey = (r: ReporteRow) => (filtros.todosEstados ? r.fecha_solicitud : r.fecha_aprobada) ?? ''
   return [...solis, ...arendir, ...reembolso, ...cajaChica, ...devoluciones].sort((a, b) =>
-    (a.fecha_aprobada ?? '').localeCompare(b.fecha_aprobada ?? '')
+    dateKey(a).localeCompare(dateKey(b))
   )
 }
 
@@ -590,6 +604,7 @@ export async function exportarReporteExcel(
   const COLS = [
     { header: '#',               key: 'num',             width: 5  },
     { header: 'MÓDULO',          key: 'tipo',            width: 12 },
+    { header: 'ESTADO',          key: 'estado',          width: 14 },
     { header: 'CÓDIGO',          key: 'codigo',          width: 14 },
     { header: 'F. SOLICITUD',    key: 'fecha_solicitud', width: 13 },
     { header: 'F. REQUERIDA',    key: 'fecha_requerida', width: 13 },
@@ -668,6 +683,7 @@ export async function exportarReporteExcel(
     const vals = [
       idx + 1,
       row.tipo,
+      row.estado,
       row.codigo,
       fmtDate(row.fecha_solicitud),
       fmtDate(row.fecha_requerida),
@@ -714,7 +730,7 @@ export async function exportarReporteExcel(
       cell.alignment = { vertical: 'middle', wrapText: false }
       cell.border = { bottom: { style: 'hair', color: { argb: 'FFCCCCCC' } }, right: { style: 'hair', color: { argb: 'FFCCCCCC' } } }
       // Right-align numeric columns (SUBTOTAL $ through GIRAR S/.)
-      if (ci >= 20 && ci <= 29) cell.alignment = { horizontal: 'right', vertical: 'middle' }
+      if (ci >= 21 && ci <= 30) cell.alignment = { horizontal: 'right', vertical: 'middle' }
     })
     r.height = 16
   })
@@ -735,7 +751,7 @@ export async function exportarReporteExcel(
     rows.reduce((s, r) => s + r.girar_pen,   0),
   ]
 
-  ws.mergeCells(rows.length + 3, 1, rows.length + 3, 20)
+  ws.mergeCells(rows.length + 3, 1, rows.length + 3, 21)
   const totLbl = totRow.getCell(1)
   totLbl.value = 'TOTALES'
   totLbl.font  = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } }
@@ -743,7 +759,7 @@ export async function exportarReporteExcel(
   totLbl.alignment = { horizontal: 'right', vertical: 'middle' }
 
   totals.forEach((v, i) => {
-    const cell = totRow.getCell(21 + i)
+    const cell = totRow.getCell(22 + i)
     cell.value = fmtNum(v)
     cell.font  = { bold: true, size: 9 }
     cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }

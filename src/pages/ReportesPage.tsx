@@ -4,6 +4,8 @@ import toast from 'react-hot-toast'
 import { supabase } from '../api/supabase'
 import { getReporteData, exportarReporteExcel } from '../features/reportes/services/reportesService'
 import type { ReporteRow, ReporteFiltros } from '../features/reportes/services/reportesService'
+import { useAuthStore } from '../store/authStore'
+import { ROLES } from '../features/solicitud/types/solicitud'
 
 const TIPO_BADGE: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   'OC':        { label: 'OC',        color: 'bg-blue-100 text-blue-700',   icon: <FileText   size={11} /> },
@@ -31,6 +33,9 @@ const firstOfMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padS
 const todayStr     = today.toISOString().slice(0, 10)
 
 export default function ReportesPage() {
+  const { userRole } = useAuthStore()
+  const isEvaluador = userRole === ROLES.EVALUADOR
+
   const [rows,          setRows]          = useState<ReporteRow[]>([])
   const [loading,       setLoading]       = useState(false)
   const [exporting,     setExporting]     = useState(false)
@@ -50,7 +55,7 @@ export default function ReportesPage() {
     if (!fechaDesde || !fechaHasta) { toast.error('Ingresa el rango de fechas'); return }
     setLoading(true)
     try {
-      const filtros: ReporteFiltros = { fechaDesde, fechaHasta, proyectoId }
+      const filtros: ReporteFiltros = { fechaDesde, fechaHasta, proyectoId, todosEstados: isEvaluador }
       const data = await getReporteData(filtros)
       setRows(data)
       if (data.length === 0) toast('Sin registros para el período seleccionado.', { icon: 'ℹ️' })
@@ -66,7 +71,7 @@ export default function ReportesPage() {
     setExporting(true)
     try {
       const proyecto = proyectos.find(p => p.id === proyectoId)?.nombre ?? ''
-      await exportarReporteExcel(rows, { fechaDesde, fechaHasta, proyectoId }, proyecto)
+      await exportarReporteExcel(rows, { fechaDesde, fechaHasta, proyectoId, todosEstados: isEvaluador }, proyecto)
       toast.success('Excel generado correctamente')
     } catch {
       toast.error('Error al generar el Excel')
@@ -98,7 +103,11 @@ export default function ReportesPage() {
         <BarChart2 size={20} className="text-[#003D7D]" />
         <div>
           <h1 className="text-base font-semibold text-gray-900">Reportes</h1>
-          <p className="text-xs text-gray-400">Exporta solicitudes aprobadas, A Rendir y Reembolsos autorizados</p>
+          <p className="text-xs text-gray-400">
+            {isEvaluador
+              ? 'Todos los estados de los 5 módulos, filtrado por fecha de creación'
+              : 'Exporta solicitudes aprobadas, A Rendir y Reembolsos autorizados'}
+          </p>
         </div>
       </div>
 
@@ -112,12 +121,12 @@ export default function ReportesPage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className={LABEL}>Fecha desde *</label>
+              <label className={LABEL}>Fecha desde{isEvaluador ? ' (creación)' : ''} *</label>
               <input type="date" className={INPUT + ' w-full'} value={fechaDesde}
                 onChange={e => setFechaDesde(e.target.value)} />
             </div>
             <div>
-              <label className={LABEL}>Fecha hasta *</label>
+              <label className={LABEL}>Fecha hasta{isEvaluador ? ' (creación)' : ''} *</label>
               <input type="date" className={INPUT + ' w-full'} value={fechaHasta}
                 onChange={e => setFechaHasta(e.target.value)} />
             </div>
@@ -215,7 +224,7 @@ export default function ReportesPage() {
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-100">
-                      {['#','Módulo','Código','F.Solic.','F.Req.','F.Aprob.','F.Emis.','Beneficiario','Empresa','Concepto','Total S/.','Total $','Girar S/.','Girar $'].map(h => (
+                      {['#','Módulo','Estado','Código','F.Solic.','F.Req.','F.Aprob.','F.Emis.','Beneficiario','Empresa','Concepto','Total S/.','Total $','Girar S/.','Girar $'].map(h => (
                         <th key={h} className="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -231,6 +240,7 @@ export default function ReportesPage() {
                               {badge.icon} {row.tipo}
                             </span>
                           </td>
+                          <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{row.estado ?? '—'}</td>
                           <td className="px-3 py-2 font-mono text-gray-600">{row.codigo ?? '—'}</td>
                           <td className="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">{fmtDate(row.fecha_solicitud)}</td>
                           <td className="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">{fmtDate(row.fecha_requerida)}</td>

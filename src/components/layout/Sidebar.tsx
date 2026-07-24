@@ -19,7 +19,7 @@ const menuItems = [
   { name: 'Proveedores', path: '/proveedores', icon: Users,      roles: [1, 11] },
   { name: 'Empresas',    path: '/proyectos',   icon: Briefcase,  roles: [1] },
   { name: 'Áreas',       path: '/areas',       icon: Building2,  roles: [1, 9] },
-  { name: 'Reportes',    path: '/reportes',    icon: BarChart2,  roles: [1, 10] },
+  { name: 'Reportes',    path: '/reportes',    icon: BarChart2,  roles: [1, 8, 10] },
   { name: 'Plan Contable', path: '/plan-contable', icon: PieChart, roles: [1, 11] },
 ]
 
