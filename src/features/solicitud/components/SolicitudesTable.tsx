@@ -331,10 +331,13 @@ export default function SolicitudesTable({
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-700 text-sm">{s.ruc ?? '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-xs">
-                      {s.numero_factura
-                        ? <span className="font-medium text-gray-700">{s.numero_factura}</span>
-                        : <span className="text-red-400 italic">No subida</span>
-                      }
+                      {(() => {
+                        const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+                        const numero = isRxH ? s.numero_rxh : s.numero_factura
+                        return numero
+                          ? <span className="font-medium text-gray-700">{numero}</span>
+                          : <span className="text-red-400 italic">{isRxH ? 'RxH no subido' : 'No subida'}</span>
+                      })()}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{s.proyecto?.nombre ?? '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(s.fecha_pedido)}</td>
