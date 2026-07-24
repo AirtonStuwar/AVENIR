@@ -12,6 +12,7 @@ import {
   aprobarSolicitud,
 } from '../features/solicitud/services/solicitudService'
 import { useAuthStore } from '../store/authStore'
+import { useSolicitudFiltrosStore } from '../store/solicitudFiltrosStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
 import type { Solicitud } from '../features/solicitud/types/solicitud'
@@ -19,43 +20,55 @@ import type { Solicitud } from '../features/solicitud/types/solicitud'
 export default function SolicitudesPage() {
   const navigate = useNavigate()
   const { userRole, user } = useAuthStore()
-  const { data, total, page, pageSize, totalPages, loading, setPage, setSearch, setProyectoFilter, setMesAprobacion, setPagoFilter, setAreaFilter, setOrdenVencimiento, refresh } = useSolicitudes()
+
+  // ── Filtros persistentes (sobreviven a navegar a un detalle y volver) ──
+  const {
+    proyectoFilter, areaFilter, mesAprobacion, pagoFilter: pagoLocal, ordenVencimiento,
+    setProyectoFilter: setProyectoStore, setAreaFilter: setAreaStore,
+    setMesAprobacion: setMesStore, setPagoFilter: setPagoStore,
+    setOrdenVencimiento: setOrdenStore, clear: clearFiltrosStore,
+  } = useSolicitudFiltrosStore()
+
+  const {
+    data, total, page, pageSize, totalPages, loading, setPage, setSearch,
+    setProyectoFilter, setMesAprobacion, setPagoFilter, setAreaFilter, setOrdenVencimiento, refresh,
+  } = useSolicitudes({ proyecto_id: proyectoFilter, areaId: areaFilter, mes_aprobacion: mesAprobacion, pagoFilter: pagoLocal, ordenVencimiento })
 
   const isVisualizador = userRole === ROLES.VISUALIZADOR
 
-  // ── Filtro proyecto ───────────────────────────────────────────
-  const [proyectoFilter, setProyectoFilterLocal] = useState<number | null>(null)
   const handleProyectoChange = (id: number | null) => {
-    setProyectoFilterLocal(id)
+    setProyectoStore(id)
     setProyectoFilter(id)
   }
 
-  // ── Mes aprobación (solo VISUALIZADOR) ───────────────────────
-  const [mesAprobacion, setMesAprobacionLocal] = useState<number | null>(null)
   const handleMesChange = (mes: number | null) => {
-    setMesAprobacionLocal(mes)
+    setMesStore(mes)
     setMesAprobacion(mes)
   }
 
-  // ── Filtro pago (solo VISUALIZADOR) ──────────────────────────
-  const [pagoLocal, setPagoLocal] = useState<'pendiente' | 'pagado' | null>(null)
   const handlePagoChange = (v: 'pendiente' | 'pagado' | null) => {
-    setPagoLocal(v)
+    setPagoStore(v)
     setPagoFilter(v)
   }
 
-  // ── Filtro área ────────────────────────────────────────────────
-  const [areaFilter, setAreaFilterLocal] = useState<number | null>(null)
   const handleAreaChange = (id: number | null) => {
-    setAreaFilterLocal(id)
+    setAreaStore(id)
     setAreaFilter(id)
   }
 
-  // ── Orden por vencimiento más urgente ────────────────────────
-  const [ordenVencimiento, setOrdenVencimientoLocal] = useState(false)
   const handleOrdenVencimientoChange = (activo: boolean) => {
-    setOrdenVencimientoLocal(activo)
+    setOrdenStore(activo)
     setOrdenVencimiento(activo)
+  }
+
+  const hasFiltrosActivos = !!(proyectoFilter || areaFilter || mesAprobacion || pagoLocal || ordenVencimiento)
+  const handleClearFiltros = () => {
+    clearFiltrosStore()
+    setProyectoFilter(null)
+    setAreaFilter(null)
+    setMesAprobacion(null)
+    setPagoFilter(null)
+    setOrdenVencimiento(false)
   }
 
   // ── Selección ─────────────────────────────────────────────────
@@ -333,6 +346,8 @@ export default function SolicitudesPage() {
         onAreaFilterChange={handleAreaChange}
         ordenVencimiento={ordenVencimiento}
         onOrdenVencimientoChange={handleOrdenVencimientoChange}
+        hasFiltrosActivos={hasFiltrosActivos}
+        onClearFilters={handleClearFiltros}
       />
 
       <ConfirmModal

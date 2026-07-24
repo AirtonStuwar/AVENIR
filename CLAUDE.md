@@ -41,6 +41,10 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `setOrdenVencimiento(true)` — cambia el `order()` de la query de `fecha_creacion DESC` (default) a `fecha_vencimiento_factura ASC` con `nullsFirst: false` (las solicitudes sin fecha de vencimiento quedan al final). Botón toggle "Más urgentes" en la tabla.
 - El buscador (`onSearch`) y el filtro de empresa (`proyectoFilter`) ya existían para todos los roles — no eran exclusivos de ningún rol, aunque no siempre evidente en la UI.
 
+**Persistencia de filtros (`src/store/solicitudFiltrosStore.ts`):** store Zustand aparte (no es parte de `useSolicitudes`) que guarda `proyectoFilter`, `areaFilter`, `mesAprobacion`, `pagoFilter`, `ordenVencimiento`. `SolicitudesPage` lee este store y lo pasa como `filtrosIniciales` a `useSolicitudes()`, así que al entrar al detalle de una solicitud y volver (el componente se desmonta/remonta), los filtros elegidos siguen aplicados — antes se perdían porque vivían en `useState` local de la página. Botón "Limpiar filtros" (visible solo si hay algún filtro activo) resetea el store y los filtros del hook a la vez. La búsqueda de texto y la página de paginación **no** persisten (a propósito, por decisión del usuario).
+
+**Orden de columnas en `SolicitudesTable`:** Código, Razón social, **Estado**, Factura, Empresa, Fecha pedido, Vencimiento, Creado por, Área, **RUC** — Estado y RUC intercambiaron posiciones respecto al orden original (RUC ahora al final, junto a las acciones).
+
 **Routing** (`App.tsx`):
 - `/login` — public
 - `/dashboard`, `/solicitudes`, `/solicitudes/nueva`, `/solicitudes/:id`, `/proyectos`, `/proveedores` — all behind `ProtectedRoute`

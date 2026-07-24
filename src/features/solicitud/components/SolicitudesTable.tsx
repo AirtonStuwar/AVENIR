@@ -50,6 +50,8 @@ interface Props {
   onAreaFilterChange?: (id: number | null) => void
   ordenVencimiento?: boolean
   onOrdenVencimientoChange?: (activo: boolean) => void
+  hasFiltrosActivos?: boolean
+  onClearFilters?: () => void
 }
 
 export default function SolicitudesTable({
@@ -58,6 +60,7 @@ export default function SolicitudesTable({
   selectedIds, onSelectionChange, mesAprobacion, onMesAprobacionChange,
   proyectoFilter, onProyectoFilterChange, pagoFilter, onPagoFilterChange,
   areaFilter, onAreaFilterChange, ordenVencimiento, onOrdenVencimientoChange,
+  hasFiltrosActivos, onClearFilters,
 }: Props) {
   const [searchVal, setSearchVal] = useState('')
   const [proyectos, setProyectos] = useState<Array<{id: number; nombre: string}>>([])
@@ -238,6 +241,15 @@ export default function SolicitudesTable({
             </button>
           )}
 
+          {onClearFilters && hasFiltrosActivos && (
+            <button
+              onClick={onClearFilters}
+              className="h-9 flex items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-medium text-gray-500 hover:text-red-500 hover:border-red-200 transition-colors shrink-0"
+            >
+              <XCircle size={14} /> Limpiar filtros
+            </button>
+          )}
+
           <div className="relative flex-1 sm:flex-none">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
@@ -295,7 +307,7 @@ export default function SolicitudesTable({
                     />
                   </th>
                 )}
-                {['Código', 'Razón social', 'RUC', 'Factura', 'Empresa', 'Fecha pedido', 'Vencimiento', 'Creado por', 'Área', 'Estado', ''].map(h => (
+                {['Código', 'Razón social', 'Estado', 'Factura', 'Empresa', 'Fecha pedido', 'Vencimiento', 'Creado por', 'Área', 'RUC', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -329,7 +341,16 @@ export default function SolicitudesTable({
                     <td className="px-4 py-3 max-w-[220px]">
                       <p className="font-medium text-gray-900 truncate">{s.razon_social ?? '—'}</p>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-700 text-sm">{s.ruc ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        <EstadoBadge nombre={s.estado_soli?.nombre} />
+                        {s.estado_soli?.nombre === 'Aprobado' && (
+                          s.fecha_pago
+                            ? <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">Pagado</span>
+                            : <span className="text-[10px] font-semibold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-200">Por pagar</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap text-xs">
                       {(() => {
                         const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
@@ -356,16 +377,7 @@ export default function SolicitudesTable({
                         : <span className="text-xs text-gray-300">—</span>
                       }
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        <EstadoBadge nombre={s.estado_soli?.nombre} />
-                        {s.estado_soli?.nombre === 'Aprobado' && (
-                          s.fecha_pago
-                            ? <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">Pagado</span>
-                            : <span className="text-[10px] font-semibold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-200">Por pagar</span>
-                        )}
-                      </div>
-                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-gray-700 text-sm">{s.ruc ?? '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
                         <button
