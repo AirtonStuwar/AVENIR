@@ -295,7 +295,7 @@ export default function SolicitudesTable({
                     />
                   </th>
                 )}
-                {['Código', 'Razón social', 'RUC', 'Empresa', 'Fecha pedido', 'Vencimiento', 'Creado por', 'Área', 'Estado', ''].map(h => (
+                {['Código', 'Razón social', 'RUC', 'Factura', 'Empresa', 'Fecha pedido', 'Vencimiento', 'Creado por', 'Área', 'Estado', ''].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -330,6 +330,12 @@ export default function SolicitudesTable({
                       <p className="font-medium text-gray-900 truncate">{s.razon_social ?? '—'}</p>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-700 text-sm">{s.ruc ?? '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-xs">
+                      {s.numero_factura
+                        ? <span className="font-medium text-gray-700">{s.numero_factura}</span>
+                        : <span className="text-red-400 italic">No subida</span>
+                      }
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{s.proyecto?.nombre ?? '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(s.fecha_pedido)}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-xs">
