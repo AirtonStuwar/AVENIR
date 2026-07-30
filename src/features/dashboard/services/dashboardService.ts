@@ -6,7 +6,7 @@ import { getDevolucionesAutorizadas, type DevolucionRow } from '../../devolucion
 
 export type { ARendirRow, ReembolsoRow, CajaChicaRow, DevolucionRow }
 
-const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, moneda, fecha_pago, usuario_evaluador, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre)'
+const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, moneda, fecha_pago, usuario_evaluador, usuario_aprobador, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre)'
 
 export interface SolicitudRow {
   id: number
@@ -20,6 +20,8 @@ export interface SolicitudRow {
   moneda: string | null
   fecha_pago: string | null
   usuario_evaluador: string | null
+  usuario_aprobador: string | null
+  aprobador_nombre?: string | null
   estado_soli: { id: number; nombre: string; tipo: string | null } | null
   proyecto: { id: number; nombre: string } | null
   solicitud_tipo: { id: number; nombre: string } | null
@@ -155,12 +157,26 @@ export async function getEvaluadorData(): Promise<EvaluadorData> {
   const reembolsoAll = (reembolsoRes.data ?? []) as ReembolsoRow[]
   const devolucionAll = (devolucionRes.data ?? []) as DevolucionRow[]
 
+  const aprobadasRaw = all.filter(s => s.estado_soli?.nombre === 'Aprobado')
+  const aprobadorIds = [...new Set(aprobadasRaw.map(s => s.usuario_aprobador).filter(Boolean))] as string[]
+  const aprobadorMap: Record<string, string> = {}
+  if (aprobadorIds.length > 0) {
+    const { data: aprobadores } = await supabase.from('usuario').select('id, nombre_completo').in('id', aprobadorIds)
+    for (const u of (aprobadores ?? []) as { id: string; nombre_completo: string | null }[]) {
+      if (u.nombre_completo) aprobadorMap[u.id] = u.nombre_completo
+    }
+  }
+  const aprobadas = aprobadasRaw.map(s => ({
+    ...s,
+    aprobador_nombre: s.usuario_aprobador ? (aprobadorMap[s.usuario_aprobador] ?? null) : null,
+  }))
+
   return {
     enRevision: all.filter(s => s.estado_soli?.nombre === 'En Revision'),
-    // Evaluadas/Aprobadas: total del sistema (cualquier evaluador) — el detalle por nombre se muestra en la tabla "Evaluadas"
+    // Evaluadas/Aprobadas: total del sistema (cualquier evaluador) — el detalle por nombre se muestra en la tabla "Evaluadas"/"Aprobadas"
     evaluadas:  all.filter(s => s.estado_soli?.nombre === 'Evaluado'),
     devueltas:  all.filter(s => s.estado_soli?.nombre === 'Pendiente'),
-    aprobadas:  all.filter(s => s.estado_soli?.nombre === 'Aprobado'),
+    aprobadas,
     detalles:   (detRes.data ?? []) as DetalleRow[],
     arendirEnRevision:   arendirAll.filter(a => a.estado === 'En Revision'),
     arendirCerrados:     arendirAll.filter(a => a.estado === 'Cerrado'),

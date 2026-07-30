@@ -834,6 +834,14 @@ function EvaluadorDashboard() {
           onVerTodas={() => navigate('/solicitudes')}
           onView={(s) => navigate(`/solicitudes/${s.id}`)}
         />
+
+        <SolicitudTable
+          title="Aprobadas"
+          rows={[...evalAprobadas].sort((a, b) => (b.fecha_creacion ?? '').localeCompare(a.fecha_creacion ?? ''))}
+          onVerTodas={() => navigate('/solicitudes')}
+          onView={(s) => navigate(`/solicitudes/${s.id}`)}
+          showAprobador
+        />
       </div>
     </div>
   )
@@ -1184,9 +1192,9 @@ function ChartCard({ title, subtitle, children }: { title: string; subtitle?: st
   )
 }
 
-function SolicitudTable({ title, rows, count, badge, onVerTodas, onView, showEstado }: {
+function SolicitudTable({ title, rows, count, badge, onVerTodas, onView, showEstado, showAprobador }: {
   title: string; rows: SolicitudRow[]; count?: number; badge?: boolean
-  onVerTodas?: () => void; onView: (s: SolicitudRow) => void; showEstado?: boolean
+  onVerTodas?: () => void; onView: (s: SolicitudRow) => void; showEstado?: boolean; showAprobador?: boolean
 }) {
   return (
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1214,7 +1222,7 @@ function SolicitudTable({ title, rows, count, badge, onVerTodas, onView, showEst
           <table className="min-w-full divide-y divide-gray-100 text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {['Código', 'Proveedor', 'Empresa', 'Fecha pedido', ...(showEstado ? ['Estado'] : []), ''].map(h => (
+                {['Código', 'Proveedor', 'Empresa', 'Fecha pedido', ...(showEstado ? ['Estado'] : []), ...(showAprobador ? ['Aprobado por'] : []), ''].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -1236,6 +1244,9 @@ function SolicitudTable({ title, rows, count, badge, onVerTodas, onView, showEst
                         {s.estado_soli?.nombre ?? '—'}
                       </span>
                     </td>
+                  )}
+                  {showAprobador && (
+                    <td className="px-5 py-3.5 text-gray-600 text-xs">{s.aprobador_nombre ?? '—'}</td>
                   )}
                   <td className="px-5 py-3.5 text-right">
                     <span className="text-xs font-semibold text-[#003D7D]">Revisar →</span>
