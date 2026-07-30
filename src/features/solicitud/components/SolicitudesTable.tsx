@@ -52,6 +52,8 @@ interface Props {
   onOrdenVencimientoChange?: (activo: boolean) => void
   hasFiltrosActivos?: boolean
   onClearFilters?: () => void
+  estadoFilter?: string | null
+  onEstadoFilterChange?: (v: string | null) => void
 }
 
 export default function SolicitudesTable({
@@ -60,7 +62,7 @@ export default function SolicitudesTable({
   selectedIds, onSelectionChange, mesAprobacion, onMesAprobacionChange,
   proyectoFilter, onProyectoFilterChange, pagoFilter, onPagoFilterChange,
   areaFilter, onAreaFilterChange, ordenVencimiento, onOrdenVencimientoChange,
-  hasFiltrosActivos, onClearFilters,
+  hasFiltrosActivos, onClearFilters, estadoFilter, onEstadoFilterChange,
 }: Props) {
   const [searchVal, setSearchVal] = useState('')
   const [proyectos, setProyectos] = useState<Array<{id: number; nombre: string}>>([])
@@ -211,6 +213,18 @@ export default function SolicitudesTable({
               <option value="">Pago: Todos</option>
               <option value="pendiente">Por pagar</option>
               <option value="pagado">Pagados</option>
+            </select>
+          )}
+
+          {onEstadoFilterChange && (
+            <select
+              value={estadoFilter ?? ''}
+              onChange={e => onEstadoFilterChange(e.target.value || null)}
+              className="h-9 flex-1 sm:flex-none rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 min-w-0"
+            >
+              <option value="">Todos los estados</option>
+              <option value="En Revision">En Revision</option>
+              <option value="Evaluado">Evaluado</option>
             </select>
           )}
 

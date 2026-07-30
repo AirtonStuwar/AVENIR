@@ -6,11 +6,13 @@ interface SolicitudFiltrosState {
   mesAprobacion: number | null
   pagoFilter: 'pendiente' | 'pagado' | null
   ordenVencimiento: boolean
+  estadoNombre: string | null
   setProyectoFilter: (v: number | null) => void
   setAreaFilter: (v: number | null) => void
   setMesAprobacion: (v: number | null) => void
   setPagoFilter: (v: 'pendiente' | 'pagado' | null) => void
   setOrdenVencimiento: (v: boolean) => void
+  setEstadoNombre: (v: string | null) => void
   clear: () => void
 }
 
@@ -20,10 +22,12 @@ export const useSolicitudFiltrosStore = create<SolicitudFiltrosState>((set) => (
   mesAprobacion: null,
   pagoFilter: null,
   ordenVencimiento: false,
+  estadoNombre: null,
   setProyectoFilter: (v) => set({ proyectoFilter: v }),
   setAreaFilter: (v) => set({ areaFilter: v }),
   setMesAprobacion: (v) => set({ mesAprobacion: v }),
   setPagoFilter: (v) => set({ pagoFilter: v }),
   setOrdenVencimiento: (v) => set({ ordenVencimiento: v }),
-  clear: () => set({ proyectoFilter: null, areaFilter: null, mesAprobacion: null, pagoFilter: null, ordenVencimiento: false }),
+  setEstadoNombre: (v) => set({ estadoNombre: v }),
+  clear: () => set({ proyectoFilter: null, areaFilter: null, mesAprobacion: null, pagoFilter: null, ordenVencimiento: false, estadoNombre: null }),
 }))

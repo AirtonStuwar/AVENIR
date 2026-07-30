@@ -175,6 +175,7 @@ export interface SolicitudFiltros {
   search?: string
   proyecto_id?: number | null
   estado_id?: number | null
+  estadoNombre?: string | null
   mes_aprobacion?: number | null
   pagoFilter?: 'pendiente' | 'pagado' | null
   areaId?: number | null

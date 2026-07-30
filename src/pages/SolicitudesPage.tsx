@@ -23,18 +23,25 @@ export default function SolicitudesPage() {
 
   // ── Filtros persistentes (sobreviven a navegar a un detalle y volver) ──
   const {
-    proyectoFilter, areaFilter, mesAprobacion, pagoFilter: pagoLocal, ordenVencimiento,
+    proyectoFilter, areaFilter, mesAprobacion, pagoFilter: pagoLocal, ordenVencimiento, estadoNombre,
     setProyectoFilter: setProyectoStore, setAreaFilter: setAreaStore,
     setMesAprobacion: setMesStore, setPagoFilter: setPagoStore,
-    setOrdenVencimiento: setOrdenStore, clear: clearFiltrosStore,
+    setOrdenVencimiento: setOrdenStore, setEstadoNombre: setEstadoStore,
+    clear: clearFiltrosStore,
   } = useSolicitudFiltrosStore()
 
   const {
     data, total, page, pageSize, totalPages, loading, setPage, setSearch,
-    setProyectoFilter, setMesAprobacion, setPagoFilter, setAreaFilter, setOrdenVencimiento, refresh,
-  } = useSolicitudes({ proyecto_id: proyectoFilter, areaId: areaFilter, mes_aprobacion: mesAprobacion, pagoFilter: pagoLocal, ordenVencimiento })
+    setProyectoFilter, setMesAprobacion, setPagoFilter, setAreaFilter, setOrdenVencimiento, setEstadoNombre, refresh,
+  } = useSolicitudes({ proyecto_id: proyectoFilter, areaId: areaFilter, mes_aprobacion: mesAprobacion, pagoFilter: pagoLocal, ordenVencimiento, estadoNombre })
 
   const isVisualizador = userRole === ROLES.VISUALIZADOR
+  const isEvaluador    = userRole === ROLES.EVALUADOR
+
+  const handleEstadoChange = (v: string | null) => {
+    setEstadoStore(v)
+    setEstadoNombre(v)
+  }
 
   const handleProyectoChange = (id: number | null) => {
     setProyectoStore(id)
@@ -61,7 +68,7 @@ export default function SolicitudesPage() {
     setOrdenVencimiento(activo)
   }
 
-  const hasFiltrosActivos = !!(proyectoFilter || areaFilter || mesAprobacion || pagoLocal || ordenVencimiento)
+  const hasFiltrosActivos = !!(proyectoFilter || areaFilter || mesAprobacion || pagoLocal || ordenVencimiento || estadoNombre)
   const handleClearFiltros = () => {
     clearFiltrosStore()
     setProyectoFilter(null)
@@ -69,6 +76,7 @@ export default function SolicitudesPage() {
     setMesAprobacion(null)
     setPagoFilter(null)
     setOrdenVencimiento(false)
+    setEstadoNombre(null)
   }
 
   // ── Selección ─────────────────────────────────────────────────
@@ -344,6 +352,8 @@ export default function SolicitudesPage() {
         onPagoFilterChange={isVisualizador ? handlePagoChange : undefined}
         areaFilter={areaFilter}
         onAreaFilterChange={handleAreaChange}
+        estadoFilter={isEvaluador ? estadoNombre : undefined}
+        onEstadoFilterChange={isEvaluador ? handleEstadoChange : undefined}
         ordenVencimiento={ordenVencimiento}
         onOrdenVencimientoChange={handleOrdenVencimientoChange}
         hasFiltrosActivos={hasFiltrosActivos}

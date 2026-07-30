@@ -51,6 +51,8 @@ export function useSolicitudes(filtrosIniciales: SolicitudFiltros = {}) {
     setFiltros((f) => ({ ...f, pagoFilter: pago ?? undefined, page: 1 }))
   const setAreaFilter = (areaId: number | null) =>
     setFiltros((f) => ({ ...f, areaId: areaId ?? undefined, page: 1 }))
+  const setEstadoNombre = (estadoNombre: string | null) =>
+    setFiltros((f) => ({ ...f, estadoNombre: estadoNombre ?? undefined, page: 1 }))
   const setOrdenVencimiento = (activo: boolean) =>
     setFiltros((f) => ({ ...f, ordenVencimiento: activo || undefined, page: 1 }))
 
@@ -90,5 +92,5 @@ export function useSolicitudes(filtrosIniciales: SolicitudFiltros = {}) {
     }
   }
 
-  return { ...result, loading, filtros, setPage, setSearch, setProyectoFilter, setMesAprobacion, setPagoFilter, setAreaFilter, setOrdenVencimiento, refresh, create, update, remove }
+  return { ...result, loading, filtros, setPage, setSearch, setProyectoFilter, setMesAprobacion, setPagoFilter, setAreaFilter, setOrdenVencimiento, setEstadoNombre, refresh, create, update, remove }
 }

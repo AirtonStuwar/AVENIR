@@ -112,7 +112,7 @@ export async function updateUsuario(id: string, payload: Partial<Omit<Usuario, '
 }
 
 export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<SolicitudPaginado> {
-  const { search, proyecto_id, estado_id, mes_aprobacion, pagoFilter, areaId, ordenVencimiento, page = 1, pageSize = 10, role, userId } = filtros
+  const { search, proyecto_id, estado_id, estadoNombre, mes_aprobacion, pagoFilter, areaId, ordenVencimiento, page = 1, pageSize = 10, role, userId } = filtros
   const from = (page - 1) * pageSize
   const to   = from + pageSize - 1
 
@@ -129,10 +129,20 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
   if (role === ROLES.USUARIO && userId) {
     query = query.eq('usuario_creador', userId)
   } else if (role === ROLES.EVALUADOR && userId) {
-    // Ve: "En Revision" (cualquiera) + solicitudes que él mismo evaluó (cualquier estado)
-    const [enRevisionId] = await resolveEstadoIds(['En Revision'])
-    if (enRevisionId) {
-      query = query.or(`estado_id.eq.${enRevisionId},usuario_evaluador.eq.${userId}`)
+    if (estadoNombre === 'En Revision') {
+      // Filtro explícito: solo las que están en cola por evaluar
+      const [id] = await resolveEstadoIds(['En Revision'])
+      query = id ? query.eq('estado_id', id) : query.eq('id', -1)
+    } else if (estadoNombre === 'Evaluado') {
+      // Filtro explícito: solo las que él mismo ya evaluó
+      const [id] = await resolveEstadoIds(['Evaluado'])
+      query = id ? query.eq('estado_id', id).eq('usuario_evaluador', userId) : query.eq('id', -1)
+    } else {
+      // Sin filtro: ve "En Revision" (cualquiera) + solicitudes que él mismo evaluó (cualquier estado)
+      const [enRevisionId] = await resolveEstadoIds(['En Revision'])
+      if (enRevisionId) {
+        query = query.or(`estado_id.eq.${enRevisionId},usuario_evaluador.eq.${userId}`)
+      }
     }
   } else if (role && role !== ROLES.ADMIN) {
     const tipos = getRoleEstadoTipos(role)
