@@ -827,6 +827,13 @@ function EvaluadorDashboard() {
             )}
           </ChartCard>
         </div>
+
+        <SolicitudTable
+          title="Evaluadas"
+          rows={[...evaluadas].sort((a, b) => (b.fecha_creacion ?? '').localeCompare(a.fecha_creacion ?? ''))}
+          onVerTodas={() => navigate('/solicitudes')}
+          onView={(s) => navigate(`/solicitudes/${s.id}`)}
+        />
       </div>
     </div>
   )
