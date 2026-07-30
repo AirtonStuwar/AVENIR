@@ -139,6 +139,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
 
     if (Object.keys(e).length > 0) {
       setErrors(e)
+      toast.error(`Completa los campos obligatorios: ${Object.values(e).join(', ')}`)
       return
     }
 

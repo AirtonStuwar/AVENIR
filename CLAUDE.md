@@ -134,6 +134,8 @@ Order of cards in detail page: **Info general → Presupuesto (ADMIN+APROBADOR) 
 
 **SolicitudModal** (edit mode) includes all header fields plus `moneda`, `motivo_factura`, `fecha_emision_factura`, and `fecha_vencimiento_factura` — these duplicate the inline edit in the detail card but remain in the modal for completeness.
 
+**Validación silenciosa en `SolicitudModal`:** `submit()` valida **todos** los campos obligatorios del formulario (razón social, RUC, dirección, contacto, forma de pago, porcentajes de contrato, condiciones, fechas) cada vez que se guarda, sin importar cuál campo el usuario realmente esté cambiando. Si algún campo antiguo quedó vacío en la BD (ej. `condiciones` en solicitudes creadas antes de que ese campo fuera obligatorio), el guardado se bloqueaba **en silencio** — solo un texto rojo pequeño bajo el campo, sin aviso visible. Ahora `submit()` además dispara un `toast.error` listando los campos faltantes cuando la validación falla, para que sea evidente por qué "no guarda". El usuario sigue teniendo que completar el campo faltante manualmente — la validación en sí no se relajó.
+
 **Line-item editing components (solicitud):** Two distinct components handle `solicitud_detalle` editing:
 - `SolicitudDetalleModal` — lightweight modal (cantidad, descripción, valor_unitario) used in `SolicitudNuevaPage` wizard Step 2 for add/edit inline. Accepts prop `moneda?: 'PEN' | 'USD'` (default `'PEN'`) to show the correct currency symbol in the label and total preview.
 - `SolicitudDetalleEditor` — full slide-in panel used from `SolicitudDetallePage` to add/edit/delete line items after the solicitud is created. Fetches detalles independently via `getDetallesBySolicitud`.
