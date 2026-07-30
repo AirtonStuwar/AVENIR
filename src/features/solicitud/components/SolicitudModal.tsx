@@ -174,7 +174,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
         await onUpdate!(fields)
         toast.success('Solicitud actualizada exitosamente')
       } else {
-        await onCreate({ ...fields, usuario_creador: user?.id ?? null })
+        await onCreate({ ...fields, usuario_creador: user?.id ?? null, aplica_igv: true })
         toast.success('Solicitud creada exitosamente')
       }
       resetForm()

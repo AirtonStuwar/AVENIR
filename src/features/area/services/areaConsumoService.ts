@@ -52,11 +52,11 @@ export async function getConsumoByAreas(): Promise<AreaConsumo[]> {
   if (estadoIds.length) {
     const { data: solData } = await supabase
       .from('solicitud')
-      .select('id, usuario_creador, moneda, solicitud_tipo:tipo_id(nombre)')
+      .select('id, usuario_creador, moneda, aplica_igv, solicitud_tipo:tipo_id(nombre)')
       .in('estado_id', estadoIds)
 
     const sols = (solData ?? []) as unknown as {
-      id: number; usuario_creador: string | null; moneda: string | null
+      id: number; usuario_creador: string | null; moneda: string | null; aplica_igv: boolean
       solicitud_tipo: { nombre: string } | null
     }[]
 
@@ -79,7 +79,7 @@ export async function getConsumoByAreas(): Promise<AreaConsumo[]> {
         const a = getArea(ua.id, ua.nombre)
         const subtotal = detMap[s.id] ?? 0
         const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
-        const total = isRxH ? subtotal : subtotal * 1.18
+        const total = isRxH || s.aplica_igv === false ? subtotal : subtotal * 1.18
         const isPEN = (s.moneda ?? 'PEN') === 'PEN'
         if (isRxH) {
           if (isPEN) a.rxh_pen += total; else a.rxh_usd += total

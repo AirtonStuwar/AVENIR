@@ -14,7 +14,7 @@ const SOL_SEL = [
   'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
   'numero_factura, monto_total, plan_contable_id, usuario_evaluador, moneda',
   'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
-  'detraccion_id, monto_detraccion, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, detraccion_pagada, fecha_pago_detraccion',
+  'detraccion_id, monto_detraccion, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, detraccion_pagada, fecha_pago_detraccion, aplica_igv',
   'proyecto:proyecto_id(id,nombre,ruc,direccion,presupuesto)',
   'proyecto_partida:proyecto_partida_id(id,nombre,presupuesto_pen,presupuesto_usd)',
   'detraccion:detraccion_id(id,codigo,concepto,porcentaje,monto_minimo)',
@@ -197,14 +197,16 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
 
 // ── Acciones de flujo ─────────────────────────────────────────────
 export async function enviarARevision(id: number): Promise<Solicitud> {
-  const { data: detalles } = await supabase
-    .from('solicitud_detalle')
-    .select('valor_total, cantidad, valor_unitario')
-    .eq('solicitud_id', id)
+  const [{ data: detalles }, { data: sol }] = await Promise.all([
+    supabase.from('solicitud_detalle').select('valor_total, cantidad, valor_unitario').eq('solicitud_id', id),
+    supabase.from('solicitud').select('aplica_igv, solicitud_tipo:tipo_id(nombre)').eq('id', id).maybeSingle(),
+  ])
 
+  const isRxH = (sol as unknown as { solicitud_tipo: { nombre: string } | null } | null)?.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+  const aplicaIgv = (sol as unknown as { aplica_igv: boolean } | null)?.aplica_igv !== false
   const subtotal   = ((detalles ?? []) as { valor_total: number | null; cantidad: number; valor_unitario: number }[])
     .reduce((sum, d) => sum + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-  const montoTotal = +((subtotal * 1.18).toFixed(2))
+  const montoTotal = isRxH || !aplicaIgv ? subtotal : +((subtotal * 1.18).toFixed(2))
 
   const [estadoId] = await resolveEstadoIds(['En Revision'])
   if (!estadoId) throw new Error('Estado "En Revision" no encontrado en BD')
@@ -490,6 +492,7 @@ export async function duplicarSolicitud(id: number, userId: string): Promise<Sol
     moneda:                         original.moneda,
     fecha_pedido:                   original.fecha_pedido,
     fecha_requerida:                original.fecha_requerida,
+    aplica_igv:                     original.aplica_igv,
     usuario_creador:                userId,
     detalles: (original.detalles ?? []).map(d => ({
       solicitud_id:   0,

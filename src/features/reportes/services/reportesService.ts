@@ -109,7 +109,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
   let q = supabase
     .from('solicitud')
     .select([
-      'id, codigo, tipo_id, usuario_creador, razon_social, ruc, moneda',
+      'id, codigo, tipo_id, usuario_creador, razon_social, ruc, moneda, aplica_igv',
       'numero_factura, numero_rxh, porcentaje_retencion, monto_retencion',
       'detraccion_id, monto_detraccion, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura, fecha_pago',
       'proyecto_id, proyecto_partida_id',
@@ -131,7 +131,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
 
   const rows = (data ?? []) as unknown as {
     id: number; codigo: string | null; usuario_creador: string | null
-    razon_social: string | null; ruc: string | null; moneda: string | null
+    razon_social: string | null; ruc: string | null; moneda: string | null; aplica_igv: boolean
     numero_factura: string | null; numero_rxh: string | null
     porcentaje_retencion: number | null; monto_retencion: number | null
     monto_detraccion: number | null; fecha_aprobacion: string | null
@@ -182,7 +182,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     const isRxH   = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
     const det      = detallesMap[s.id] ?? []
     const subtotal = det.reduce((sum, d) => sum + d.valor_total, 0)
-    const igv      = isRxH ? 0 : subtotal * 0.18
+    const igv      = isRxH || s.aplica_igv === false ? 0 : subtotal * 0.18
     const total    = subtotal + igv
     const detrac   = s.monto_detraccion ?? 0
     const reten    = s.monto_retencion ?? 0

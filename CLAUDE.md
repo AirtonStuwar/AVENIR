@@ -211,6 +211,13 @@ All above fields are excluded from `SolicitudInsert`.
 
 **Tipos de solicitud visibles en el dropdown de creación:** solo `PAGO A PROVEEDORES`, `POLIZAS Y SEGUROS` y `Recibo por Honorarios`. Los tipos `A RENDIR`, `CAJA CHICA` y `REEMBOLSO` están ocultos porque tienen módulos propios.
 
+**OC "Sin IGV" (`solicitud.aplica_igv`, boolean, default `true`):** checkbox "Aplica IGV (18%)" en el Step 1 del wizard, **solo para OC** (RxH nunca aplica IGV, sin importar este campo). Se decide al crear la solicitud, no es editable después. Cuando se desmarca:
+- El total no suma el 18% en ningún lado: `SolicitudDetallePage.tsx`, `SolicitudNuevaPage.tsx` (Step 2), `OrdenCompraPDF.tsx`, `reportesService.ts` (`fetchSolicitudes`), `dashboardService.ts`/`DashboardPage.tsx` (`montoSolicitudes`, `montoByProyecto`), `areaConsumoService.ts`, `planContableGastoService.ts`, y el RPC SQL `get_consumo_proyectos()` (presupuesto/consumo) — todos gatean con `isRxH || aplica_igv === false` en vez de solo `isRxH`.
+- Cotización, Sustento y Contrato pasan de obligatorios a **opcionales** en Step 3 del wizard y en el detalle de la solicitud (`DOCS_OBLIGATORIOS = []` cuando `sinIgv`, vía la prop `tiposOpcionales` de `SolicitudArchivos`).
+- La fila "IGV (18%)" del detalle y del PDF cambia su etiqueta a "IGV (no aplica)".
+- `enviarARevision()` en `solicitudService.ts` también respeta este flag al calcular `monto_total` (usado en el Excel BBVA y el Excel de Detracciones SPOT de `SolicitudesPage.tsx`) — de paso se corrigió un bug preexistente ahí: antes multiplicaba por 1.18 siempre, sin excluir RxH.
+- `EvaluarModal` y `SolicitudArchivos` no necesitan lógica propia — heredan el total/los tipos opcionales correctos vía props desde el componente padre.
+
 **Tabla `detraccion`:** 6 conceptos del sistema SPOT-SUNAT. Campos: `id`, `codigo` (ej. '022'), `concepto`, `porcentaje` (numeric), `monto_minimo` (numeric: 700 o 400 soles según concepto). RLS: SELECT for authenticated users. Service: `getDetracciones()` returns all rows. La detracción es **solo informativa** — no altera el total de la solicitud; se guarda para reportes.
 
 ---

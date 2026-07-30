@@ -96,7 +96,7 @@ function montoSolicitudes(sols: SolicitudRow[], detalles: { solicitud_id: number
   return filtered.reduce((sum, s) => {
     const subtotal = subtotalBySol[s.id] ?? 0
     const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
-    return sum + (isRxH ? subtotal : subtotal * 1.18)
+    return sum + (isRxH || s.aplica_igv === false ? subtotal : subtotal * 1.18)
   }, 0)
 }
 
@@ -203,7 +203,7 @@ function AdminDashboard() {
       const nombre = s.proyecto?.nombre ?? 'Sin empresa'
       const subtotal = detalles.filter(d => d.solicitud_id === s.id).reduce((acc, d) => acc + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
       const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
-      map[nombre] = (map[nombre] ?? 0) + (isRxH ? subtotal : subtotal * 1.18)
+      map[nombre] = (map[nombre] ?? 0) + (isRxH || s.aplica_igv === false ? subtotal : subtotal * 1.18)
     }
     return Object.entries(map).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a).slice(0, 5).map(([name, monto]) => ({
       name: name.length > 22 ? name.slice(0, 22) + '…' : name,

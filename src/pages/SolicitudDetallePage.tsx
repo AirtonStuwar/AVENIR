@@ -250,6 +250,8 @@ export default function SolicitudDetallePage() {
   const isOwnSolicitud = solicitud?.usuario_creador === user?.id
 
   const isRxH        = solicitud?.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+  // OC marcada "Sin IGV" al crearla: no suma 18% y los documentos dejan de ser obligatorios
+  const sinIgv       = !isRxH && solicitud?.aplica_igv === false
   // Observado (devuelto por contabilidad): editable como Pendiente, pero SIN abrir el modal
   // de cabecera — así banco y número de cuenta quedan bloqueados durante la corrección.
   const canEdit      = (isPendiente || isObservado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
@@ -260,14 +262,16 @@ export default function SolicitudDetallePage() {
   const _tc          = _solMoneda === 'USD' ? (tipoCambio ?? 1) : 1
   const DOCS_OBLIGATORIOS     = isRxH
     ? ['Sustento', 'Recibo Honorario']
-    : (() => {
-        // subtotal se calcula abajo, pero aquí usamos detalles directamente
-        const sub = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-        const totalIgvSoles = sub * 1.18 * _tc
-        return totalIgvSoles >= 3500
-          ? ['Contrato', 'Cotizacion', 'Sustento']
-          : ['Cotizacion', 'Sustento']
-      })()
+    : sinIgv
+      ? []
+      : (() => {
+          // subtotal se calcula abajo, pero aquí usamos detalles directamente
+          const sub = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
+          const totalIgvSoles = sub * 1.18 * _tc
+          return totalIgvSoles >= 3500
+            ? ['Contrato', 'Cotizacion', 'Sustento']
+            : ['Cotizacion', 'Sustento']
+        })()
   const tieneDocsObligatorios = DOCS_OBLIGATORIOS.every(doc =>
     archivosSubidos.some(a => a.tipo_archivo === doc)
   )
@@ -627,7 +631,7 @@ export default function SolicitudDetallePage() {
   const subtotal       = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
   const retencionPct   = solicitud?.porcentaje_retencion ?? 0
   const retencion      = isRxH ? (solicitud?.monto_retencion ?? subtotal * retencionPct / 100) : 0
-  const igv            = isRxH ? 0 : subtotal * 0.18
+  const igv            = isRxH || sinIgv ? 0 : subtotal * 0.18
   const totalConIgv    = isRxH ? subtotal - retencion : subtotal + igv
 
   // ── Loading / not found ───────────────────────────────────────
@@ -1000,7 +1004,7 @@ export default function SolicitudDetallePage() {
                     </tr>
                   ) : (
                     <tr>
-                      <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV (18%)</td>
+                      <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">{sinIgv ? 'IGV (no aplica)' : 'IGV (18%)'}</td>
                       <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(igv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                       {canEdit && <td />}
                     </tr>
@@ -1034,7 +1038,9 @@ export default function SolicitudDetallePage() {
             : undefined}
           tiposOpcionales={isRxH
             ? (solicitud.aplica_suspension ? ['Suspension'] : [])
-            : DOCS_OBLIGATORIOS.includes('Contrato') ? [] : ['Contrato']}
+            : sinIgv
+              ? ['Contrato', 'Cotizacion', 'Sustento']
+              : DOCS_OBLIGATORIOS.includes('Contrato') ? [] : ['Contrato']}
         />
         {isPendiente && !tieneDocsObligatorios && (
           <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">

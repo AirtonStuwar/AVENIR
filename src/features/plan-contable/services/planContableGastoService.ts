@@ -14,6 +14,7 @@ export interface GastoPlanContable {
 interface SolRow {
   id: number
   moneda: string | null
+  aplica_igv: boolean
   estado_soli: { nombre: string } | null
   solicitud_tipo: { nombre: string } | null
   plan_contable: {
@@ -33,7 +34,7 @@ interface SolRow {
 export async function getGastoPorPlanContable(userId?: string): Promise<GastoPlanContable[]> {
   let q = supabase
     .from('solicitud')
-    .select('id, moneda, estado_soli:estado_id(nombre), solicitud_tipo:tipo_id(nombre), plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)')
+    .select('id, moneda, aplica_igv, estado_soli:estado_id(nombre), solicitud_tipo:tipo_id(nombre), plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)')
     .not('plan_contable_id', 'is', null)
   if (userId) q = q.eq('usuario_creador', userId)
   const { data, error } = await q
@@ -60,7 +61,7 @@ export async function getGastoPorPlanContable(userId?: string): Promise<GastoPla
     const plan = s.plan_contable!
     const subtotal = subtotalBySol[s.id] ?? 0
     const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
-    const total = isRxH ? subtotal : subtotal * 1.18
+    const total = isRxH || s.aplica_igv === false ? subtotal : subtotal * 1.18
     if (!byPlan[plan.id]) {
       byPlan[plan.id] = {
         plan_contable_id: plan.id,

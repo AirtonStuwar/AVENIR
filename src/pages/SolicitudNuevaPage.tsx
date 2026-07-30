@@ -107,6 +107,7 @@ export default function SolicitudNuevaPage() {
   const [fecha_emision_rxh,       setFechaEmisionRxh]        = useState('')
   const [fecha_vencimiento_rxh,   setFechaVencimientoRxh]    = useState('')
   const [aplica_suspension, setAplicaSuspension] = useState<boolean | null>(null)
+  const [aplica_igv,        setAplicaIgv]        = useState(true)
   const [tipoCambio,        setTipoCambio]       = useState<number | null>(null)
 
   const tipoNombreSeleccionado = tipos.find(t => t.id === tipo_id)?.nombre ?? ''
@@ -231,6 +232,7 @@ export default function SolicitudNuevaPage() {
         periodo_servicio: isRxH && periodo_servicio ? periodo_servicio + '-01' : null,
         fecha_emision_factura: isRxH ? (fecha_emision_rxh || null) : null,
         fecha_vencimiento_factura: isRxH ? (fecha_vencimiento_rxh || null) : null,
+        aplica_igv: isRxH ? true : aplica_igv,
       }
 
       if (solicitudId) {
@@ -308,7 +310,7 @@ export default function SolicitudNuevaPage() {
   }
 
   const subtotal     = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-  const igv          = isRxH ? 0 : subtotal * 0.18
+  const igv          = isRxH || !aplica_igv ? 0 : subtotal * 0.18
   const totalGeneral = subtotal + igv
 
   const inp = (err?: string) => (err ? INPUT_ERR : INPUT)
@@ -663,6 +665,23 @@ export default function SolicitudNuevaPage() {
                 </div>
               </div>}
 
+              {/* Aplica IGV (solo OC, no RxH) */}
+              {!isRxH && (
+                <div>
+                  <label className="flex items-center gap-2.5 cursor-pointer w-fit">
+                    <input type="checkbox" className="h-4 w-4 rounded border-gray-300 accent-[#003D7D] cursor-pointer"
+                      checked={aplica_igv}
+                      onChange={(e) => setAplicaIgv(e.target.checked)} />
+                    <span className="text-sm text-gray-700">Aplica IGV (18%)</span>
+                  </label>
+                  {!aplica_igv && (
+                    <p className="mt-1 text-xs text-amber-600">
+                      El total no sumará el 18% de IGV, y Cotización/Sustento/Contrato serán opcionales al subir documentos.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Fechas */}
               <div>
                 <SectionTitle>Fechas</SectionTitle>
@@ -842,18 +861,21 @@ export default function SolicitudNuevaPage() {
           const subtotalEnSoles = moneda === 'USD' && tipoCambio ? subtotal * tipoCambio : subtotal
           const superaUmbral = isRxH && subtotalEnSoles >= 1500
           const totalConIgvEnSoles = subtotalEnSoles * 1.18
-          const requiereContrato = !isRxH && totalConIgvEnSoles >= 3500
+          const requiereContrato = !isRxH && aplica_igv && totalConIgvEnSoles >= 3500
 
           const tiposVisiblesRxH = aplica_suspension === true
             ? ['Sustento', 'Recibo Honorario', 'Suspension']
             : ['Sustento', 'Recibo Honorario']
 
-          // Docs obligatorios: para OC, Cotizacion y Sustento siempre; Contrato solo si monto >= S/ 3,500
+          // Docs obligatorios: para OC, Cotizacion y Sustento siempre; Contrato solo si monto >= S/ 3,500.
+          // Si la OC es "Sin IGV", ningún documento es obligatorio.
           const docsObligatorios = isRxH
             ? ['Sustento', 'Recibo Honorario']
-            : requiereContrato
-              ? ['Contrato', 'Cotizacion', 'Sustento']
-              : ['Cotizacion', 'Sustento']
+            : !aplica_igv
+              ? []
+              : requiereContrato
+                ? ['Contrato', 'Cotizacion', 'Sustento']
+                : ['Cotizacion', 'Sustento']
 
           const docsCompletos = docsObligatorios.every(tipo =>
             archivos.some(a => a.tipo_archivo === tipo)
@@ -870,9 +892,11 @@ export default function SolicitudNuevaPage() {
                 <p className="text-xs text-blue-600">
                   {isRxH
                     ? 'Sustento y PDF del Recibo por Honorarios son obligatorios.'
-                    : requiereContrato
-                      ? 'Contrato, Cotización y Sustento son obligatorios (monto supera S/ 3,500).'
-                      : 'Cotización y Sustento son obligatorios. Contrato es opcional (monto menor a S/ 3,500).'
+                    : !aplica_igv
+                      ? 'Esta OC es "Sin IGV" — todos los documentos son opcionales.'
+                      : requiereContrato
+                        ? 'Contrato, Cotización y Sustento son obligatorios (monto supera S/ 3,500).'
+                        : 'Cotización y Sustento son obligatorios. Contrato es opcional (monto menor a S/ 3,500).'
                   }
                 </p>
               </div>
@@ -924,7 +948,9 @@ export default function SolicitudNuevaPage() {
                 : ['Contrato', 'Cotizacion', 'Sustento', 'Cuadro Comparativo']}
               tiposOpcionales={isRxH
                 ? (aplica_suspension === true ? ['Suspension'] : [])
-                : requiereContrato ? [] : ['Contrato']}
+                : !aplica_igv
+                  ? ['Contrato', 'Cotizacion', 'Sustento']
+                  : requiereContrato ? [] : ['Contrato']}
             />
 
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
