@@ -213,10 +213,10 @@ export default function SolicitudDetalleEditor({ solicitudId, open, onClose }: P
                       <td className="px-4 py-3 text-sm text-gray-900">{d.descripcion}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900">{d.cantidad}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900">
-                        ${d.valor_unitario.toLocaleString()}
+                        ${d.valor_unitario.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-[#003D7D]">
-                        ${(d.valor_total ?? d.cantidad * d.valor_unitario).toLocaleString()}
+                        ${(d.valor_total ?? d.cantidad * d.valor_unitario).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-sm">
                         <button
@@ -241,7 +241,7 @@ export default function SolicitudDetalleEditor({ solicitudId, open, onClose }: P
                       Total general:
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right text-lg font-bold text-[#003D7D]">
-                      ${calcularTotal().toLocaleString()}
+                      ${calcularTotal().toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td></td>
                   </tr>

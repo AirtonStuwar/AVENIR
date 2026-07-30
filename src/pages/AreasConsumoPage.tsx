@@ -4,8 +4,8 @@ import toast from 'react-hot-toast'
 import { getConsumoByAreas } from '../features/area/services/areaConsumoService'
 import type { AreaConsumo } from '../features/area/services/areaConsumoService'
 
-const fmt = (n: number) => n === 0 ? '—' : `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-const fmtUSD = (n: number) => n === 0 ? '—' : `$ ${n.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+const fmt = (n: number) => n === 0 ? '—' : `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const fmtUSD = (n: number) => n === 0 ? '—' : `$ ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 const MODULOS = [
   { key: 'oc', label: 'OC', color: 'bg-blue-500' },

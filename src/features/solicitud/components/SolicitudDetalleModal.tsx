@@ -115,8 +115,8 @@ export default function SolicitudDetalleModal({ open, detalle, moneda = 'PEN', o
             <span className="text-sm text-gray-500">Total</span>
             <span className="text-base font-bold text-[#003D7D]">
               {moneda === 'USD'
-                ? `$ ${total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-                : `S/ ${total.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                ? `$ ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : `S/ ${total.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
             </span>
           </div>
         </div>

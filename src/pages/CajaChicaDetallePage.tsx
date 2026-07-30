@@ -28,7 +28,7 @@ import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import logoUrl from '../assets/avenir-logo.png'
 
-const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
+const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const fmtDate = (s: string | null) => {
   if (!s) return '—'
   try {
@@ -646,7 +646,7 @@ export default function CajaChicaDetallePage() {
                     <td className="px-3 py-2 text-gray-600 text-xs">{d.tipo_documento}</td>
                     <td className="px-3 py-2 text-gray-600 text-xs">{d.numero_documento ?? '—'}</td>
                     <td className="px-3 py-2 text-gray-700 max-w-[200px] truncate">{d.detalle}</td>
-                    <td className="px-3 py-2 text-right font-mono font-semibold text-gray-800">{d.monto.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</td>
+                    <td className="px-3 py-2 text-right font-mono font-semibold text-gray-800">{d.monto.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="px-3 py-2">
                       {canEdit && (
                         <div className="flex items-center gap-0.5 justify-end">

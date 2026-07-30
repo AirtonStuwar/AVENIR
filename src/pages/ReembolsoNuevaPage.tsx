@@ -344,15 +344,15 @@ export default function ReembolsoNuevaPage() {
                 const saldo = pres - cons
                 if (pct <= 80) return (
                   <p className="text-[11px] text-emerald-600">
-                    Saldo disponible: {sym} {saldo.toLocaleString('es-PE', { minimumFractionDigits: 2 })} ({(100 - pct).toFixed(0)}%)
+                    Saldo disponible: {sym} {saldo.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({(100 - pct).toFixed(0)}%)
                   </p>
                 )
                 return (
                   <div className={`flex items-start gap-1.5 px-3 py-2 rounded-lg text-xs ${pct >= 100 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
                     <span className="shrink-0 mt-0.5">⚠️</span>
                     <span>{pct >= 100
-                      ? `Presupuesto agotado — consumido ${sym} ${cons.toLocaleString('es-PE', { minimumFractionDigits: 2 })} de ${sym} ${pres.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-                      : `Presupuesto al ${pct.toFixed(0)}% — saldo: ${sym} ${saldo.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                      ? `Presupuesto agotado — consumido ${sym} ${cons.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} de ${sym} ${pres.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `Presupuesto al ${pct.toFixed(0)}% — saldo: ${sym} ${saldo.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     </span>
                   </div>
                 )
@@ -548,7 +548,7 @@ export default function ReembolsoNuevaPage() {
                       Total a reembolsar:
                     </td>
                     <td className="px-3 py-2.5 text-right font-bold text-[#003D7D] text-sm">
-                      {sym} {totalDetalle.toLocaleString(loc, { minimumFractionDigits: 2 })}
+                      {sym} {totalDetalle.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td colSpan={2} />
                   </tr>

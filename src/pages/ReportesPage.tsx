@@ -16,8 +16,8 @@ const TIPO_BADGE: Record<string, { label: string; color: string; icon: React.Rea
   'Devolución':  { label: 'Devolución',  color: 'bg-teal-100 text-teal-700',     icon: <RotateCcw  size={11} /> },
 }
 
-const fmt = (n: number) => n === 0 ? '—' : `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-const fmtUSD = (n: number) => n === 0 ? '—' : `$ ${n.toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+const fmt = (n: number) => n === 0 ? '—' : `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+const fmtUSD = (n: number) => n === 0 ? '—' : `$ ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const fmtDate = (s: string | null) => {
   if (!s) return '—'
   try {

@@ -590,7 +590,7 @@ const fmtDate = (s: string | null) => {
 }
 
 const fmtNum = (n: number) =>
-  n === 0 ? '' : n.toLocaleString('es-PE', { minimumFractionDigits: 2 })
+  n === 0 ? '' : n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export async function exportarReporteExcel(
   rows: ReporteRow[],

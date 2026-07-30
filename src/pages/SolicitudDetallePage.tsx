@@ -68,7 +68,7 @@ function fmtDate(d: string | null) {
 
 function fmtMoney(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
   const sym = moneda === 'USD' ? '$ ' : 'S/ '
-  return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })
+  return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 const ESTADO_COLOR: Record<string, string> = {
@@ -870,14 +870,14 @@ export default function SolicitudDetallePage() {
                       </div>
                     )}
                     <div className="flex justify-between text-[11px] text-gray-500">
-                      <span>Consumido: S/ {cons.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>
-                      {pres > 0 && <span>Presup: S/ {pres.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</span>}
+                      <span>Consumido: S/ {cons.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      {pres > 0 && <span>Presup: S/ {pres.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
                     </div>
                     {pres > 0 && (
                       <p className={`mt-1 text-xs font-medium ${pct > 100 ? 'text-red-600' : 'text-emerald-600'}`}>
                         {pct > 100
-                          ? `Excedido por S/ ${(cons - pres).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-                          : `Saldo: S/ ${(pres - cons).toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                          ? `Excedido por S/ ${(cons - pres).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : `Saldo: S/ ${(pres - cons).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                       </p>
                     )}
                   </div>
@@ -901,14 +901,14 @@ export default function SolicitudDetallePage() {
                       </div>
                     )}
                     <div className="flex justify-between text-[11px] text-gray-500">
-                      <span>Consumido: $ {cons.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                      {pres > 0 && <span>Presup: $ {pres.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>}
+                      <span>Consumido: $ {cons.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      {pres > 0 && <span>Presup: $ {pres.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>}
                     </div>
                     {pres > 0 && (
                       <p className={`mt-1 text-xs font-medium ${pct > 100 ? 'text-red-600' : 'text-emerald-600'}`}>
                         {pct > 100
-                          ? `Excedido por $ ${(cons - pres).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-                          : `Saldo: $ ${(pres - cons).toLocaleString('en-US', { minimumFractionDigits: 2 })}`}
+                          ? `Excedido por $ ${(cons - pres).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          : `Saldo: $ ${(pres - cons).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                       </p>
                     )}
                   </div>
@@ -1297,7 +1297,7 @@ export default function SolicitudDetallePage() {
               </div>
               <div>
                 <p className={LABEL}>Monto mínimo</p>
-                <p className="text-sm text-gray-700">S/ {solicitud.detraccion.monto_minimo.toLocaleString('es-PE')}</p>
+                <p className="text-sm text-gray-700">S/ {solicitud.detraccion.monto_minimo.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
               </div>
               <div>
                 <p className={LABEL}>Monto detracción</p>

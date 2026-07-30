@@ -262,9 +262,9 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
               </div>
               {tcValue != null && tcValue > 0 && (
                 <p className="mt-1.5 text-xs text-gray-500">
-                  Total: $ {totalSolicitud.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  Total: $ {totalSolicitud.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   {' '}× {tcValue.toFixed(3)}
-                  {' '}= S/ {totalEnSoles.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                  {' '}= S/ {totalEnSoles.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               )}
             </div>
@@ -301,8 +301,8 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
                 <p className="mt-2 text-xs text-[#003D7D] font-medium">
                   Monto detracción: S/ {montoDetraccionCalc.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   {isUSD
-                    ? ` ($ ${totalSolicitud.toLocaleString('en-US', { minimumFractionDigits: 2 })} × ${tcValue?.toFixed(3)} × ${detraccionSel.porcentaje}%)`
-                    : ` (${detraccionSel.porcentaje}% de S/ ${totalEnSoles.toLocaleString('es-PE', { minimumFractionDigits: 2 })})`}
+                    ? ` ($ ${totalSolicitud.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × ${tcValue?.toFixed(3)} × ${detraccionSel.porcentaje}%)`
+                    : ` (${detraccionSel.porcentaje}% de S/ ${totalEnSoles.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`}
                 </p>
               )}
             </div>

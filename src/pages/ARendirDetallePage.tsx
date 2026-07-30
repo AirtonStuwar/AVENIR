@@ -35,7 +35,7 @@ function fmtMoney(val: number | null, moneda = 'PEN') {
   if (val == null) return '—'
   const sym = moneda === 'USD' ? '$ ' : 'S/ '
   const loc = moneda === 'USD' ? 'en-US' : 'es-PE'
-  return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2 })}`
+  return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function fmtDate(val: string | null) {
@@ -628,7 +628,7 @@ export default function ARendirDetallePage() {
                     <td className="px-4 py-3 text-gray-600 font-mono text-xs">{d.numero_documento ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-900">{d.concepto ?? '—'}</td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                      {sym}{d.importe.toLocaleString(solicitud.moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })}
+                      {sym}{d.importe.toLocaleString(solicitud.moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1 justify-end">

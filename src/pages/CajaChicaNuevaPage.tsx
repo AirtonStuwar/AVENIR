@@ -73,7 +73,7 @@ export default function CajaChicaNuevaPage() {
     }
   }
 
-  const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
+  const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
   return (
     <div className="min-h-screen bg-gray-50 flex justify-center">

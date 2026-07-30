@@ -18,9 +18,9 @@ interface Props {
 }
 
 const fmtPEN = (n: number) =>
-  n > 0 ? `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}` : '—'
+  n > 0 ? `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
 const fmtUSD = (n: number) =>
-  n > 0 ? `$ ${n.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '—'
+  n > 0 ? `$ ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
 
 const EMPTY = { nombre: '', presupuesto_pen: '', presupuesto_usd: '' }
 

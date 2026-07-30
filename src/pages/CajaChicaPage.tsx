@@ -19,7 +19,7 @@ const ESTADO_BADGE: Record<string, string> = {
   'Observado':   'bg-amber-100 text-amber-800',
 }
 
-const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
+const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const fmtDate = (s: string | null) => {
   if (!s) return '—'
   try {

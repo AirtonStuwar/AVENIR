@@ -550,7 +550,7 @@ export default function SolicitudNuevaPage() {
                       const saldo = pres - cons
                       if (pct <= 80) return (
                         <p className="mt-1 text-[11px] text-emerald-600">
-                          Saldo disponible: {sym} {saldo.toLocaleString('es-PE', { minimumFractionDigits: 2 })} ({(100 - pct).toFixed(0)}%)
+                          Saldo disponible: {sym} {saldo.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({(100 - pct).toFixed(0)}%)
                         </p>
                       )
                       return (
@@ -558,8 +558,8 @@ export default function SolicitudNuevaPage() {
                           <span className="shrink-0 mt-0.5">⚠️</span>
                           <span>
                             {pct >= 100
-                              ? `Presupuesto agotado — consumido ${sym} ${cons.toLocaleString('es-PE', { minimumFractionDigits: 2 })} de ${sym} ${pres.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-                              : `Presupuesto al ${pct.toFixed(0)}% — saldo: ${sym} ${saldo.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                              ? `Presupuesto agotado — consumido ${sym} ${cons.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} de ${sym} ${pres.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              : `Presupuesto al ${pct.toFixed(0)}% — saldo: ${sym} ${saldo.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                           </span>
                         </div>
                       )
@@ -736,7 +736,7 @@ export default function SolicitudNuevaPage() {
                 <div className="flex items-center gap-3">
                   {totalGeneral > 0 && (
                     <span className="text-sm font-bold text-[#003D7D]">
-                      S/ {totalGeneral.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                      S/ {totalGeneral.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   )}
                   {loadingDet
@@ -776,9 +776,9 @@ export default function SolicitudNuevaPage() {
                           <td className="px-5 py-3 text-gray-400 text-xs">{i + 1}</td>
                           <td className="px-5 py-3 text-gray-900">{d.descripcion}</td>
                           <td className="px-5 py-3 text-right text-gray-700">{d.cantidad}</td>
-                          <td className="px-5 py-3 text-right text-gray-700">S/ {d.valor_unitario.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</td>
+                          <td className="px-5 py-3 text-right text-gray-700">S/ {d.valor_unitario.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className="px-5 py-3 text-right font-semibold text-[#003D7D]">
-                            S/ {(d.valor_total ?? d.cantidad * d.valor_unitario).toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                            S/ {(d.valor_total ?? d.cantidad * d.valor_unitario).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td className="px-5 py-3">
                             <div className="flex items-center justify-end gap-2">
@@ -793,7 +793,7 @@ export default function SolicitudNuevaPage() {
                       <tr>
                         <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">Subtotal</td>
                         <td className="px-5 py-2 text-right text-sm text-gray-600">
-                          S/ {subtotal.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                          S/ {subtotal.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td />
                       </tr>
@@ -801,7 +801,7 @@ export default function SolicitudNuevaPage() {
                         <tr>
                           <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV (18%)</td>
                           <td className="px-5 py-2 text-right text-sm text-gray-600">
-                            S/ {igv.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                            S/ {igv.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
                           <td />
                         </tr>
@@ -811,7 +811,7 @@ export default function SolicitudNuevaPage() {
                           {isRxH ? 'Total:' : 'Total general:'}
                         </td>
                         <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">
-                          S/ {totalGeneral.toLocaleString('es-PE', { minimumFractionDigits: 2 })}
+                          S/ {totalGeneral.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td />
                       </tr>

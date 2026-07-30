@@ -328,15 +328,15 @@ export default function ARendirNuevaPage() {
                 const saldo = pres - cons
                 if (pct <= 80) return (
                   <p className="text-[11px] text-emerald-600">
-                    Saldo disponible: {sym} {saldo.toLocaleString('es-PE', { minimumFractionDigits: 2 })} ({(100 - pct).toFixed(0)}%)
+                    Saldo disponible: {sym} {saldo.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({(100 - pct).toFixed(0)}%)
                   </p>
                 )
                 return (
                   <div className={`flex items-start gap-1.5 px-3 py-2 rounded-lg text-xs ${pct >= 100 ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
                     <span className="shrink-0 mt-0.5">⚠️</span>
                     <span>{pct >= 100
-                      ? `Presupuesto agotado — consumido ${sym} ${cons.toLocaleString('es-PE', { minimumFractionDigits: 2 })} de ${sym} ${pres.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`
-                      : `Presupuesto al ${pct.toFixed(0)}% — saldo: ${sym} ${saldo.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                      ? `Presupuesto agotado — consumido ${sym} ${cons.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} de ${sym} ${pres.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `Presupuesto al ${pct.toFixed(0)}% — saldo: ${sym} ${saldo.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                     </span>
                   </div>
                 )
@@ -450,7 +450,7 @@ export default function ARendirNuevaPage() {
           {/* Info card */}
           <div className="bg-[#003D7D]/[0.04] border border-[#003D7D]/20 rounded-2xl px-5 py-3 flex items-center gap-4 text-sm">
             <span className="font-mono font-bold text-[#003D7D]">{solicitudCreada.codigo}</span>
-            <span className="text-gray-600">Importe adelanto: <strong>{moneda === 'USD' ? '$' : 'S/'} {Number(importe).toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })}</strong></span>
+            <span className="text-gray-600">Importe adelanto: <strong>{moneda === 'USD' ? '$' : 'S/'} {Number(importe).toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
           </div>
 
           {/* Detail table */}
@@ -572,7 +572,7 @@ export default function ARendirNuevaPage() {
                       Total a reembolsar:
                     </td>
                     <td className="px-3 py-2.5 text-right font-bold text-[#003D7D] text-sm">
-                      {moneda === 'USD' ? '$' : 'S/'} {totalDetalle.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })}
+                      {moneda === 'USD' ? '$' : 'S/'} {totalDetalle.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td colSpan={2} />
                   </tr>
@@ -589,8 +589,8 @@ export default function ARendirNuevaPage() {
               const loc = moneda === 'USD' ? 'en-US' : 'es-PE'
               const diff = Number(importe) - totalDetalle
               return diff >= 0
-                ? `El usuario debe devolver: ${sym} ${diff.toLocaleString(loc, { minimumFractionDigits: 2 })}`
-                : `La empresa reembolsa al usuario: ${sym} ${Math.abs(diff).toLocaleString(loc, { minimumFractionDigits: 2 })}`
+                ? `El usuario debe devolver: ${sym} ${diff.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : `La empresa reembolsa al usuario: ${sym} ${Math.abs(diff).toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
             })()}
             </div>
           )}

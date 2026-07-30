@@ -29,7 +29,7 @@ import type { PlanContable } from '../features/solicitud/types/solicitud'
 function fmtMoney(val: number | null, moneda = 'PEN') {
   if (val == null) return '—'
   const sym = moneda === 'USD' ? '$ ' : 'S/ '
-  return `${sym}${val.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2 })}`
+  return `${sym}${val.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function fmtDate(val: string | null) {

@@ -30,7 +30,7 @@ function EstadoBadge({ estado }: { estado: SolicitudReembolso['estado'] }) {
 function fmtMoney(val: number, moneda = 'PEN') {
   const sym = moneda === 'USD' ? '$ ' : 'S/ '
   const loc = moneda === 'USD' ? 'en-US' : 'es-PE'
-  return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2 })}`
+  return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 function fmtDate(val: string | null) {

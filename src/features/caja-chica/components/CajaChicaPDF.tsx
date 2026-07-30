@@ -269,7 +269,7 @@ export function CajaChicaPDF({ cajaChica, detalles, logoSrc, firmaUsuarioSrc, fi
               <Text style={[s.td, s.colTipo]}>{d.tipo_documento}</Text>
               <Text style={[s.td, s.colNumDoc]}>{d.numero_documento ?? '—'}</Text>
               <Text style={[s.td, s.colDetalle]}>{d.detalle}</Text>
-              <Text style={[s.td, s.colMonto]}>{d.monto.toLocaleString('es-PE', { minimumFractionDigits: 2 })}</Text>
+              <Text style={[s.td, s.colMonto]}>{d.monto.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
             </View>
           ))}
 
