@@ -102,7 +102,7 @@ export default function SolicitudDetalleModal({ open, detalle, moneda = 'PEN', o
               <label className={LABEL}>Valor unitario ({moneda === 'USD' ? '$' : 'S/'}) *</label>
               <input
                 className={INPUT + (errors.valor ? ' border-red-300 bg-red-50' : '')}
-                type="number" min="0" step="0.01"
+                type="number" min="0" step="0.001"
                 value={valor_unitario}
                 onChange={(e) => { setValorUnitario(Number(e.target.value)); setErrors((x) => ({ ...x, valor: '' })) }}
               />
@@ -115,8 +115,8 @@ export default function SolicitudDetalleModal({ open, detalle, moneda = 'PEN', o
             <span className="text-sm text-gray-500">Total</span>
             <span className="text-base font-bold text-[#003D7D]">
               {moneda === 'USD'
-                ? `$ ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : `S/ ${total.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                ? `$ ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`
+                : `S/ ${total.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}`}
             </span>
           </div>
         </div>

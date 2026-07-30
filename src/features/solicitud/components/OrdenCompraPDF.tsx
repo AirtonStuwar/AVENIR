@@ -28,6 +28,12 @@ function fmtMoney(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
   return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// Precio unitario / subtotal por ítem: muestra el 3er decimal solo si el valor realmente lo tiene
+function fmtMoneySmart(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
+  const sym = moneda === 'USD' ? '$ ' : 'S/ '
+  return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })
+}
+
 function pct(v: number | null | undefined) {
   if (v == null) return '—'
   return `${v}%`
@@ -488,9 +494,9 @@ export function OrdenCompraPDF({
               <Text style={[S.tableCell, S.colIdx]}>{i + 1}</Text>
               <Text style={[S.tableCell, S.colDesc]}>{d.descripcion}</Text>
               <Text style={[S.tableCell, S.colCant]}>{d.cantidad}</Text>
-              <Text style={[S.tableCell, S.colUnit]}>{fmtMoney(d.valor_unitario, moneda)}</Text>
+              <Text style={[S.tableCell, S.colUnit]}>{fmtMoneySmart(d.valor_unitario, moneda)}</Text>
               <Text style={[S.tableCell, S.colTotal, S.tableCellBold]}>
-                {fmtMoney(d.valor_total ?? d.cantidad * d.valor_unitario, moneda)}
+                {fmtMoneySmart(d.valor_total ?? d.cantidad * d.valor_unitario, moneda)}
               </Text>
             </View>
           ))}
@@ -508,7 +514,7 @@ export function OrdenCompraPDF({
           <View style={S.totalsInner}>
             <View style={[S.totalRow, S.totalRowFirst]}>
               <Text style={S.totalLabel}>Monto bruto</Text>
-              <Text style={S.totalValue}>{fmtMoney(subtotal, moneda)}</Text>
+              <Text style={S.totalValue}>{fmtMoneySmart(subtotal, moneda)}</Text>
             </View>
             {isRxH ? (
               <View style={S.totalRow}>

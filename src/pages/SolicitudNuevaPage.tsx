@@ -776,9 +776,9 @@ export default function SolicitudNuevaPage() {
                           <td className="px-5 py-3 text-gray-400 text-xs">{i + 1}</td>
                           <td className="px-5 py-3 text-gray-900">{d.descripcion}</td>
                           <td className="px-5 py-3 text-right text-gray-700">{d.cantidad}</td>
-                          <td className="px-5 py-3 text-right text-gray-700">S/ {d.valor_unitario.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="px-5 py-3 text-right text-gray-700">S/ {d.valor_unitario.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}</td>
                           <td className="px-5 py-3 text-right font-semibold text-[#003D7D]">
-                            S/ {(d.valor_total ?? d.cantidad * d.valor_unitario).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            S/ {(d.valor_total ?? d.cantidad * d.valor_unitario).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
                           </td>
                           <td className="px-5 py-3">
                             <div className="flex items-center justify-end gap-2">
@@ -793,7 +793,7 @@ export default function SolicitudNuevaPage() {
                       <tr>
                         <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">Subtotal</td>
                         <td className="px-5 py-2 text-right text-sm text-gray-600">
-                          S/ {subtotal.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          S/ {subtotal.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
                         </td>
                         <td />
                       </tr>

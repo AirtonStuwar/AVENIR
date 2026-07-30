@@ -144,7 +144,7 @@ export default function SolicitudDetalleEditor({ solicitudId, open, onClose }: P
                   className="w-full rounded-lg border border-gray-300 py-2 pl-7 pr-3 text-sm focus:border-[#003D7D] focus:outline-none focus:ring-1 focus:ring-[#003D7D]"
                   type="number"
                   min="0"
-                  step="0.01"
+                  step="0.001"
                   value={valor_unitario}
                   onChange={(e) => setValorUnitario(Number(e.target.value))}
                 />
@@ -213,10 +213,10 @@ export default function SolicitudDetalleEditor({ solicitudId, open, onClose }: P
                       <td className="px-4 py-3 text-sm text-gray-900">{d.descripcion}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900">{d.cantidad}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-sm text-gray-900">
-                        ${d.valor_unitario.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${d.valor_unitario.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-semibold text-[#003D7D]">
-                        ${(d.valor_total ?? d.cantidad * d.valor_unitario).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${(d.valor_total ?? d.cantidad * d.valor_unitario).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right text-sm">
                         <button
@@ -241,7 +241,7 @@ export default function SolicitudDetalleEditor({ solicitudId, open, onClose }: P
                       Total general:
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right text-lg font-bold text-[#003D7D]">
-                      ${calcularTotal().toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      ${calcularTotal().toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })}
                     </td>
                     <td></td>
                   </tr>

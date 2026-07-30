@@ -592,6 +592,10 @@ const fmtDate = (s: string | null) => {
 const fmtNum = (n: number) =>
   n === 0 ? '' : n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
+// SUBTOTAL: muestra el 3er decimal solo si el valor lo tiene (precio unitario con 3 decimales para cuadrar con factura del proveedor)
+const fmtNumSmart = (n: number) =>
+  n === 0 ? '' : n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })
+
 export async function exportarReporteExcel(
   rows: ReporteRow[],
   filtros: ReporteFiltros,
@@ -702,8 +706,8 @@ export async function exportarReporteExcel(
       row.pc_partida,
       row.pc_partida_n1,
       row.pc_partida_n2,
-      fmtNum(row.subtotal_usd),
-      fmtNum(row.subtotal_pen),
+      fmtNumSmart(row.subtotal_usd),
+      fmtNumSmart(row.subtotal_pen),
       fmtNum(row.igv_usd),
       fmtNum(row.igv_pen),
       fmtNum(row.total_usd),

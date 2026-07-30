@@ -71,6 +71,13 @@ function fmtMoney(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
   return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// Muestra 2 decimales por defecto, pero hasta 3 si el precio unitario/subtotal realmente los necesita
+// (ej. para cuadrar exacto con una factura de proveedor calculada con 3 decimales).
+function fmtMoneySmart(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
+  const sym = moneda === 'USD' ? '$ ' : 'S/ '
+  return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 3 })
+}
+
 const ESTADO_COLOR: Record<string, string> = {
   Pendiente:               'bg-yellow-100 text-yellow-800',
   'En Revision':           'bg-blue-100 text-blue-800',
@@ -960,9 +967,9 @@ export default function SolicitudDetallePage() {
                       <td className="px-5 py-3 text-gray-400 text-xs">{i + 1}</td>
                       <td className="px-5 py-3 text-gray-900">{d.descripcion}</td>
                       <td className="px-5 py-3 text-right text-gray-700">{d.cantidad}</td>
-                      <td className="px-5 py-3 text-right text-gray-700">{fmtMoney(d.valor_unitario, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
+                      <td className="px-5 py-3 text-right text-gray-700">{fmtMoneySmart(d.valor_unitario, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                       <td className="px-5 py-3 text-right font-semibold text-[#003D7D]">
-                        {fmtMoney(d.valor_total ?? d.cantidad * d.valor_unitario, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}
+                        {fmtMoneySmart(d.valor_total ?? d.cantidad * d.valor_unitario, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}
                       </td>
                       {canEdit && (
                         <td className="px-5 py-3">
@@ -978,7 +985,7 @@ export default function SolicitudDetallePage() {
                 <tfoot className="bg-gray-50 border-t border-gray-100">
                   <tr>
                     <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">Monto bruto</td>
-                    <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(subtotal, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
+                    <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoneySmart(subtotal, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                     {canEdit && <td />}
                   </tr>
                   {isRxH ? (
