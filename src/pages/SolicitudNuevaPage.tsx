@@ -109,9 +109,13 @@ export default function SolicitudNuevaPage() {
   const [aplica_suspension, setAplicaSuspension] = useState<boolean | null>(null)
   const [aplica_igv,        setAplicaIgv]        = useState(true)
   const [tipoCambio,        setTipoCambio]       = useState<number | null>(null)
+  const [motivoLiberalidad, setMotivoLiberalidad] = useState('')
+  const [montoBrutoLiberalidad, setMontoBrutoLiberalidad] = useState('')
 
   const tipoNombreSeleccionado = tipos.find(t => t.id === tipo_id)?.nombre ?? ''
   const isRxH = tipoNombreSeleccionado === 'Recibo por Honorarios'
+  const isLiberalidad = tipoNombreSeleccionado === 'Liberalidad'
+  const LIBERALIDAD_PCT = 5
 
   // Detalles state
   const [detalles,   setDetalles]   = useState<SolicitudDetalle[]>([])
@@ -193,20 +197,28 @@ export default function SolicitudNuevaPage() {
     if (partidas.length > 0 && !proyecto_partida_id) e.proyecto_partida_id = 'Obligatorio'
     if (!razon_social.trim())    e.razon_social   = 'Obligatorio'
     if (!ruc.trim())             e.ruc            = 'Obligatorio'
-    if (!direccion.trim())       e.direccion      = 'Obligatorio'
-    if (!contacto_nombre.trim()) e.contacto_nombre= 'Obligatorio'
-    if (!contacto_telefono.trim())e.contacto_telefono='Obligatorio'
-    if (!contacto_correo.trim()) e.contacto_correo= 'Obligatorio'
+    if (!isLiberalidad) {
+      if (!direccion.trim())       e.direccion      = 'Obligatorio'
+      if (!contacto_nombre.trim()) e.contacto_nombre= 'Obligatorio'
+      if (!contacto_telefono.trim())e.contacto_telefono='Obligatorio'
+      if (!contacto_correo.trim()) e.contacto_correo= 'Obligatorio'
+    }
     if (!forma_pago_id)          e.forma_pago_id  = 'Obligatorio'
     if (!fecha_pedido)           e.fecha_pedido   = 'Obligatorio'
     if (!fecha_requerida)        e.fecha_requerida= 'Obligatorio'
-    if (!isRxH) {
+    if (!isRxH && !isLiberalidad) {
       if (porcentaje_contrato === null) e.porcentaje_contrato = 'Obligatorio'
       if (porcentaje_acumulado_contrato === null) e.porcentaje_acumulado = 'Obligatorio'
       if (porcentaje_pendiente_contrato === null) e.porcentaje_pendiente = 'Obligatorio'
     }
     if (isRxH && !numero_rxh.trim()) e.numero_rxh        = 'Obligatorio'
     if (isRxH && !periodo_servicio)  e.periodo_servicio  = 'Obligatorio'
+    if (isLiberalidad) {
+      if (!motivoLiberalidad.trim()) e.motivoLiberalidad = 'Obligatorio'
+      if (!montoBrutoLiberalidad || Number(montoBrutoLiberalidad) <= 0) e.montoBrutoLiberalidad = 'Obligatorio'
+      if (!banco)                  e.banco          = 'Obligatorio'
+      if (!numero_cuenta.trim())   e.numero_cuenta  = 'Obligatorio'
+    }
 
     if (Object.keys(e).length > 0) { setErrors(e); return }
 
@@ -215,29 +227,43 @@ export default function SolicitudNuevaPage() {
       const payload = {
         tipo_id, proyecto_id,
         proyecto_partida_id: proyecto_partida_id ?? null,
-        razon_social, ruc, direccion,
-        contacto_nombre, contacto_telefono, contacto_correo,
+        razon_social, ruc,
+        direccion: isLiberalidad ? null : direccion,
+        contacto_nombre: isLiberalidad ? null : contacto_nombre,
+        contacto_telefono: isLiberalidad ? null : contacto_telefono,
+        contacto_correo: isLiberalidad ? null : contacto_correo,
         banco: banco || null,
         numero_cuenta: numero_cuenta || null,
         cuenta_detracciones: cuenta_detracciones || null,
         forma_pago: formasPago.find(f => f.id === forma_pago_id)?.nombre ?? null,
         forma_pago_id,
-        porcentaje_contrato: isRxH ? null : porcentaje_contrato,
-        porcentaje_acumulado_contrato: isRxH ? null : porcentaje_acumulado_contrato,
-        porcentaje_pendiente_contrato: isRxH ? null : porcentaje_pendiente_contrato,
-        condiciones: isRxH ? null : (condiciones || null),
+        porcentaje_contrato: isRxH || isLiberalidad ? null : porcentaje_contrato,
+        porcentaje_acumulado_contrato: isRxH || isLiberalidad ? null : porcentaje_acumulado_contrato,
+        porcentaje_pendiente_contrato: isRxH || isLiberalidad ? null : porcentaje_pendiente_contrato,
+        condiciones: isRxH || isLiberalidad ? null : (condiciones || null),
         fecha_pedido, fecha_requerida,
         moneda,
         numero_rxh: isRxH ? (numero_rxh || null) : null,
         periodo_servicio: isRxH && periodo_servicio ? periodo_servicio + '-01' : null,
         fecha_emision_factura: isRxH ? (fecha_emision_rxh || null) : null,
         fecha_vencimiento_factura: isRxH ? (fecha_vencimiento_rxh || null) : null,
-        aplica_igv: isRxH ? true : aplica_igv,
+        aplica_igv: isRxH || isLiberalidad ? true : aplica_igv,
       }
 
       if (solicitudId) {
         // Volvió atrás desde otro paso — actualiza en lugar de crear
         await updateSolicitud(solicitudId, payload)
+        if (isLiberalidad) {
+          const montoBruto = Number(montoBrutoLiberalidad)
+          const montoRet = Math.round(montoBruto * LIBERALIDAD_PCT) / 100
+          await updateSolicitud(solicitudId, { porcentaje_retencion: LIBERALIDAD_PCT, monto_retencion: montoRet })
+          const [existente] = await getDetallesBySolicitud(solicitudId)
+          if (existente) {
+            await updateDetalle(existente.id, { cantidad: 1, descripcion: motivoLiberalidad, valor_unitario: montoBruto })
+          } else {
+            await createDetalle({ solicitud_id: solicitudId, cantidad: 1, descripcion: motivoLiberalidad, valor_unitario: montoBruto })
+          }
+        }
         toast.success('Datos actualizados')
       } else {
         const nueva = await createSolicitud({
@@ -246,9 +272,15 @@ export default function SolicitudNuevaPage() {
           usuario_creador: user?.id ?? null,
         })
         setSolicitudId(nueva.id)
-        toast.success('Solicitud creada — ahora agrega los bienes o servicios')
+        if (isLiberalidad) {
+          const montoBruto = Number(montoBrutoLiberalidad)
+          const montoRet = Math.round(montoBruto * LIBERALIDAD_PCT) / 100
+          await updateSolicitud(nueva.id, { porcentaje_retencion: LIBERALIDAD_PCT, monto_retencion: montoRet })
+          await createDetalle({ solicitud_id: nueva.id, cantidad: 1, descripcion: motivoLiberalidad, valor_unitario: montoBruto })
+        }
+        toast.success('Solicitud creada' + (isLiberalidad ? '' : ' — ahora agrega los bienes o servicios'))
       }
-      setStep('detalles')
+      setStep(isLiberalidad ? 'archivos' : 'detalles')
     } catch (err: any) {
       toast.error(err?.message ?? 'Error al guardar la solicitud')
     } finally {
@@ -365,21 +397,21 @@ export default function SolicitudNuevaPage() {
 
               {/* Cliente */}
               <div>
-                <SectionTitle>Información del proveedor</SectionTitle>
+                <SectionTitle>{isLiberalidad ? 'Datos de la persona' : 'Información del proveedor'}</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className={LABEL}>Razón social *</label>
-                    <input className={inp(errors.razon_social)} placeholder="Nombre o razón social"
+                    <label className={LABEL}>{isLiberalidad ? 'Nombre completo *' : 'Razón social *'}</label>
+                    <input className={inp(errors.razon_social)} placeholder={isLiberalidad ? 'Nombres y apellidos' : 'Nombre o razón social'}
                       value={razon_social} onChange={(e) => { setRazonSocial(e.target.value); setErrors((x) => ({ ...x, razon_social: '' })) }} />
                     {errors.razon_social && <p className="mt-1 text-xs text-red-500">{errors.razon_social}</p>}
                   </div>
                   <div>
-                    <label className={LABEL}>RUC *</label>
+                    <label className={LABEL}>{isLiberalidad ? 'DNI *' : 'RUC *'}</label>
                     <div className="relative">
                       <input
                         className={inp(errors.ruc)}
-                        placeholder="20XXXXXXXXX"
-                        maxLength={11}
+                        placeholder={isLiberalidad ? '8 dígitos' : '20XXXXXXXXX'}
+                        maxLength={isLiberalidad ? 8 : 11}
                         value={ruc}
                         onChange={(e) => {
                           const val = e.target.value.replace(/\D/g, '')
@@ -388,51 +420,81 @@ export default function SolicitudNuevaPage() {
                           if (rucAutoFilled && val.length !== 11) setRucAutoFilled(false)
                         }}
                       />
-                      {rucLoading && (
+                      {!isLiberalidad && rucLoading && (
                         <Loader2 size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#003D7D] animate-spin" />
                       )}
-                      {rucAutoFilled && !rucLoading && (
+                      {!isLiberalidad && rucAutoFilled && !rucLoading && (
                         <CheckCircle size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" />
                       )}
                     </div>
                     {errors.ruc && <p className="mt-1 text-xs text-red-500">{errors.ruc}</p>}
-                    {rucAutoFilled && !rucLoading && (
+                    {!isLiberalidad && rucAutoFilled && !rucLoading && (
                       <p className="mt-1 text-xs text-green-600">Datos completados desde SUNAT</p>
                     )}
                   </div>
-                  <div>
-                    <label className={LABEL}>Dirección *</label>
-                    <input className={inp(errors.direccion)} placeholder="Dirección completa"
-                      value={direccion} onChange={(e) => { setDireccion(e.target.value); setErrors((x) => ({ ...x, direccion: '' })) }} />
-                    {errors.direccion && <p className="mt-1 text-xs text-red-500">{errors.direccion}</p>}
-                  </div>
+                  {!isLiberalidad && (
+                    <div>
+                      <label className={LABEL}>Dirección *</label>
+                      <input className={inp(errors.direccion)} placeholder="Dirección completa"
+                        value={direccion} onChange={(e) => { setDireccion(e.target.value); setErrors((x) => ({ ...x, direccion: '' })) }} />
+                      {errors.direccion && <p className="mt-1 text-xs text-red-500">{errors.direccion}</p>}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Contacto */}
-              <div>
-                <SectionTitle>Contacto del Proveedor</SectionTitle>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className={LABEL}>Nombre *</label>
-                    <input className={inp(errors.contacto_nombre)} placeholder="Nombre del contacto"
-                      value={contacto_nombre} onChange={(e) => { setContactoNombre(e.target.value); setErrors((x) => ({ ...x, contacto_nombre: '' })) }} />
-                    {errors.contacto_nombre && <p className="mt-1 text-xs text-red-500">{errors.contacto_nombre}</p>}
-                  </div>
-                  <div>
-                    <label className={LABEL}>Teléfono *</label>
-                    <input className={inp(errors.contacto_telefono)} placeholder="9XXXXXXXX"
-                      value={contacto_telefono} onChange={(e) => { setContactoTelefono(e.target.value); setErrors((x) => ({ ...x, contacto_telefono: '' })) }} />
-                    {errors.contacto_telefono && <p className="mt-1 text-xs text-red-500">{errors.contacto_telefono}</p>}
-                  </div>
-                  <div>
-                    <label className={LABEL}>Correo *</label>
-                    <input className={inp(errors.contacto_correo)} type="email" placeholder="correo@empresa.com"
-                      value={contacto_correo} onChange={(e) => { setContactoCorreo(e.target.value); setErrors((x) => ({ ...x, contacto_correo: '' })) }} />
-                    {errors.contacto_correo && <p className="mt-1 text-xs text-red-500">{errors.contacto_correo}</p>}
+              {/* Motivo y monto (solo Liberalidad) */}
+              {isLiberalidad && (
+                <div>
+                  <SectionTitle>Motivo y monto</SectionTitle>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={LABEL}>Motivo *</label>
+                      <input className={inp(errors.motivoLiberalidad)} placeholder="Ej: Obsequio por aniversario"
+                        value={motivoLiberalidad} onChange={(e) => { setMotivoLiberalidad(e.target.value); setErrors((x) => ({ ...x, motivoLiberalidad: '' })) }} />
+                      {errors.motivoLiberalidad && <p className="mt-1 text-xs text-red-500">{errors.motivoLiberalidad}</p>}
+                    </div>
+                    <div>
+                      <label className={LABEL}>Monto bruto (S/) *</label>
+                      <input className={inp(errors.montoBrutoLiberalidad)} type="number" step="0.01" min="0" placeholder="0.00"
+                        value={montoBrutoLiberalidad} onChange={(e) => { setMontoBrutoLiberalidad(e.target.value); setErrors((x) => ({ ...x, montoBrutoLiberalidad: '' })) }} />
+                      {errors.montoBrutoLiberalidad && <p className="mt-1 text-xs text-red-500">{errors.montoBrutoLiberalidad}</p>}
+                      {!!Number(montoBrutoLiberalidad) && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Retención 5%: S/ {(Number(montoBrutoLiberalidad) * 0.05).toFixed(2)} · Neto a pagar: S/ {(Number(montoBrutoLiberalidad) * 0.95).toFixed(2)}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* Contacto */}
+              {!isLiberalidad && (
+                <div>
+                  <SectionTitle>Contacto del Proveedor</SectionTitle>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className={LABEL}>Nombre *</label>
+                      <input className={inp(errors.contacto_nombre)} placeholder="Nombre del contacto"
+                        value={contacto_nombre} onChange={(e) => { setContactoNombre(e.target.value); setErrors((x) => ({ ...x, contacto_nombre: '' })) }} />
+                      {errors.contacto_nombre && <p className="mt-1 text-xs text-red-500">{errors.contacto_nombre}</p>}
+                    </div>
+                    <div>
+                      <label className={LABEL}>Teléfono *</label>
+                      <input className={inp(errors.contacto_telefono)} placeholder="9XXXXXXXX"
+                        value={contacto_telefono} onChange={(e) => { setContactoTelefono(e.target.value); setErrors((x) => ({ ...x, contacto_telefono: '' })) }} />
+                      {errors.contacto_telefono && <p className="mt-1 text-xs text-red-500">{errors.contacto_telefono}</p>}
+                    </div>
+                    <div>
+                      <label className={LABEL}>Correo *</label>
+                      <input className={inp(errors.contacto_correo)} type="email" placeholder="correo@empresa.com"
+                        value={contacto_correo} onChange={(e) => { setContactoCorreo(e.target.value); setErrors((x) => ({ ...x, contacto_correo: '' })) }} />
+                      {errors.contacto_correo && <p className="mt-1 text-xs text-red-500">{errors.contacto_correo}</p>}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Datos bancarios */}
               <div>
@@ -623,8 +685,8 @@ export default function SolicitudNuevaPage() {
                 </div>
               )}
 
-              {/* Porcentajes (solo OC, no RxH) */}
-              {!isRxH && <div>
+              {/* Porcentajes (solo OC, no RxH ni Liberalidad) */}
+              {!isRxH && !isLiberalidad && <div>
                 <SectionTitle>Porcentajes del contrato</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -665,8 +727,8 @@ export default function SolicitudNuevaPage() {
                 </div>
               </div>}
 
-              {/* Aplica IGV (solo OC, no RxH) */}
-              {!isRxH && (
+              {/* Aplica IGV (solo OC, no RxH ni Liberalidad) */}
+              {!isRxH && !isLiberalidad && (
                 <div>
                   <label className="flex items-center gap-2.5 cursor-pointer w-fit">
                     <input type="checkbox" className="h-4 w-4 rounded border-gray-300 accent-[#003D7D] cursor-pointer"
@@ -701,8 +763,8 @@ export default function SolicitudNuevaPage() {
                 </div>
               </div>
 
-              {/* Condiciones (solo OC) */}
-              {!isRxH && (
+              {/* Condiciones (solo OC, no Liberalidad) */}
+              {!isRxH && !isLiberalidad && (
                 <div>
                   <SectionTitle>Condiciones y observaciones</SectionTitle>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -861,17 +923,17 @@ export default function SolicitudNuevaPage() {
           const subtotalEnSoles = moneda === 'USD' && tipoCambio ? subtotal * tipoCambio : subtotal
           const superaUmbral = isRxH && subtotalEnSoles >= 1500
           const totalConIgvEnSoles = subtotalEnSoles * 1.18
-          const requiereContrato = !isRxH && aplica_igv && totalConIgvEnSoles >= 3500
+          const requiereContrato = !isRxH && !isLiberalidad && aplica_igv && totalConIgvEnSoles >= 3500
 
           const tiposVisiblesRxH = aplica_suspension === true
             ? ['Sustento', 'Recibo Honorario', 'Suspension']
             : ['Sustento', 'Recibo Honorario']
 
           // Docs obligatorios: para OC, Cotizacion y Sustento siempre; Contrato solo si monto >= S/ 3,500.
-          // Si la OC es "Sin IGV", ningún documento es obligatorio.
+          // Si la OC es "Sin IGV" o es Liberalidad, ningún documento es obligatorio.
           const docsObligatorios = isRxH
             ? ['Sustento', 'Recibo Honorario']
-            : !aplica_igv
+            : isLiberalidad || !aplica_igv
               ? []
               : requiereContrato
                 ? ['Contrato', 'Cotizacion', 'Sustento']
@@ -892,11 +954,13 @@ export default function SolicitudNuevaPage() {
                 <p className="text-xs text-blue-600">
                   {isRxH
                     ? 'Sustento y PDF del Recibo por Honorarios son obligatorios.'
-                    : !aplica_igv
-                      ? 'Esta OC es "Sin IGV" — todos los documentos son opcionales.'
-                      : requiereContrato
-                        ? 'Contrato, Cotización y Sustento son obligatorios (monto supera S/ 3,500).'
-                        : 'Cotización y Sustento son obligatorios. Contrato es opcional (monto menor a S/ 3,500).'
+                    : isLiberalidad
+                      ? 'Todos los documentos son opcionales.'
+                      : !aplica_igv
+                        ? 'Esta OC es "Sin IGV" — todos los documentos son opcionales.'
+                        : requiereContrato
+                          ? 'Contrato, Cotización y Sustento son obligatorios (monto supera S/ 3,500).'
+                          : 'Cotización y Sustento son obligatorios. Contrato es opcional (monto menor a S/ 3,500).'
                   }
                 </p>
               </div>
@@ -945,17 +1009,21 @@ export default function SolicitudNuevaPage() {
               onChange={setArchivos}
               tiposVisibles={isRxH
                 ? tiposVisiblesRxH
-                : ['Contrato', 'Cotizacion', 'Sustento', 'Cuadro Comparativo']}
+                : isLiberalidad
+                  ? ['Sustento']
+                  : ['Contrato', 'Cotizacion', 'Sustento', 'Cuadro Comparativo']}
               tiposOpcionales={isRxH
                 ? (aplica_suspension === true ? ['Suspension'] : [])
-                : !aplica_igv
-                  ? ['Contrato', 'Cotizacion', 'Sustento']
-                  : requiereContrato ? [] : ['Contrato']}
+                : isLiberalidad
+                  ? ['Sustento']
+                  : !aplica_igv
+                    ? ['Contrato', 'Cotizacion', 'Sustento']
+                    : requiereContrato ? [] : ['Contrato']}
             />
 
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
               <div className="flex items-center gap-3">
-                <button onClick={() => setStep('detalles')}
+                <button onClick={() => setStep(isLiberalidad ? 'form' : 'detalles')}
                   className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
                   ← Atrás
                 </button>
@@ -1077,8 +1145,8 @@ export default function SolicitudNuevaPage() {
               </div>
             </div>
 
-            {/* Factura (solo OC) */}
-            {!isRxH && (
+            {/* Factura (solo OC, no Liberalidad) */}
+            {!isRxH && !isLiberalidad && (
               <>
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-gray-100">

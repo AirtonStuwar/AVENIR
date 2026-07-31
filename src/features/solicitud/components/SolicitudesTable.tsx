@@ -368,6 +368,8 @@ export default function SolicitudesTable({
                     <td className="px-4 py-3 whitespace-nowrap text-xs">
                       {(() => {
                         const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+                        const isLiberalidad = s.solicitud_tipo?.nombre === 'Liberalidad'
+                        if (isLiberalidad) return <span className="text-gray-300">—</span>
                         const numero = isRxH ? s.numero_rxh : s.numero_factura
                         return numero
                           ? <span className="font-medium text-gray-700">{numero}</span>

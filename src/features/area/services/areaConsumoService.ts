@@ -79,7 +79,8 @@ export async function getConsumoByAreas(): Promise<AreaConsumo[]> {
         const a = getArea(ua.id, ua.nombre)
         const subtotal = detMap[s.id] ?? 0
         const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
-        const total = isRxH || s.aplica_igv === false ? subtotal : subtotal * 1.18
+        const isLiberalidad = s.solicitud_tipo?.nombre === 'Liberalidad'
+        const total = isRxH || isLiberalidad || s.aplica_igv === false ? subtotal : subtotal * 1.18
         const isPEN = (s.moneda ?? 'PEN') === 'PEN'
         if (isRxH) {
           if (isPEN) a.rxh_pen += total; else a.rxh_usd += total

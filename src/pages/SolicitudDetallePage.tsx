@@ -250,8 +250,9 @@ export default function SolicitudDetallePage() {
   const isOwnSolicitud = solicitud?.usuario_creador === user?.id
 
   const isRxH        = solicitud?.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+  const isLiberalidad = solicitud?.solicitud_tipo?.nombre === 'Liberalidad'
   // OC marcada "Sin IGV" al crearla: no suma 18% y los documentos dejan de ser obligatorios
-  const sinIgv       = !isRxH && solicitud?.aplica_igv === false
+  const sinIgv       = !isRxH && !isLiberalidad && solicitud?.aplica_igv === false
   // Observado (devuelto por contabilidad): editable como Pendiente, pero SIN abrir el modal
   // de cabecera — así banco y número de cuenta quedan bloqueados durante la corrección.
   const canEdit      = (isPendiente || isObservado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
@@ -262,6 +263,8 @@ export default function SolicitudDetallePage() {
   const _tc          = _solMoneda === 'USD' ? (tipoCambio ?? 1) : 1
   const DOCS_OBLIGATORIOS     = isRxH
     ? ['Sustento', 'Recibo Honorario']
+    : isLiberalidad
+      ? []
     : sinIgv
       ? []
       : (() => {
@@ -630,9 +633,9 @@ export default function SolicitudDetallePage() {
 
   const subtotal       = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
   const retencionPct   = solicitud?.porcentaje_retencion ?? 0
-  const retencion      = isRxH ? (solicitud?.monto_retencion ?? subtotal * retencionPct / 100) : 0
-  const igv            = isRxH || sinIgv ? 0 : subtotal * 0.18
-  const totalConIgv    = isRxH ? subtotal - retencion : subtotal + igv
+  const retencion      = isRxH || isLiberalidad ? (solicitud?.monto_retencion ?? subtotal * retencionPct / 100) : 0
+  const igv            = isRxH || isLiberalidad || sinIgv ? 0 : subtotal * 0.18
+  const totalConIgv    = isRxH || isLiberalidad ? subtotal - retencion : subtotal + igv
 
   // ── Loading / not found ───────────────────────────────────────
   if (loadingSol) {
@@ -771,7 +774,7 @@ export default function SolicitudDetallePage() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Información general</h2>
-            {canEdit && isPendiente && (
+            {canEdit && isPendiente && !isLiberalidad && (
               <button onClick={() => setEditInfoOpen(true)}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors">
                 <Pencil size={13} /> Editar
@@ -937,7 +940,7 @@ export default function SolicitudDetallePage() {
             </h2>
             <div className="flex items-center gap-3">
               {subtotal > 0 && <span className="text-sm font-bold text-[#003D7D]">{fmtMoney(totalConIgv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</span>}
-              {canEdit && (
+              {canEdit && !(isLiberalidad && detalles.length >= 1) && (
                 <button onClick={openAdd}
                   className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#003D7D] text-white text-xs font-medium hover:bg-[#002D5C] transition-all">
                   <Plus size={13} /> Agregar
@@ -992,13 +995,15 @@ export default function SolicitudDetallePage() {
                     <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoneySmart(subtotal, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                     {canEdit && <td />}
                   </tr>
-                  {isRxH ? (
+                  {isRxH || isLiberalidad ? (
                     <tr>
                       <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">
-                        Retención IR {retencionPct > 0 ? `(${retencionPct}%)` : solicitud?.porcentaje_retencion !== null ? '(Exonerado)' : '(pendiente evaluación)'}
+                        {isLiberalidad
+                          ? `Retención (${retencionPct}%)`
+                          : `Retención IR ${retencionPct > 0 ? `(${retencionPct}%)` : solicitud?.porcentaje_retencion !== null ? '(Exonerado)' : '(pendiente evaluación)'}`}
                       </td>
                       <td className="px-5 py-2 text-right text-sm text-gray-600">
-                        {solicitud?.porcentaje_retencion !== null ? `- ${fmtMoney(retencion, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}` : '—'}
+                        {isLiberalidad || solicitud?.porcentaje_retencion !== null ? `- ${fmtMoney(retencion, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}` : '—'}
                       </td>
                       {canEdit && <td />}
                     </tr>
@@ -1011,7 +1016,7 @@ export default function SolicitudDetallePage() {
                   )}
                   <tr className="border-t border-gray-200">
                     <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">
-                      {isRxH ? 'Monto neto a pagar:' : 'Total general:'}
+                      {isRxH || isLiberalidad ? 'Monto neto a pagar:' : 'Total general:'}
                     </td>
                     <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">{fmtMoney(totalConIgv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                     {canEdit && <td />}
@@ -1035,12 +1040,16 @@ export default function SolicitudDetallePage() {
           onChange={setArchivosSubidos}
           tiposVisibles={isRxH
             ? ['Sustento', 'Recibo Honorario', ...(solicitud.aplica_suspension ? ['Suspension'] : [])]
-            : undefined}
+            : isLiberalidad
+              ? ['Sustento']
+              : undefined}
           tiposOpcionales={isRxH
             ? (solicitud.aplica_suspension ? ['Suspension'] : [])
-            : sinIgv
-              ? ['Contrato', 'Cotizacion', 'Sustento']
-              : DOCS_OBLIGATORIOS.includes('Contrato') ? [] : ['Contrato']}
+            : isLiberalidad
+              ? ['Sustento']
+              : sinIgv
+                ? ['Contrato', 'Cotizacion', 'Sustento']
+                : DOCS_OBLIGATORIOS.includes('Contrato') ? [] : ['Contrato']}
         />
         {isPendiente && !tieneDocsObligatorios && (
           <div className="flex items-center gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
@@ -1411,7 +1420,7 @@ export default function SolicitudDetallePage() {
         open={evaluarOpen}
         codigoSolicitud={solicitud?.codigo ?? `#${solicitud?.id}`}
         isRxH={isRxH}
-        isOC={!isRxH}
+        isOC={!isRxH && !isLiberalidad}
         totalSolicitud={totalConIgv}
         moneda={(solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN'}
         planContableActual={solicitud?.plan_contable ?? null}
