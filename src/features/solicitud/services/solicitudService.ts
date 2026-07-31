@@ -50,7 +50,10 @@ function getRoleEstadoTipos(role: number): string[] {
 }
 
 async function enrichSolicitudes(solicitudes: Solicitud[]): Promise<Solicitud[]> {
-  const userIds = [...new Set(solicitudes.map(s => s.usuario_creador).filter(Boolean))] as string[]
+  const userIds = [...new Set([
+    ...solicitudes.map(s => s.usuario_creador),
+    ...solicitudes.map(s => s.usuario_evaluador),
+  ].filter(Boolean))] as string[]
   if (userIds.length === 0) return solicitudes
 
   const [areaRes, usuarioRes] = await Promise.all([
@@ -79,12 +82,14 @@ async function enrichSolicitudes(solicitudes: Solicitud[]): Promise<Solicitud[]>
 
   return solicitudes.map(s => {
     const u = s.usuario_creador ? (usuarioMap[s.usuario_creador] ?? null) : null
+    const ev = s.usuario_evaluador ? (usuarioMap[s.usuario_evaluador] ?? null) : null
     return {
       ...s,
-      area_nombre:    s.usuario_creador ? (areaMap[s.usuario_creador] ?? null) : null,
-      creador_email:  u?.correo          ?? null,
-      creador_nombre: u?.nombre_completo ?? null,
-      creador_cargo:  u?.cargo           ?? null,
+      area_nombre:      s.usuario_creador ? (areaMap[s.usuario_creador] ?? null) : null,
+      creador_email:    u?.correo          ?? null,
+      creador_nombre:   u?.nombre_completo ?? null,
+      creador_cargo:    u?.cargo           ?? null,
+      evaluador_nombre: ev?.nombre_completo ?? null,
     }
   })
 }
@@ -280,10 +285,14 @@ export async function getDetracciones(): Promise<Detraccion[]> {
   return (data ?? []) as Detraccion[]
 }
 
-export async function devolverSolicitud(id: number, comentario: string): Promise<Solicitud> {
+export async function devolverSolicitud(id: number, comentario: string, usuarioId?: string | null): Promise<Solicitud> {
   const [estadoId] = await resolveEstadoIds(['Pendiente'])
   if (!estadoId) throw new Error('Estado "Pendiente" no encontrado en BD')
-  return updateSolicitud(id, { estado_id: estadoId, comentario_gerencia: comentario })
+  return updateSolicitud(id, {
+    estado_id: estadoId,
+    comentario_gerencia: comentario,
+    ...(usuarioId ? { usuario_evaluador: usuarioId } : {}),
+  })
 }
 
 /** VISUALIZADOR/ADMIN: observa una solicitud Aprobada antes de pagar → estado Observado */

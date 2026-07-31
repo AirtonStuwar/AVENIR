@@ -82,10 +82,12 @@ El componente acepta la prop `tiposVisibles?: string[]`; si se pasa, sólo rende
 **Solicitud workflow states** (`estado_soli` table drives UI logic):
 - Pendiente → (USUARIO/ADMIN) → `enviarARevision` → En Revision
 - En Revision → (EVALUADOR/ADMIN) → `marcarEvaluado(id, planContableId, userId, porcentajeRetencion?, detraccionId?, montoDetraccion?)` → Evaluado
-- En Revision → (EVALUADOR/ADMIN) → `devolverSolicitud` → Pendiente
+- En Revision → (EVALUADOR/ADMIN) → `devolverSolicitud(id, comentario, userId?)` → Pendiente
 - Evaluado → (APROBADOR/ADMIN) → `aprobarSolicitud` → **Aprobado** (estado final)
 - Evaluado → (APROBADOR/ADMIN) → `rechazarSolicitud` → Rechazado
 - Any active state → `cancelarSolicitud` → Cancelado
+
+**Quién devolvió la solicitud:** `devolverSolicitud` reutiliza la columna `usuario_evaluador` (sin agregar columnas nuevas) para guardar quién hizo la devolución — el mismo campo que usa `marcarEvaluado`, así que si la solicitud vuelve a pasar por evaluación, se sobrescribe naturalmente con el nuevo evaluador (refleja siempre la última acción). `enrichSolicitudes()` en `solicitudService.ts` ahora también resuelve el nombre de `usuario_evaluador` (antes solo resolvía `usuario_creador`), expuesto como `Solicitud.evaluador_nombre`. En `SolicitudDetallePage.tsx`, cuando `isPendiente && comentario_gerencia`, se muestra "Devuelto por {evaluador_nombre}" debajo del motivo (la etiqueta del bloque también cambia a "Motivo de devolución" en ese caso).
 
 `marcarEvaluado` saves `plan_contable_id` (mandatory), `usuario_evaluador` (UUID), and optionally `porcentaje_retencion`/`monto_retencion` (for RxH) and `detraccion_id`/`monto_detraccion` (for OC). All these fields are excluded from `SolicitudInsert`.
 

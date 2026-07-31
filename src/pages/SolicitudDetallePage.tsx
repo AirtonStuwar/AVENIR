@@ -521,7 +521,7 @@ export default function SolicitudDetallePage() {
         await observarSolicitud(solicitud.id, comentario)
         toast.success('Observado — el usuario puede corregir y reenviar')
       } else {
-        await devolverSolicitud(solicitud.id, comentario)
+        await devolverSolicitud(solicitud.id, comentario, user?.id ?? null)
         toast.success('Solicitud devuelta al usuario')
       }
       await reload(id)
@@ -847,8 +847,11 @@ export default function SolicitudDetallePage() {
           )}
           {solicitud.comentario_gerencia && (
             <div className="px-6 pb-5 border-t border-gray-50 pt-4">
-              <p className={LABEL}>Comentario</p>
+              <p className={LABEL}>{isPendiente ? 'Motivo de devolución' : 'Comentario'}</p>
               <p className="text-sm text-amber-700 bg-amber-50 rounded-xl px-4 py-3 border border-amber-100">{solicitud.comentario_gerencia}</p>
+              {isPendiente && solicitud.evaluador_nombre && (
+                <p className="text-xs text-gray-400 mt-1.5">Devuelto por {solicitud.evaluador_nombre}</p>
+              )}
             </div>
           )}
         </div>
