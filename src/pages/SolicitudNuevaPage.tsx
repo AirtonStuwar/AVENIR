@@ -255,7 +255,7 @@ export default function SolicitudNuevaPage() {
         await updateSolicitud(solicitudId, payload)
         if (isLiberalidad) {
           const montoBruto = Number(montoBrutoLiberalidad)
-          const montoRet = Math.round(montoBruto * LIBERALIDAD_PCT) / 100
+          const montoRet = Math.round(montoBruto * LIBERALIDAD_PCT / 100)
           await updateSolicitud(solicitudId, { porcentaje_retencion: LIBERALIDAD_PCT, monto_retencion: montoRet })
           const [existente] = await getDetallesBySolicitud(solicitudId)
           if (existente) {
@@ -274,7 +274,7 @@ export default function SolicitudNuevaPage() {
         setSolicitudId(nueva.id)
         if (isLiberalidad) {
           const montoBruto = Number(montoBrutoLiberalidad)
-          const montoRet = Math.round(montoBruto * LIBERALIDAD_PCT) / 100
+          const montoRet = Math.round(montoBruto * LIBERALIDAD_PCT / 100)
           await updateSolicitud(nueva.id, { porcentaje_retencion: LIBERALIDAD_PCT, monto_retencion: montoRet })
           await createDetalle({ solicitud_id: nueva.id, cantidad: 1, descripcion: motivoLiberalidad, valor_unitario: montoBruto })
         }
@@ -459,11 +459,15 @@ export default function SolicitudNuevaPage() {
                       <input className={inp(errors.montoBrutoLiberalidad)} type="number" step="0.01" min="0" placeholder="0.00"
                         value={montoBrutoLiberalidad} onChange={(e) => { setMontoBrutoLiberalidad(e.target.value); setErrors((x) => ({ ...x, montoBrutoLiberalidad: '' })) }} />
                       {errors.montoBrutoLiberalidad && <p className="mt-1 text-xs text-red-500">{errors.montoBrutoLiberalidad}</p>}
-                      {!!Number(montoBrutoLiberalidad) && (
-                        <p className="mt-1 text-xs text-gray-500">
-                          Retención 5%: S/ {(Number(montoBrutoLiberalidad) * 0.05).toFixed(2)} · Neto a pagar: S/ {(Number(montoBrutoLiberalidad) * 0.95).toFixed(2)}
-                        </p>
-                      )}
+                      {!!Number(montoBrutoLiberalidad) && (() => {
+                        const bruto = Number(montoBrutoLiberalidad)
+                        const ret = Math.round(bruto * 5 / 100)
+                        return (
+                          <p className="mt-1 text-xs text-gray-500">
+                            Retención 5%: S/ {ret} · Neto a pagar: S/ {(bruto - ret).toFixed(2)}
+                          </p>
+                        )
+                      })()}
                     </div>
                   </div>
                 </div>
