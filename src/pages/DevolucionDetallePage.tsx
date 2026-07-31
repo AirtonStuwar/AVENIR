@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import JSZip from 'jszip'
 import {
-  ChevronLeft, Loader2, CheckCircle2, XCircle, ExternalLink, RotateCcw, AlertCircle, FileText, BookOpen, Pencil, Upload,
+  ChevronLeft, Loader2, CheckCircle2, XCircle, ExternalLink, RotateCcw, AlertCircle, FileText, BookOpen, Pencil, Upload, Download,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -169,6 +170,7 @@ export default function DevolucionDetallePage() {
   const [conceptoDraft,   setConceptoDraft]   = useState('')
   const [savingConcepto,  setSavingConcepto]  = useState(false)
   const [uploadingTipo,   setUploadingTipo]   = useState<string | null>(null)
+  const [downloadingAll,  setDownloadingAll]  = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -313,6 +315,46 @@ export default function DevolucionDetallePage() {
     }
   }
 
+  async function handleDownloadAll() {
+    if (!dev) return
+    const disponibles = ARCHIVO_LABELS.filter(({ field }) => !!(dev[field] as string | null))
+    if (disponibles.length === 0) { toast.error('No hay documentos adjuntos'); return }
+    setDownloadingAll(true)
+    try {
+      const carpeta = (dev.cliente_nombre || dev.codigo || `devolucion-${dev.id}`).replace(/[/\\:*?"<>|]/g, '-')
+      const zip = new JSZip()
+      const folder = zip.folder(carpeta)!
+      const usedNames = new Set<string>()
+      for (const { field, label } of disponibles) {
+        const path = dev[field] as string
+        const url  = await getArchivoDevolucionUrl(path)
+        const res  = await fetch(url)
+        const blob = await res.blob()
+        const ext  = path.split('.').pop() || 'pdf'
+        let name = `${label}.${ext}`
+        if (usedNames.has(name)) {
+          let n = 2
+          while (usedNames.has(`${label} (${n}).${ext}`)) n++
+          name = `${label} (${n}).${ext}`
+        }
+        usedNames.add(name)
+        folder.file(name, blob)
+      }
+      const zipBlob = await zip.generateAsync({ type: 'blob' })
+      const objUrl = URL.createObjectURL(zipBlob)
+      const link = document.createElement('a')
+      link.href = objUrl
+      link.download = `${carpeta}_documentos.zip`
+      link.click()
+      URL.revokeObjectURL(objUrl)
+      toast.success(`${disponibles.length} documento${disponibles.length !== 1 ? 's' : ''} descargado${disponibles.length !== 1 ? 's' : ''} en ZIP`)
+    } catch {
+      toast.error('Error al descargar documentos')
+    } finally {
+      setDownloadingAll(false)
+    }
+  }
+
   async function handleGuardarConcepto() {
     if (!dev || !conceptoDraft.trim()) { toast.error('Ingresa el concepto'); return }
     setSavingConcepto(true)
@@ -367,6 +409,8 @@ export default function DevolucionDetallePage() {
   if (!dev) {
     return <div className="p-6 text-center text-gray-500">Devolución no encontrada.</div>
   }
+
+  const archivosDisponibles = ARCHIVO_LABELS.filter(({ field }) => !!(dev[field] as string | null))
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -575,7 +619,21 @@ export default function DevolucionDetallePage() {
 
       {/* Documentos */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Documentos</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-sm font-semibold text-gray-900">Documentos</h2>
+          {(isVisualizador || isEvaluador || isAdmin) && archivosDisponibles.length > 0 && (
+            <button
+              onClick={handleDownloadAll}
+              disabled={downloadingAll}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors"
+            >
+              {downloadingAll
+                ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                : <Download size={13} />}
+              Descargar todos ({archivosDisponibles.length})
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {ARCHIVO_LABELS.map(({ field, tipo, label }) => {
             const path = dev[field] as string | null
