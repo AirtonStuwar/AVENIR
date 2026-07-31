@@ -321,7 +321,8 @@ export default function DevolucionDetallePage() {
     if (disponibles.length === 0) { toast.error('No hay documentos adjuntos'); return }
     setDownloadingAll(true)
     try {
-      const carpeta = (dev.cliente_nombre || dev.codigo || `devolucion-${dev.id}`).replace(/[/\\:*?"<>|]/g, '-')
+      const carpeta = ([dev.cliente_nombre, dev.proyecto?.nombre].filter(Boolean).join('_') || dev.codigo || `devolucion-${dev.id}`)
+        .replace(/[/\\:*?"<>|]/g, '-')
       const zip = new JSZip()
       const folder = zip.folder(carpeta)!
       const usedNames = new Set<string>()
