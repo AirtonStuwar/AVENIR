@@ -224,7 +224,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       girar_pen:    isPEN ? total - detrac - reten : 0,
       banco:        s.banco,
       cuenta:       s.numero_cuenta,
-      correo:       s.contacto_correo,
+      correo:       u?.correo ?? null,
       fecha_pago:   s.fecha_pago,
       arc_contrato:   arcs.has('Contrato'),
       arc_sustento:   arcs.has('Sustento'),
