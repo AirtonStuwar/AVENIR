@@ -336,6 +336,21 @@ export async function getFormasPago(): Promise<SolicitudFormaPago[]> {
   return (data ?? []) as SolicitudFormaPago[]
 }
 
+export async function checkNumeroFacturaDuplicado(numeroFactura: string, excludeId?: number): Promise<{ id: number; codigo: string; razon_social: string }[]> {
+  const numero = numeroFactura.trim()
+  if (!numero) return []
+  const excluidos = await resolveEstadoIds(['Rechazado', 'Cancelado'])
+  let query = supabase
+    .from(TABLE)
+    .select('id, codigo, razon_social')
+    .eq('numero_factura', numero)
+  if (excluidos.length > 0) query = query.not('estado_id', 'in', `(${excluidos.join(',')})`)
+  if (excludeId) query = query.neq('id', excludeId)
+  const { data, error } = await query
+  if (error) throw error
+  return (data ?? []) as { id: number; codigo: string; razon_social: string }[]
+}
+
 export async function getSolicitudById(id: number): Promise<Solicitud> {
   const { data, error } = await supabase
     .from(TABLE)

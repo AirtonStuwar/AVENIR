@@ -17,6 +17,23 @@ import { ROLES } from '../features/solicitud/types/solicitud'
 import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
 import type { Solicitud } from '../features/solicitud/types/solicitud'
 
+// Monto neto que corresponde girar al proveedor (descuenta detracción en OC y retención en RxH;
+// Liberalidad ya viene neteada en monto_total desde que se crea).
+function montoAGirar(s: Solicitud): number {
+  const total = s.monto_total ?? 0
+  const tipo  = s.solicitud_tipo?.nombre
+  if (tipo === 'Liberalidad') return total
+
+  if (tipo === 'Recibo por Honorarios') return total - (s.monto_retencion ?? 0)
+
+  // OC
+  if (!s.detraccion_id) return total
+  const isPEN = (s.moneda ?? 'PEN') === 'PEN'
+  if (isPEN) return total - (s.monto_detraccion ?? 0)
+  const pct = s.detraccion?.porcentaje ?? 0
+  return Math.round((total - total * pct / 100) * 100) / 100
+}
+
 export default function SolicitudesPage() {
   const navigate = useNavigate()
   const { userRole, user } = useAuthStore()
@@ -140,7 +157,7 @@ export default function SolicitudesPage() {
         s.banco === 'BBVA' ? 'P' : 'I',
         s.numero_cuenta ?? '',
         sanitizeBBVA(s.razon_social),
-        s.monto_total ?? 0,
+        montoAGirar(s),
         'F',
         s.numero_factura ?? '',
         'N',

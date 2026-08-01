@@ -15,6 +15,7 @@ import {
   getDetallesBySolicitud,
   getFormasPago,
   getPlanContable,
+  checkNumeroFacturaDuplicado,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
@@ -59,6 +60,7 @@ export default function SolicitudNuevaPage() {
   const [fechaEmisionFactura,   setFechaEmisionFactura]   = useState('')
   const [fechaVencimFactura,    setFechaVencimFactura]    = useState('')
   const [savingFactura,         setSavingFactura]         = useState(false)
+  const [facturaDuplicada,      setFacturaDuplicada]      = useState<string[]>([])
 
   // Plan Contable (step 4)
   const [planContableOpciones,  setPlanContableOpciones]  = useState<PlanContable[]>([])
@@ -304,6 +306,16 @@ export default function SolicitudNuevaPage() {
     if (step !== 'archivos' || moneda !== 'USD') return
     getTipoCambioUSD().then(setTipoCambio).catch(() => setTipoCambio(null))
   }, [step, moneda])
+
+  useEffect(() => {
+    if (step !== 'factura' || !numeroFactura.trim()) { setFacturaDuplicada([]); return }
+    const timer = setTimeout(() => {
+      checkNumeroFacturaDuplicado(numeroFactura, solicitudId ?? undefined)
+        .then(rows => setFacturaDuplicada(rows.map(r => r.codigo)))
+        .catch(() => {})
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [step, numeroFactura, solicitudId])
 
   useEffect(() => {
     if (step !== 'factura') return
@@ -1177,6 +1189,11 @@ export default function SolicitudNuevaPage() {
                       <label className={LABEL}>N° de Factura</label>
                       <input type="text" value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)}
                         placeholder="Ej: F001-00123" className={INPUT} />
+                      {facturaDuplicada.length > 0 && (
+                        <p className="mt-1 text-xs text-amber-600 font-medium">
+                          ⚠ Este N° de factura ya está registrado en: {facturaDuplicada.join(', ')}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className={LABEL}>Motivo de la factura</label>

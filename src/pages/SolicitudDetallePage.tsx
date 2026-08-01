@@ -9,7 +9,7 @@ import {
   observarSolicitud, reenviarAContabilidad,
   getArchivosBySolicitud, getArchivoUrl,
   updateSolicitud, duplicarSolicitud, uploadFirma, getUsuarioById, marcarDetraccionPagada,
-  getPlanContable,
+  getPlanContable, checkNumeroFacturaDuplicado,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
@@ -125,6 +125,7 @@ export default function SolicitudDetallePage() {
   const [fechaEmisionFactura,  setFechaEmisionFactura]  = useState('')
   const [fechaVencimientoFactura, setFechaVencimientoFactura] = useState('')
   const [savingFactura,        setSavingFactura]        = useState(false)
+  const [facturaDuplicada,     setFacturaDuplicada]     = useState<string[]>([])
 
   // Plan contable (editable en Pendiente)
   const [planContableEditOpciones, setPlanContableEditOpciones] = useState<PlanContable[]>([])
@@ -187,6 +188,17 @@ export default function SolicitudDetallePage() {
     setFechaEmisionFactura(solicitud?.fecha_emision_factura ?? '')
     setFechaVencimientoFactura(solicitud?.fecha_vencimiento_factura ?? '')
   }, [solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura])
+
+  // Alerta de N° de factura duplicado
+  useEffect(() => {
+    if (!numeroFactura.trim() || numeroFactura === (solicitud?.numero_factura ?? '')) { setFacturaDuplicada([]); return }
+    const timer = setTimeout(() => {
+      checkNumeroFacturaDuplicado(numeroFactura, solicitud?.id)
+        .then(rows => setFacturaDuplicada(rows.map(r => r.codigo)))
+        .catch(() => {})
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [numeroFactura, solicitud?.id, solicitud?.numero_factura])
 
   // Consumo de presupuesto (partida o proyecto)
   useEffect(() => {
@@ -1088,6 +1100,11 @@ export default function SolicitudDetallePage() {
                         placeholder="Ej: F001-00123"
                         className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
                       />
+                      {facturaDuplicada.length > 0 && (
+                        <p className="mt-1 text-xs text-amber-600 font-medium">
+                          ⚠ Este N° de factura ya está registrado en: {facturaDuplicada.join(', ')}
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className={LABEL}>Motivo de la factura</label>

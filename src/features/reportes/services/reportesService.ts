@@ -1,5 +1,6 @@
 import { supabase } from '../../../api/supabase'
 import ExcelJS from 'exceljs'
+import { sanitizeBBVA } from '../../solicitud/constants/bancos'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -418,7 +419,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('caja_chica')
-    .select(`id, codigo, estado, responsable_id, proyecto_id, total_gastos, monto_asignado, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
+    .select(`id, codigo, estado, responsable_id, proyecto_id, total_gastos, monto_asignado, cuenta_bbva, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
     .gte(dateField, fechaDesde)
     .lte(dateField, fechaHasta + 'T23:59:59')
 
@@ -429,7 +430,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   const rows = (data ?? []) as unknown as {
     id: number; codigo: string | null; estado: string | null; responsable_id: string | null
-    total_gastos: number; monto_asignado: number
+    total_gastos: number; monto_asignado: number; cuenta_bbva: string | null
     fecha_aprobacion: string | null; fecha_creacion: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
     plan_contable: PlanContableJoin | null
@@ -467,8 +468,8 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       retencion:       0,
       girar_usd:       0,
       girar_pen:       r.total_gastos,
-      banco:           null,
-      cuenta:          null,
+      banco:           r.cuenta_bbva ? 'BBVA' : null,
+      cuenta:          r.cuenta_bbva,
       correo:          u?.correo ?? null,
       fecha_pago:      r.fecha_pago,
       arc_contrato:    false,
@@ -784,4 +785,68 @@ export async function exportarReporteExcel(
   a.download = `Reporte_${filtros.fechaDesde}_${filtros.fechaHasta}.xlsx`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+// ── Excel BBVA (pago masivo consolidado) ────────────────────────────────────
+
+const ESTADOS_PAGABLES = new Set(['Aprobado', 'Autorizado', 'Pagado'])
+const REFERENCIA_POR_TIPO: Partial<Record<ReporteRow['tipo'], string>> = {
+  'A Rendir':  'A Rendir',
+  'Reembolso': 'Reembolso',
+  'Devolución': 'Devolucion Cliente',
+}
+
+export async function exportarBBVAConsolidado(rows: ReporteRow[]): Promise<number> {
+  const pagables = rows.filter(r =>
+    r.tipo !== 'Caja Chica' &&
+    r.estado !== null && ESTADOS_PAGABLES.has(r.estado) &&
+    !!r.banco && !!r.cuenta
+  )
+  if (pagables.length === 0) return 0
+
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Pagos BBVA')
+
+  ws.addRow([
+    'DOI tipo', 'DOI Numero', 'Tipo abono', 'Cuenta', 'Nombre del beneficiario',
+    'Importe abonar', 'Tipo recibo', 'Numero documento', 'Abono Agrupado', 'Referencia',
+    'Indicador de Aviso', 'Medio de aviso', 'Persona Contacto', 'Validacion', 'Moneda',
+  ])
+
+  const correlativos: Record<string, number> = {}
+  for (const r of pagables) {
+    const esFacturable = r.tipo === 'OC' || r.tipo === 'RxH' || r.tipo === 'Liberalidad'
+    const numeroDocumento = esFacturable
+      ? (r.documento ?? '')
+      : String((correlativos[r.tipo] = (correlativos[r.tipo] ?? 0) + 1)).padStart(3, '0')
+    const importe = r.moneda === 'USD' ? r.girar_usd : r.girar_pen
+
+    ws.addRow([
+      esFacturable ? (r.ruc?.length === 11 ? 'R' : 'L') : 'L',
+      r.ruc ?? '',
+      r.banco === 'BBVA' ? 'P' : 'I',
+      r.cuenta ?? '',
+      sanitizeBBVA(r.beneficiario),
+      importe,
+      esFacturable ? 'F' : 'B',
+      numeroDocumento,
+      'N',
+      REFERENCIA_POR_TIPO[r.tipo] ?? '',
+      'E',
+      r.correo ?? '',
+      '',
+      '',
+      r.moneda === 'USD' ? 'Dólares' : 'Soles',
+    ])
+  }
+
+  const buf  = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `pagos_bbva_${new Date().toISOString().slice(0, 10)}.xlsx`
+  a.click()
+  URL.revokeObjectURL(url)
+  return pagables.length
 }

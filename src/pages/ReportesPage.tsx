@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { FileDown, Filter, X, BarChart2, TrendingUp, Receipt, RefreshCw, FileText, Wallet, RotateCcw, Gift } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../api/supabase'
-import { getReporteData, exportarReporteExcel } from '../features/reportes/services/reportesService'
+import { getReporteData, exportarReporteExcel, exportarBBVAConsolidado } from '../features/reportes/services/reportesService'
 import type { ReporteRow, ReporteFiltros } from '../features/reportes/services/reportesService'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -36,10 +36,12 @@ const todayStr     = today.toISOString().slice(0, 10)
 export default function ReportesPage() {
   const { userRole } = useAuthStore()
   const isEvaluador = userRole === ROLES.EVALUADOR
+  const isVisualizador = userRole === ROLES.VISUALIZADOR
 
   const [rows,          setRows]          = useState<ReporteRow[]>([])
   const [loading,       setLoading]       = useState(false)
   const [exporting,     setExporting]     = useState(false)
+  const [exportingBBVA, setExportingBBVA] = useState(false)
   const [proyectos,     setProyectos]     = useState<{ id: number; nombre: string }[]>([])
 
   const [fechaDesde,    setFechaDesde]    = useState(firstOfMonth)
@@ -78,6 +80,20 @@ export default function ReportesPage() {
       toast.error('Error al generar el Excel')
     } finally {
       setExporting(false)
+    }
+  }
+
+  const handleExportarBBVA = async () => {
+    if (rows.length === 0) { toast.error('Busca primero los datos antes de exportar'); return }
+    setExportingBBVA(true)
+    try {
+      const n = await exportarBBVAConsolidado(rows)
+      if (n === 0) toast('No hay registros pagables (Aprobado/Autorizado/Pagado con banco y cuenta) en este período.', { icon: 'ℹ️' })
+      else toast.success(`Excel BBVA generado con ${n} registro${n > 1 ? 's' : ''}`)
+    } catch {
+      toast.error('Error al generar el Excel BBVA')
+    } finally {
+      setExportingBBVA(false)
     }
   }
 
@@ -155,10 +171,18 @@ export default function ReportesPage() {
             )}
             {rows.length > 0 && (
               <button onClick={handleExportar} disabled={exporting}
-                className="ml-auto px-5 py-2.5 rounded-xl bg-green-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-green-700 disabled:opacity-50 transition-all">
+                className={`${isVisualizador ? '' : 'ml-auto '}px-5 py-2.5 rounded-xl bg-green-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-green-700 disabled:opacity-50 transition-all`}>
                 {exporting
                   ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Generando…</>
                   : <><FileDown size={14} /> Exportar Excel ({rows.length})</>}
+              </button>
+            )}
+            {rows.length > 0 && isVisualizador && (
+              <button onClick={handleExportarBBVA} disabled={exportingBBVA}
+                className="ml-auto px-5 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-50 transition-all">
+                {exportingBBVA
+                  ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Generando…</>
+                  : <><FileDown size={14} /> Excel BBVA</>}
               </button>
             )}
           </div>
