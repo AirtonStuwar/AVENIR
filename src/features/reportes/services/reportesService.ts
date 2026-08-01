@@ -35,6 +35,7 @@ export interface ReporteRow {
   igv_pen:        number
   total_usd:      number
   total_pen:      number
+  detraccion_codigo: string | null
   detraccion:     number
   retencion:      number
   girar_usd:      number
@@ -119,7 +120,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       'solicitud_tipo:tipo_id(nombre)',
       'proyecto:proyecto_id(nombre)',
       'proyecto_partida:proyecto_partida_id(nombre)',
-      'detraccion:detraccion_id(porcentaje)',
+      'detraccion:detraccion_id(porcentaje,codigo)',
       `plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(${PC_COLS})`,
     ].join(', '))
     .gte(dateField, fechaDesde)
@@ -142,7 +143,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     solicitud_tipo: { nombre: string } | null
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
-    detraccion: { porcentaje: number } | null
+    detraccion: { porcentaje: number; codigo: string | null } | null
     plan_contable: PlanContableJoin | null
   }[]
 
@@ -218,6 +219,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       igv_pen:      isPEN ? igv : 0,
       total_usd:    isPEN ? 0 : total,
       total_pen:    isPEN ? total : 0,
+      detraccion_codigo: s.detraccion?.codigo ?? null,
       detraccion:   detrac,
       retencion:    isPEN ? reten : 0,
       girar_usd:    isPEN ? 0 : Math.round((total - detracUSD) * 100) / 100,
@@ -307,6 +309,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       igv_pen:       0,
       total_usd:     isPEN ? 0 : r.importe,
       total_pen:     isPEN ? r.importe : 0,
+      detraccion_codigo: null,
       detraccion:    0,
       retencion:     0,
       girar_usd:     isPEN ? 0 : r.total_reembolso,
@@ -395,6 +398,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       igv_pen:       0,
       total_usd:     isPEN ? 0 : r.total_reembolso,
       total_pen:     isPEN ? r.total_reembolso : 0,
+      detraccion_codigo: null,
       detraccion:    0,
       retencion:     0,
       girar_usd:     isPEN ? 0 : r.total_reembolso,
@@ -464,6 +468,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       igv_pen:         0,
       total_usd:       0,
       total_pen:       r.total_gastos,
+      detraccion_codigo: null,
       detraccion:      0,
       retencion:       0,
       girar_usd:       0,
@@ -539,6 +544,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
       igv_pen:       0,
       total_usd:     isPEN ? 0 : r.monto,
       total_pen:     isPEN ? r.monto : 0,
+      detraccion_codigo: null,
       detraccion:    0,
       retencion:     0,
       girar_usd:     isPEN ? 0 : r.monto,
@@ -636,6 +642,7 @@ export async function exportarReporteExcel(
     { header: 'IGV S/.',         key: 'igv_pen',         width: 12 },
     { header: 'TOTAL $',         key: 'total_usd',       width: 13 },
     { header: 'TOTAL S/.',       key: 'total_pen',       width: 13 },
+    { header: 'COD. DETRACCIÓN', key: 'detraccion_codigo', width: 14 },
     { header: 'DETRACCIÓN S/.',  key: 'detraccion',      width: 14 },
     { header: 'RETENCIÓN S/.',   key: 'retencion',       width: 14 },
     { header: 'GIRAR $',         key: 'girar_usd',       width: 13 },
@@ -683,6 +690,11 @@ export async function exportarReporteExcel(
     }
   })
 
+  const NUMERIC_KEYS = new Set([
+    'subtotal_usd', 'subtotal_pen', 'igv_usd', 'igv_pen', 'total_usd', 'total_pen',
+    'detraccion', 'retencion', 'girar_usd', 'girar_pen',
+  ])
+
   // ── Data rows ─────────────────────────────────────────────────
   rows.forEach((row, idx) => {
     const r   = ws.getRow(idx + 3)
@@ -715,6 +727,7 @@ export async function exportarReporteExcel(
       fmtNum(row.igv_pen),
       fmtNum(row.total_usd),
       fmtNum(row.total_pen),
+      row.detraccion_codigo,
       fmtNum(row.detraccion),
       fmtNum(row.retencion),
       fmtNum(row.girar_usd),
@@ -736,8 +749,8 @@ export async function exportarReporteExcel(
       cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + bg } }
       cell.alignment = { vertical: 'middle', wrapText: false }
       cell.border = { bottom: { style: 'hair', color: { argb: 'FFCCCCCC' } }, right: { style: 'hair', color: { argb: 'FFCCCCCC' } } }
-      // Right-align numeric columns (SUBTOTAL $ through GIRAR S/.)
-      if (ci >= 21 && ci <= 30) cell.alignment = { horizontal: 'right', vertical: 'middle' }
+      // Right-align numeric columns
+      if (NUMERIC_KEYS.has(COLS[ci].key)) cell.alignment = { horizontal: 'right', vertical: 'middle' }
     })
     r.height = 16
   })
@@ -745,29 +758,33 @@ export async function exportarReporteExcel(
   // ── Totals row ────────────────────────────────────────────────
   const totRow = ws.getRow(rows.length + 3)
   totRow.height = 18
-  const totals = [
-    rows.reduce((s, r) => s + r.subtotal_usd, 0),
-    rows.reduce((s, r) => s + r.subtotal_pen, 0),
-    rows.reduce((s, r) => s + r.igv_usd,      0),
-    rows.reduce((s, r) => s + r.igv_pen,      0),
-    rows.reduce((s, r) => s + r.total_usd,   0),
-    rows.reduce((s, r) => s + r.total_pen,   0),
-    rows.reduce((s, r) => s + r.detraccion,  0),
-    rows.reduce((s, r) => s + r.retencion,   0),
-    rows.reduce((s, r) => s + r.girar_usd,   0),
-    rows.reduce((s, r) => s + r.girar_pen,   0),
-  ]
+  const totalsMap: Partial<Record<string, number>> = {
+    subtotal_usd: rows.reduce((s, r) => s + r.subtotal_usd, 0),
+    subtotal_pen: rows.reduce((s, r) => s + r.subtotal_pen, 0),
+    igv_usd:      rows.reduce((s, r) => s + r.igv_usd,      0),
+    igv_pen:      rows.reduce((s, r) => s + r.igv_pen,      0),
+    total_usd:    rows.reduce((s, r) => s + r.total_usd,    0),
+    total_pen:    rows.reduce((s, r) => s + r.total_pen,    0),
+    detraccion:   rows.reduce((s, r) => s + r.detraccion,   0),
+    retencion:    rows.reduce((s, r) => s + r.retencion,    0),
+    girar_usd:    rows.reduce((s, r) => s + r.girar_usd,    0),
+    girar_pen:    rows.reduce((s, r) => s + r.girar_pen,    0),
+  }
 
-  ws.mergeCells(rows.length + 3, 1, rows.length + 3, 21)
+  const PARTIDA_N2_COL = COLS.findIndex(c => c.key === 'pc_partida_n2') + 1
+  ws.mergeCells(rows.length + 3, 1, rows.length + 3, PARTIDA_N2_COL)
   const totLbl = totRow.getCell(1)
   totLbl.value = 'TOTALES'
   totLbl.font  = { bold: true, size: 9, color: { argb: 'FFFFFFFF' } }
   totLbl.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003D7D' } }
   totLbl.alignment = { horizontal: 'right', vertical: 'middle' }
 
-  totals.forEach((v, i) => {
-    const cell = totRow.getCell(22 + i)
-    cell.value = fmtNum(v)
+  COLS.forEach((col, i) => {
+    if (i + 1 <= PARTIDA_N2_COL) return
+    const sum = totalsMap[col.key]
+    if (sum === undefined) return
+    const cell = totRow.getCell(i + 1)
+    cell.value = fmtNum(sum)
     cell.font  = { bold: true, size: 9 }
     cell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9E1F2' } }
     cell.alignment = { horizontal: 'right', vertical: 'middle' }
