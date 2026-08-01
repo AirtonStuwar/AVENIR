@@ -34,6 +34,7 @@ export interface CajaChica {
   // enriched
   responsable_nombre?: string | null
   responsable_email?: string | null
+  responsable_dni?: string | null
   aprobador_nombre?: string | null
   evaluador_nombre?: string | null
   detalles?: CajaChicaDetalle[]
@@ -60,7 +61,7 @@ export type CajaChicaInsert = Omit<CajaChica,
   'usuario_aprobador' | 'fecha_aprobacion' | 'comentario' | 'detalles' |
   'plan_contable_id' | 'usuario_evaluador' | 'plan_contable' |
   'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago' |
-  'proyecto' | 'responsable_nombre' | 'responsable_email' | 'aprobador_nombre' | 'evaluador_nombre'
+  'proyecto' | 'responsable_nombre' | 'responsable_email' | 'responsable_dni' | 'aprobador_nombre' | 'evaluador_nombre'
 >
 
 export type CajaChicaDetalleInsert = Omit<CajaChicaDetalle, 'id' | 'fecha_creacion' | 'area_nombre'>

@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Wallet, Plus, RefreshCw, X,
+  Wallet, Plus, RefreshCw, X, Download,
   ChevronLeft, ChevronRight,
 } from 'lucide-react'
+import ExcelJS from 'exceljs'
+import toast from 'react-hot-toast'
 import { supabase } from '../api/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useCajaChica } from '../features/caja-chica/hooks/useCajaChica'
@@ -40,6 +42,8 @@ export default function CajaChicaPage() {
   const [proyectos, setProyectos] = useState<{ id: number; nombre: string }[]>([])
   const [filtroProy, setFiltroProy] = useState<number | null>(null)
   const [filtroEstado, setFiltroEstado] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     supabase.from('proyecto').select('id, nombre').order('nombre')
@@ -47,12 +51,72 @@ export default function CajaChicaPage() {
   }, [])
 
   const canCreate = userRole === ROLES.ADMIN || userRole === ROLES.USUARIO
+  const isVisualizador = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
   const fromItem = total === 0 ? 0 : (page - 1) * pageSize + 1
   const toItem = Math.min(page * pageSize, total)
 
   const handleEstado = (v: string | null) => { setFiltroEstado(v); setEstadoFilter(v) }
   const handleProy = (v: number | null) => { setFiltroProy(v); setProyectoFilter(v) }
   const limpiar = () => { handleEstado(null); handleProy(null) }
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (selectedIds.size === data.length) setSelectedIds(new Set())
+    else setSelectedIds(new Set(data.map(d => d.id)))
+  }
+
+  async function handleExport() {
+    const selected = data.filter(cc => selectedIds.has(cc.id))
+    if (selected.length === 0) return
+    setExporting(true)
+
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Pagos Caja Chica')
+
+    ws.addRow([
+      'DOI tipo', 'DOI Numero', 'Tipo abono', 'Cuenta', 'Nombre del beneficiario',
+      'Importe abonar', 'Tipo recibo', 'Numero documento', 'Abono Agrupado', 'Referencia',
+      'Indicador de Aviso', 'Medio de aviso', 'Persona Contacto', 'Validacion', 'Moneda',
+    ])
+
+    selected.forEach((cc, idx) => {
+      ws.addRow([
+        'L',
+        cc.responsable_dni ?? '',
+        cc.cuenta_bbva ? 'P' : 'I',
+        cc.cuenta_bbva ?? '',
+        cc.proyecto?.nombre ?? '',
+        cc.total_gastos ?? 0,
+        'B',
+        String(idx + 1).padStart(3, '0'),
+        'N',
+        cc.codigo ?? '',
+        'E',
+        cc.responsable_email ?? '',
+        '',
+        '',
+        'Soles',
+      ])
+    })
+
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url    = URL.createObjectURL(blob)
+    const a      = document.createElement('a')
+    a.href       = url
+    a.download   = `cajachica_pagos_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(`Excel generado con ${selected.length} registro${selected.length > 1 ? 's' : ''}`)
+    setExporting(false)
+  }
 
   return (
     <div className="min-h-screen flex justify-center">
@@ -96,6 +160,12 @@ export default function CajaChicaPage() {
                 className="h-9 w-9 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 disabled:opacity-50">
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
               </button>
+              {isVisualizador && selectedIds.size > 0 && (
+                <button onClick={handleExport} disabled={exporting}
+                  className="h-9 px-4 rounded-xl bg-green-600 text-white text-sm font-medium flex items-center gap-1.5 hover:bg-green-700 disabled:opacity-50 transition-all shadow-sm">
+                  <Download size={14} /> {exporting ? 'Generando…' : `Excel BBVA (${selectedIds.size})`}
+                </button>
+              )}
               {canCreate && (
                 <button onClick={() => navigate('/caja-chica/nueva')}
                   className="h-9 px-4 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-1.5 hover:bg-[#002D5C] transition-all shadow-sm">
@@ -110,6 +180,12 @@ export default function CajaChicaPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-[#003D7D]/[0.03] border-b border-gray-100">
+                  {isVisualizador && (
+                    <th className="px-4 py-3 text-left">
+                      <input type="checkbox" checked={data.length > 0 && selectedIds.size === data.length}
+                        onChange={toggleAll} onClick={e => e.stopPropagation()} />
+                    </th>
+                  )}
                   {['Código', 'Empresa', 'Responsable', 'Período', 'Asignado', 'Gastado', 'Saldo', 'Estado'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
@@ -117,13 +193,13 @@ export default function CajaChicaPage() {
               </thead>
               <tbody>
                 {loading && data.length === 0 && (
-                  <tr><td colSpan={8} className="py-16 text-center text-gray-400">
+                  <tr><td colSpan={isVisualizador ? 9 : 8} className="py-16 text-center text-gray-400">
                     <RefreshCw size={28} className="animate-spin text-[#003D7D]/30 mx-auto mb-2" />
                     Cargando…
                   </td></tr>
                 )}
                 {!loading && data.length === 0 && (
-                  <tr><td colSpan={8} className="py-16 text-center text-gray-400">
+                  <tr><td colSpan={isVisualizador ? 9 : 8} className="py-16 text-center text-gray-400">
                     <Wallet size={32} className="text-gray-200 mx-auto mb-2" />
                     <p className="text-sm">No hay registros de caja chica.</p>
                   </td></tr>
@@ -132,6 +208,11 @@ export default function CajaChicaPage() {
                   <tr key={cc.id}
                     onClick={() => navigate(`/caja-chica/${cc.id}`)}
                     className={`border-b border-gray-50 cursor-pointer hover:bg-[#003D7D]/[0.02] transition-colors ${i % 2 !== 0 ? 'bg-gray-50/40' : ''}`}>
+                    {isVisualizador && (
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <input type="checkbox" checked={selectedIds.has(cc.id)} onChange={() => toggleSelect(cc.id)} />
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs bg-[#003D7D]/8 text-[#003D7D] px-2 py-0.5 rounded-md font-semibold">{cc.codigo}</span>
                     </td>

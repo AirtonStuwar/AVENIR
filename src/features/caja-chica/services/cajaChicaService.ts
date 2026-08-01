@@ -20,18 +20,19 @@ async function enrichCajaChica(rows: CajaChica[]): Promise<CajaChica[]> {
 
   const { data } = await supabase
     .from('usuario')
-    .select('id, nombre_completo, correo')
+    .select('id, nombre_completo, correo, dni')
     .in('id', uids)
 
-  const map: Record<string, { nombre: string | null; correo: string | null }> = {}
-  for (const u of (data ?? []) as { id: string; nombre_completo: string | null; correo: string | null }[]) {
-    map[u.id] = { nombre: u.nombre_completo, correo: u.correo }
+  const map: Record<string, { nombre: string | null; correo: string | null; dni: string | null }> = {}
+  for (const u of (data ?? []) as { id: string; nombre_completo: string | null; correo: string | null; dni: string | null }[]) {
+    map[u.id] = { nombre: u.nombre_completo, correo: u.correo, dni: u.dni }
   }
 
   return rows.map(r => ({
     ...r,
     responsable_nombre: r.responsable_id ? map[r.responsable_id]?.nombre ?? null : null,
     responsable_email: r.responsable_id ? map[r.responsable_id]?.correo ?? null : null,
+    responsable_dni: r.responsable_id ? map[r.responsable_id]?.dni ?? null : null,
     aprobador_nombre: r.usuario_aprobador ? map[r.usuario_aprobador]?.nombre ?? null : null,
     evaluador_nombre: r.usuario_evaluador ? map[r.usuario_evaluador]?.nombre ?? null : null,
   }))
