@@ -798,7 +798,6 @@ const REFERENCIA_POR_TIPO: Partial<Record<ReporteRow['tipo'], string>> = {
 
 export async function exportarBBVAConsolidado(rows: ReporteRow[]): Promise<number> {
   const pagables = rows.filter(r =>
-    r.tipo !== 'Caja Chica' &&
     r.estado !== null && ESTADOS_PAGABLES.has(r.estado) &&
     !!r.banco && !!r.cuenta
   )
@@ -831,7 +830,7 @@ export async function exportarBBVAConsolidado(rows: ReporteRow[]): Promise<numbe
       esFacturable ? 'F' : 'B',
       numeroDocumento,
       'N',
-      REFERENCIA_POR_TIPO[r.tipo] ?? '',
+      r.tipo === 'Caja Chica' ? (r.codigo ?? '') : (REFERENCIA_POR_TIPO[r.tipo] ?? ''),
       'E',
       r.correo ?? '',
       '',
