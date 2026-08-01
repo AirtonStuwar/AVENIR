@@ -10,6 +10,7 @@ import { supabase } from '../api/supabase'
 import { useAuthStore } from '../store/authStore'
 import { useCajaChica } from '../features/caja-chica/hooks/useCajaChica'
 import { ROLES } from '../features/solicitud/types/solicitud'
+import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
 
 const ESTADOS = ['Pendiente', 'En Revision', 'Autorizado', 'Rechazado', 'Devuelto']
 const ESTADO_BADGE: Record<string, string> = {
@@ -92,7 +93,7 @@ export default function CajaChicaPage() {
         cc.responsable_dni ?? '',
         cc.cuenta_bbva ? 'P' : 'I',
         cc.cuenta_bbva ?? '',
-        cc.proyecto?.nombre ?? '',
+        sanitizeBBVA(cc.responsable_nombre),
         cc.total_gastos ?? 0,
         'B',
         String(idx + 1).padStart(3, '0'),

@@ -9,6 +9,7 @@ import { ROLES } from '../features/solicitud/types/solicitud'
 import type { SolicitudReembolso } from '../features/reembolso/types/reembolso'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
+import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
 
 function EstadoBadge({ estado }: { estado: SolicitudReembolso['estado'] }) {
   const map: Record<string, string> = {
@@ -101,7 +102,7 @@ export default function ReembolsoPage() {
         s.beneficiario_dni ?? '',
         s.banco === 'BBVA' ? 'P' : 'I',
         s.numero_cuenta ?? '',
-        s.beneficiario_nombre ?? '',
+        sanitizeBBVA(s.beneficiario_nombre),
         s.total_reembolso ?? 0,
         'B',
         String(idx + 1).padStart(3, '0'),
