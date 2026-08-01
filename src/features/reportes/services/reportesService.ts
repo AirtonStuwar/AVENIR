@@ -818,7 +818,7 @@ export async function exportarBBVAConsolidado(rows: ReporteRow[]): Promise<numbe
     const numeroDocumento = esFacturable
       ? (r.documento ?? '')
       : String((correlativos[r.tipo] = (correlativos[r.tipo] ?? 0) + 1)).padStart(3, '0')
-    const importe = r.moneda === 'USD' ? r.girar_usd : r.girar_pen
+    const importe = Math.round((r.moneda === 'USD' ? r.girar_usd : r.girar_pen) * 100) / 100
 
     ws.addRow([
       esFacturable ? (r.ruc?.length === 11 ? 'R' : 'L') : 'L',
@@ -838,6 +838,8 @@ export async function exportarBBVAConsolidado(rows: ReporteRow[]): Promise<numbe
       r.moneda === 'USD' ? 'Dólares' : 'Soles',
     ])
   }
+
+  ws.getColumn(6).numFmt = '0.00'
 
   const buf  = await wb.xlsx.writeBuffer()
   const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
