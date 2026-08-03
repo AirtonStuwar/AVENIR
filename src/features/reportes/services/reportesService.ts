@@ -431,7 +431,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('caja_chica')
-    .select(`id, codigo, estado, responsable_id, proyecto_id, total_gastos, monto_asignado, cuenta_bbva, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
+    .select(`id, codigo, estado, responsable_id, proyecto_id, total_gastos, monto_asignado, banco, cuenta_bbva, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
     .gte(dateField, fechaDesde)
     .lte(dateField, fechaHasta + 'T23:59:59')
 
@@ -442,7 +442,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   const rows = (data ?? []) as unknown as {
     id: number; codigo: string | null; estado: string | null; responsable_id: string | null
-    total_gastos: number; monto_asignado: number; cuenta_bbva: string | null
+    total_gastos: number; monto_asignado: number; banco: string; cuenta_bbva: string | null
     fecha_aprobacion: string | null; fecha_creacion: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
     plan_contable: PlanContableJoin | null
@@ -483,7 +483,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       retencion:       0,
       girar_usd:       0,
       girar_pen:       r.total_gastos,
-      banco:           r.cuenta_bbva ? 'BBVA' : null,
+      banco:           r.cuenta_bbva ? r.banco : null,
       cuenta:          r.cuenta_bbva,
       correo:          u?.correo ?? null,
       fecha_pago:      r.fecha_pago,

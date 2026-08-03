@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { supabase } from '../api/supabase'
 import { createCajaChica, getSaldoAnterior } from '../features/caja-chica/services/cajaChicaService'
+import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
 
 const INPUT = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all'
 const LABEL = 'block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide'
@@ -20,6 +21,7 @@ export default function CajaChicaNuevaPage() {
   const [proyectoId, setProyectoId] = useState<number | null>(null)
   const [periodoDesde, setPeriodoDesde] = useState('')
   const [periodoHasta, setPeriodoHasta] = useState('')
+  const [banco, setBanco] = useState(BANCOS[0])
   const [cuentaBbva, setCuentaBbva] = useState('')
   const [montoAsignado, setMontoAsignado] = useState(0)
   const [saldoAnterior, setSaldoAnterior] = useState(0)
@@ -60,6 +62,7 @@ export default function CajaChicaNuevaPage() {
         monto_asignado: montoAsignado,
         saldo_anterior: saldoAnterior,
         transferencia,
+        banco,
         cuenta_bbva: cuentaBbva || null,
         documento_sustento_path: null,
         estado: 'Pendiente',
@@ -130,11 +133,21 @@ export default function CajaChicaNuevaPage() {
             </div>
           </div>
 
-          {/* Cuenta BBVA */}
-          <div>
-            <label className={LABEL}>Cuenta BBVA</label>
-            <input className={INPUT} placeholder="0011-0814-0252670683"
-              value={cuentaBbva} onChange={e => setCuentaBbva(e.target.value)} />
+          {/* Cuenta bancaria */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={LABEL}>Banco</label>
+              <select className={INPUT} value={banco}
+                onChange={e => { setBanco(e.target.value); setCuentaBbva('') }}>
+                {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={LABEL}>{labelNumeroCuenta(banco)}</label>
+              <input className={INPUT} placeholder={placeholderNumeroCuenta(banco)}
+                maxLength={maxLengthNumeroCuenta(banco)}
+                value={cuentaBbva} onChange={e => setCuentaBbva(e.target.value.replace(/\D/g, ''))} />
+            </div>
           </div>
 
           {/* Resumen financiero */}

@@ -10,6 +10,7 @@ export interface CajaChica {
   transferencia: number
   total_gastos: number
   saldo_actual: number
+  banco: string
   cuenta_bbva: string | null
   documento_sustento_path: string | null
   estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto' | 'Observado'

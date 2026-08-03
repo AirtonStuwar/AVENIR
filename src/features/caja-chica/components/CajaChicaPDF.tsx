@@ -219,8 +219,8 @@ export function CajaChicaPDF({ cajaChica, detalles, logoSrc, firmaUsuarioSrc, fi
             <Text style={s.headerValue}>{fmtDate(cajaChica.periodo_desde)} - {fmtDate(cajaChica.periodo_hasta)}</Text>
           </View>
           <View style={s.headerCard}>
-            <Text style={s.headerLabel}>Cuenta BBVA</Text>
-            <Text style={s.headerValue}>{cajaChica.cuenta_bbva ?? '—'}</Text>
+            <Text style={s.headerLabel}>Cuenta bancaria</Text>
+            <Text style={s.headerValue}>{cajaChica.cuenta_bbva ? `${cajaChica.banco} · ${cajaChica.cuenta_bbva}` : '—'}</Text>
           </View>
         </View>
 

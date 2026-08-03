@@ -91,7 +91,7 @@ export default function CajaChicaPage() {
       ws.addRow([
         'L',
         cc.responsable_dni ?? '',
-        cc.cuenta_bbva ? 'P' : 'I',
+        cc.banco === 'BBVA' ? 'P' : 'I',
         cc.cuenta_bbva ?? '',
         sanitizeBBVA(cc.responsable_nombre),
         cc.total_gastos ?? 0,

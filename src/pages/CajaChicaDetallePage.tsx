@@ -504,7 +504,8 @@ export default function CajaChicaDetallePage() {
             <InfoField label="Empresa" value={cc.proyecto?.nombre} />
             <InfoField label="Responsable" value={cc.responsable_nombre} />
             <InfoField label="Período" value={`${fmtDate(cc.periodo_desde)} — ${fmtDate(cc.periodo_hasta)}`} />
-            <InfoField label="Cuenta BBVA" value={cc.cuenta_bbva} />
+            <InfoField label="Banco" value={cc.banco} />
+            <InfoField label="Cuenta" value={cc.cuenta_bbva} />
             {cc.aprobador_nombre && <InfoField label="Aprobado por" value={cc.aprobador_nombre} />}
           </div>
 
