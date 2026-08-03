@@ -573,7 +573,7 @@ export default function SolicitudNuevaPage() {
                     />
                   </div>
                   <div>
-                    <label className={LABEL}>Cuenta detracciones (CCI)</label>
+                    <label className={LABEL}>Cuenta detracciones</label>
                     <input
                       className={`${INPUT} ${cuentasProveedor.length > 0 ? 'cursor-not-allowed opacity-70' : ''}`}
                       placeholder="Cuenta para detracciones"
