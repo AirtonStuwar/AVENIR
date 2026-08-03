@@ -132,7 +132,24 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
 
   // ── Filtro por rol ──────────────────────────────────────────────
   if (role === ROLES.USUARIO && userId) {
-    query = query.eq('usuario_creador', userId)
+    // Ve las suyas + las de compañeros de su misma área (RLS ya lo permite a nivel de BD)
+    const { data: miArea } = await supabase
+      .from('area_usuario')
+      .select('area_id')
+      .eq('usuario_id', userId)
+      .eq('estado', 1)
+      .maybeSingle()
+    if (miArea?.area_id) {
+      const { data: companeros } = await supabase
+        .from('area_usuario')
+        .select('usuario_id')
+        .eq('area_id', miArea.area_id)
+        .eq('estado', 1)
+      const ids = (companeros ?? []).map((r: any) => r.usuario_id).filter(Boolean)
+      query = ids.length > 0 ? query.in('usuario_creador', ids) : query.eq('usuario_creador', userId)
+    } else {
+      query = query.eq('usuario_creador', userId)
+    }
   } else if (role === ROLES.EVALUADOR && userId) {
     if (estadoNombre === 'En Revision') {
       // Filtro explícito: solo las que están en cola por evaluar
