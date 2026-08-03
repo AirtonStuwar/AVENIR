@@ -142,6 +142,8 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
       // Filtro explícito: solo las que él mismo ya evaluó
       const [id] = await resolveEstadoIds(['Evaluado'])
       query = id ? query.eq('estado_id', id).eq('usuario_evaluador', userId) : query.eq('id', -1)
+    } else if (estadoNombre === 'Todas') {
+      // Sin restricción de estado: ve todas las solicitudes del sistema
     } else {
       // Sin filtro: ve "En Revision" (cualquiera) + solicitudes que él mismo evaluó (cualquier estado)
       const [enRevisionId] = await resolveEstadoIds(['En Revision'])

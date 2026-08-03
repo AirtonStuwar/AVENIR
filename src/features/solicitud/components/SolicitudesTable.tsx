@@ -222,9 +222,10 @@ export default function SolicitudesTable({
               onChange={e => onEstadoFilterChange(e.target.value || null)}
               className="h-9 flex-1 sm:flex-none rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 min-w-0"
             >
-              <option value="">Todos los estados</option>
+              <option value="">Por defecto</option>
               <option value="En Revision">En Revision</option>
               <option value="Evaluado">Evaluado</option>
+              <option value="Todas">Todas las solicitudes</option>
             </select>
           )}
 
