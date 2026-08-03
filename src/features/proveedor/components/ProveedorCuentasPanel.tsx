@@ -72,6 +72,11 @@ export default function ProveedorCuentasPanel({ ruc, razonSocial, onClose }: Pro
       toast.error('Banco y número de cuenta son obligatorios')
       return
     }
+    const largoEsperado = maxLengthNumeroCuenta(form.banco)
+    if (form.numero_cuenta.trim().length !== largoEsperado) {
+      toast.error(`${labelNumeroCuenta(form.banco)} debe tener ${largoEsperado} dígitos (tiene ${form.numero_cuenta.trim().length})`)
+      return
+    }
     setSaving(true)
     try {
       if (editId === 'new') {
