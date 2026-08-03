@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { FileDown, Filter, X, BarChart2, TrendingUp, Receipt, RefreshCw, FileText, Wallet, RotateCcw, Gift } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../api/supabase'
-import { getReporteData, exportarReporteExcel, exportarBBVAConsolidado } from '../features/reportes/services/reportesService'
+import { getReporteData, exportarReporteExcel, exportarBBVAConsolidado, exportarDetraccionesConsolidado } from '../features/reportes/services/reportesService'
 import type { ReporteRow, ReporteFiltros } from '../features/reportes/services/reportesService'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -42,6 +42,7 @@ export default function ReportesPage() {
   const [loading,       setLoading]       = useState(false)
   const [exporting,     setExporting]     = useState(false)
   const [exportingBBVA, setExportingBBVA] = useState(false)
+  const [exportingDetr, setExportingDetr] = useState(false)
   const [proyectos,     setProyectos]     = useState<{ id: number; nombre: string }[]>([])
 
   const [fechaDesde,    setFechaDesde]    = useState(firstOfMonth)
@@ -94,6 +95,20 @@ export default function ReportesPage() {
       toast.error('Error al generar el Excel BBVA')
     } finally {
       setExportingBBVA(false)
+    }
+  }
+
+  const handleExportarDetracciones = async () => {
+    if (rows.length === 0) { toast.error('Busca primero los datos antes de exportar'); return }
+    setExportingDetr(true)
+    try {
+      const n = await exportarDetraccionesConsolidado(rows)
+      if (n === 0) toast('No hay solicitudes OC con detracción en este período.', { icon: 'ℹ️' })
+      else toast.success(`Excel de Detracciones generado con ${n} registro${n > 1 ? 's' : ''}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al generar el Excel de Detracciones')
+    } finally {
+      setExportingDetr(false)
     }
   }
 
@@ -183,6 +198,14 @@ export default function ReportesPage() {
                 {exportingBBVA
                   ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Generando…</>
                   : <><FileDown size={14} /> Excel BBVA</>}
+              </button>
+            )}
+            {rows.length > 0 && isVisualizador && (
+              <button onClick={handleExportarDetracciones} disabled={exportingDetr}
+                className="px-5 py-2.5 rounded-xl bg-purple-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-purple-700 disabled:opacity-50 transition-all">
+                {exportingDetr
+                  ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Generando…</>
+                  : <><FileDown size={14} /> Excel Detracciones</>}
               </button>
             )}
           </div>

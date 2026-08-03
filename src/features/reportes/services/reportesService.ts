@@ -36,6 +36,7 @@ export interface ReporteRow {
   total_usd:      number
   total_pen:      number
   detraccion_codigo: string | null
+  detraccion_porcentaje: number | null
   detraccion:     number
   retencion:      number
   girar_usd:      number
@@ -220,6 +221,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       total_usd:    isPEN ? 0 : total,
       total_pen:    isPEN ? total : 0,
       detraccion_codigo: s.detraccion?.codigo ?? null,
+      detraccion_porcentaje: s.detraccion?.porcentaje ?? null,
       detraccion:   detrac,
       retencion:    isPEN ? reten : 0,
       girar_usd:    isPEN ? 0 : Math.round((total - detracUSD) * 100) / 100,
@@ -310,6 +312,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       total_usd:     isPEN ? 0 : r.importe,
       total_pen:     isPEN ? r.importe : 0,
       detraccion_codigo: null,
+      detraccion_porcentaje: null,
       detraccion:    0,
       retencion:     0,
       girar_usd:     isPEN ? 0 : r.total_reembolso,
@@ -399,6 +402,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       total_usd:     isPEN ? 0 : r.total_reembolso,
       total_pen:     isPEN ? r.total_reembolso : 0,
       detraccion_codigo: null,
+      detraccion_porcentaje: null,
       detraccion:    0,
       retencion:     0,
       girar_usd:     isPEN ? 0 : r.total_reembolso,
@@ -469,6 +473,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       total_usd:       0,
       total_pen:       r.total_gastos,
       detraccion_codigo: null,
+      detraccion_porcentaje: null,
       detraccion:      0,
       retencion:       0,
       girar_usd:       0,
@@ -545,6 +550,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
       total_usd:     isPEN ? 0 : r.monto,
       total_pen:     isPEN ? r.monto : 0,
       detraccion_codigo: null,
+      detraccion_porcentaje: null,
       detraccion:    0,
       retencion:     0,
       girar_usd:     isPEN ? 0 : r.monto,
@@ -867,4 +873,66 @@ export async function exportarBBVAConsolidado(rows: ReporteRow[]): Promise<numbe
   a.click()
   URL.revokeObjectURL(url)
   return pagables.length
+}
+
+// ── Excel Detracciones SPOT (consolidado) ───────────────────────────────────
+
+export async function exportarDetraccionesConsolidado(rows: ReporteRow[]): Promise<number> {
+  const conDetraccion = rows.filter(r => r.tipo === 'OC' && !!r.detraccion_codigo)
+  if (conDetraccion.length === 0) return 0
+
+  const sinFecha = conDetraccion.filter(r => !r.fecha_emision)
+  if (sinFecha.length > 0) {
+    throw new Error(`${sinFecha.length} solicitud(es) no tienen fecha de emisión de factura: ${sinFecha.map(r => r.codigo ?? '').join(', ')}`)
+  }
+
+  const wb = new ExcelJS.Workbook()
+  const ws = wb.addWorksheet('Detracciones SPOT')
+
+  const headers = [
+    'RUC DEL PROVEEDOR', 'TIPO DE DOCUMENTO', 'SERIE', 'NUMERO',
+    'FECHA DE EMISION', 'IMPORTE TOTAL', 'PORCENTAJE DETRACCIÓN',
+    'IMPORTE DETRACCIÓN', 'CODIGO DE SERVICIO',
+    'PERIODO TRIBUTARIO', 'OBSERVACION',
+  ]
+  const headerRow = ws.addRow(headers)
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F497D' } }
+  ws.columns = [
+    { width: 18 }, { width: 20 }, { width: 10 }, { width: 14 },
+    { width: 16 }, { width: 16 }, { width: 22 }, { width: 18 }, { width: 22 }, { width: 18 }, { width: 20 },
+  ]
+
+  for (const r of conDetraccion) {
+    const fechaEmision = new Date(r.fecha_emision! + (r.fecha_emision!.includes('T') ? '' : 'T00:00:00'))
+    const [serie, numero] = r.documento?.includes('-')
+      ? r.documento.split('-')
+      : ['', r.documento ?? '']
+    const periodoTributario = fechaEmision.toLocaleDateString('es-PE', { month: '2-digit', year: 'numeric' })
+    const importeTotal = r.moneda === 'USD' ? r.total_usd : r.total_pen
+
+    ws.addRow([
+      r.ruc ?? '',
+      '01',
+      serie,
+      numero,
+      fechaEmision.toLocaleDateString('es-PE'),
+      importeTotal,
+      r.detraccion_porcentaje ?? '',
+      Math.round(r.detraccion),
+      r.detraccion_codigo ?? '',
+      periodoTributario,
+      '',
+    ])
+  }
+
+  const buf  = await wb.xlsx.writeBuffer()
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `detracciones_${new Date().toISOString().slice(0, 10)}.xlsx`
+  a.click()
+  URL.revokeObjectURL(url)
+  return conDetraccion.length
 }
