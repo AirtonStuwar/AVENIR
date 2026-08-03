@@ -37,6 +37,7 @@ export interface ReporteRow {
   total_pen:      number
   detraccion_codigo: string | null
   detraccion_porcentaje: number | null
+  cuenta_detracciones: string | null
   detraccion:     number
   retencion:      number
   girar_usd:      number
@@ -116,7 +117,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       'numero_factura, numero_rxh, porcentaje_retencion, monto_retencion',
       'detraccion_id, monto_detraccion, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura, fecha_pago',
       'proyecto_id, proyecto_partida_id',
-      'banco, numero_cuenta, contacto_correo',
+      'banco, numero_cuenta, cuenta_detracciones, contacto_correo',
       'estado_soli:estado_id(nombre)',
       'solicitud_tipo:tipo_id(nombre)',
       'proyecto:proyecto_id(nombre)',
@@ -139,7 +140,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     porcentaje_retencion: number | null; monto_retencion: number | null
     monto_detraccion: number | null; fecha_aprobacion: string | null
     fecha_creacion: string | null; fecha_requerida: string | null; fecha_emision_factura: string | null; fecha_pago: string | null
-    banco: string | null; numero_cuenta: string | null; contacto_correo: string | null
+    banco: string | null; numero_cuenta: string | null; cuenta_detracciones: string | null; contacto_correo: string | null
     estado_soli: { nombre: string } | null
     solicitud_tipo: { nombre: string } | null
     proyecto: { nombre: string } | null
@@ -222,6 +223,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       total_pen:    isPEN ? total : 0,
       detraccion_codigo: s.detraccion?.codigo ?? null,
       detraccion_porcentaje: s.detraccion?.porcentaje ?? null,
+      cuenta_detracciones: s.cuenta_detracciones,
       detraccion:   detrac,
       retencion:    isPEN ? reten : 0,
       girar_usd:    isPEN ? 0 : Math.round((total - detracUSD) * 100) / 100,
@@ -313,6 +315,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       total_pen:     isPEN ? r.importe : 0,
       detraccion_codigo: null,
       detraccion_porcentaje: null,
+      cuenta_detracciones: null,
       detraccion:    0,
       retencion:     0,
       girar_usd:     isPEN ? 0 : r.total_reembolso,
@@ -403,6 +406,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       total_pen:     isPEN ? r.total_reembolso : 0,
       detraccion_codigo: null,
       detraccion_porcentaje: null,
+      cuenta_detracciones: null,
       detraccion:    0,
       retencion:     0,
       girar_usd:     isPEN ? 0 : r.total_reembolso,
@@ -474,6 +478,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       total_pen:       r.total_gastos,
       detraccion_codigo: null,
       detraccion_porcentaje: null,
+      cuenta_detracciones: null,
       detraccion:      0,
       retencion:       0,
       girar_usd:       0,
@@ -551,6 +556,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
       total_pen:     isPEN ? r.monto : 0,
       detraccion_codigo: null,
       detraccion_porcentaje: null,
+      cuenta_detracciones: null,
       detraccion:    0,
       retencion:     0,
       girar_usd:     isPEN ? 0 : r.monto,
@@ -890,17 +896,17 @@ export async function exportarDetraccionesConsolidado(rows: ReporteRow[]): Promi
   const ws = wb.addWorksheet('Detracciones SPOT')
 
   const headers = [
-    'RUC DEL PROVEEDOR', 'TIPO DE DOCUMENTO', 'SERIE', 'NUMERO',
-    'FECHA DE EMISION', 'IMPORTE TOTAL', 'PORCENTAJE DETRACCIÓN',
-    'IMPORTE DETRACCIÓN', 'CODIGO DE SERVICIO',
-    'PERIODO TRIBUTARIO', 'OBSERVACION',
+    'TIPO', 'RUC', 'RAZON SOCIAL', 'DOC', 'CODIGO BS O SERVICIOS',
+    'CUENTA DEL PROVEEDOR', 'IMPORTE', 'TIPO OPERACIÓN', 'PERIODO',
+    'TIPO DOC', 'SERIE', 'NUMERO',
   ]
   const headerRow = ws.addRow(headers)
   headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
   headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F497D' } }
   ws.columns = [
-    { width: 18 }, { width: 20 }, { width: 10 }, { width: 14 },
-    { width: 16 }, { width: 16 }, { width: 22 }, { width: 18 }, { width: 22 }, { width: 18 }, { width: 20 },
+    { width: 8 }, { width: 14 }, { width: 32 }, { width: 8 }, { width: 20 },
+    { width: 20 }, { width: 14 }, { width: 14 }, { width: 12 },
+    { width: 10 }, { width: 10 }, { width: 16 },
   ]
 
   for (const r of conDetraccion) {
@@ -908,21 +914,21 @@ export async function exportarDetraccionesConsolidado(rows: ReporteRow[]): Promi
     const [serie, numero] = r.documento?.includes('-')
       ? r.documento.split('-')
       : ['', r.documento ?? '']
-    const periodoTributario = fechaEmision.toLocaleDateString('es-PE', { month: '2-digit', year: 'numeric' })
-    const importeTotal = r.moneda === 'USD' ? r.total_usd : r.total_pen
+    const periodo = fechaEmision.toLocaleDateString('es-PE', { month: '2-digit', year: 'numeric' })
 
     ws.addRow([
+      6,
       r.ruc ?? '',
+      r.beneficiario ?? '',
+      0,
+      r.detraccion_codigo ?? '',
+      r.cuenta_detracciones ?? '',
+      Math.round(r.detraccion),
+      '01',
+      periodo,
       '01',
       serie,
       numero,
-      fechaEmision.toLocaleDateString('es-PE'),
-      importeTotal,
-      r.detraccion_porcentaje ?? '',
-      Math.round(r.detraccion),
-      r.detraccion_codigo ?? '',
-      periodoTributario,
-      '',
     ])
   }
 
