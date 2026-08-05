@@ -39,10 +39,10 @@ export async function getARendir(filtros: ARendirFiltros = {}): Promise<ARendirP
   if (role === ROLES.USUARIO && userId) q = q.eq('beneficiario_id', userId)
   if (role === ROLES.APROBADOR) {
     if (estado) q = q.eq('estado', estado)
-    else q = q.in('estado', ['Pendiente', 'Aprobado'])
+    else q = q.in('estado', ['Evaluado', 'Aprobado'])
   } else if (role === ROLES.EVALUADOR) {
     if (estado) q = q.eq('estado', estado)
-    else q = q.in('estado', ['En Revision', 'Cerrado'])
+    else q = q.in('estado', ['En Evaluación', 'Evaluado', 'En Revision', 'Cerrado'])
   } else if (role === ROLES.VISUALIZADOR) {
     if (estado) q = q.eq('estado', estado)
     else q = q.in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'])
@@ -84,6 +84,42 @@ export async function updateARendir(id: number, payload: Partial<SolicitudARendi
 
 // ── Estado helpers ─────────────────────────────────────────────
 
+/** USUARIO/ADMIN: envía el adelanto a evaluación → En Evaluación */
+export async function enviarARevisionARendir(id: number): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'En Evaluación' })
+    .eq('id', id)
+  if (error) throw error
+}
+
+/** EVALUADOR/ADMIN: revisó el adelanto y lo pasa al aprobador → Evaluado */
+export async function marcarEvaluadoARendir(id: number, usuarioId: string): Promise<void> {
+  const { data, error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Evaluado', usuario_evaluador: usuarioId })
+    .eq('id', id)
+    .eq('estado', 'En Evaluación')
+    .select()
+    .maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('Este adelanto ya fue evaluado por otro evaluador — recarga la página para ver el estado actual.')
+}
+
+/** EVALUADOR/ADMIN: encontró un error antes de pasarlo al aprobador → Devuelto */
+export async function devolverDesdeEvaluacionARendir(id: number, comentario: string): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Devuelto', comentario, usuario_evaluador: null })
+    .eq('id', id)
+  if (error) throw error
+}
+
+/** USUARIO/ADMIN: tras corregir lo devuelto por el evaluador → reenvía directo a evaluación */
+export async function reenviarDesdeDevueltoARendir(id: number): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'En Evaluación' })
+    .eq('id', id)
+  if (error) throw error
+}
+
 /** APROBADOR/ADMIN: aprueba el adelanto → estado Aprobado */
 export async function aprobarARendir(
   id: number,
@@ -92,6 +128,14 @@ export async function aprobarARendir(
 ): Promise<void> {
   const { error } = await supabase.from('solicitud_arendir')
     .update({ estado: 'Aprobado', usuario_aprobador: usuarioId, fecha_aprobacion: new Date().toISOString(), ...(comentario ? { comentario } : {}) })
+    .eq('id', id)
+  if (error) throw error
+}
+
+/** APROBADOR/ADMIN: rechaza el adelanto → estado Rechazado */
+export async function rechazarARendir(id: number, usuarioId: string, comentario: string): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Rechazado', usuario_aprobador: usuarioId, fecha_aprobacion: new Date().toISOString(), comentario })
     .eq('id', id)
   if (error) throw error
 }
@@ -132,10 +176,20 @@ export async function enviarRendicion(id: number): Promise<void> {
   if (error) throw error
 }
 
-/** VISUALIZADOR/EVALUADOR/ADMIN: cierra la rendición → Cerrado */
-export async function cerrarRendicion(id: number, usuarioId: string): Promise<void> {
+/** VISUALIZADOR/EVALUADOR/ADMIN: cierra la rendición → Cerrado (con devolución de sobrante si aplica) */
+export async function cerrarRendicion(
+  id: number,
+  usuarioId: string,
+  montoDevuelto?: number,
+  fechaDevolucion?: string,
+): Promise<void> {
   const { error } = await supabase.from('solicitud_arendir')
-    .update({ estado: 'Cerrado', usuario_aprobador: usuarioId, fecha_aprobacion: new Date().toISOString() })
+    .update({
+      estado: 'Cerrado',
+      usuario_aprobador: usuarioId,
+      fecha_aprobacion: new Date().toISOString(),
+      ...(montoDevuelto !== undefined ? { monto_devuelto: montoDevuelto, fecha_devolucion: fechaDevolucion ?? null } : {}),
+    })
     .eq('id', id)
   if (error) throw error
 }

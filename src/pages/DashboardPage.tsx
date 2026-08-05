@@ -684,7 +684,7 @@ function EvaluadorDashboard() {
 
   const {
     enRevision, evaluadas, devueltas, aprobadas: evalAprobadas, detalles: evalDetalles,
-    arendirEnRevision, arendirCerrados,
+    arendirPorEvaluar, arendirEvaluados, arendirEnRevision, arendirCerrados,
     reembolsoEnRevision, reembolsoEvaluados,
     devolucionEnRevision, devolucionEvaluadas,
   } = data
@@ -700,6 +700,11 @@ function EvaluadorDashboard() {
   const solEnColaUSD = montoSolicitudes(enRevision, evalDetalles, 'USD')
   const solEvalPEN   = montoSolicitudes(evaluadas, evalDetalles, 'PEN')
   const solEvalUSD   = montoSolicitudes(evaluadas, evalDetalles, 'USD')
+
+  const arendirPorEvalPEN = montoARendir(arendirPorEvaluar, 'PEN')
+  const arendirPorEvalUSD = montoARendir(arendirPorEvaluar, 'USD')
+  const arendirEvalPEN    = montoARendir(arendirEvaluados, 'PEN')
+  const arendirEvalUSD    = montoARendir(arendirEvaluados, 'USD')
 
   const arendirEnColaPEN = montoARendirGasto(arendirEnRevision, 'PEN')
   const arendirEnColaUSD = montoARendirGasto(arendirEnRevision, 'USD')
@@ -753,6 +758,16 @@ function EvaluadorDashboard() {
             <KpiCard label="Por evaluar $" value={fmtMoney(solEnColaUSD, 'USD')} sub={`${enRevision.length} en cola`} icon={<Hourglass size={18} />} color="amber" onClick={() => navigate('/solicitudes')} />
             <KpiCard label="Evaluado S/" value={fmtMoney(solEvalPEN, 'PEN')} sub={`${evaluadas.length} evaluadas`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/solicitudes')} />
             <KpiCard label="Evaluado $" value={fmtMoney(solEvalUSD, 'USD')} sub={`${evaluadas.length} evaluadas`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/solicitudes')} />
+          </div>
+        </div>
+
+        <div>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">A Rendir — por evaluar vs evaluado</h2>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard label="Por evaluar S/" value={fmtMoney(arendirPorEvalPEN, 'PEN')} sub={`${arendirPorEvaluar.length} en cola`} icon={<Hourglass size={18} />} color="amber" alert={arendirPorEvalPEN > 0} onClick={() => navigate('/arendir')} />
+            <KpiCard label="Por evaluar $" value={fmtMoney(arendirPorEvalUSD, 'USD')} sub={`${arendirPorEvaluar.length} en cola`} icon={<Hourglass size={18} />} color="amber" onClick={() => navigate('/arendir')} />
+            <KpiCard label="Evaluado S/" value={fmtMoney(arendirEvalPEN, 'PEN')} sub={`${arendirEvaluados.length} evaluados`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/arendir')} />
+            <KpiCard label="Evaluado $" value={fmtMoney(arendirEvalUSD, 'USD')} sub={`${arendirEvaluados.length} evaluados`} icon={<CheckCircle size={18} />} color="green" onClick={() => navigate('/arendir')} />
           </div>
         </div>
 

@@ -11,7 +11,12 @@ import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
 import {
   getARendirById,
+  enviarARevisionARendir,
+  marcarEvaluadoARendir,
+  devolverDesdeEvaluacionARendir,
+  reenviarDesdeDevueltoARendir,
   aprobarARendir,
+  rechazarARendir,
   devolverARendir,
   reenviarContabilidadARendir,
   marcarPagadoARendir,
@@ -45,12 +50,16 @@ function fmtDate(val: string | null) {
 
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   const map: Record<string, string> = {
-    'Pendiente':   'bg-yellow-100 text-yellow-800',
-    'Aprobado':    'bg-emerald-100 text-emerald-800',
-    'Pagado':      'bg-blue-100 text-blue-800',
-    'En Revision': 'bg-purple-100 text-purple-800',
-    'Cerrado':     'bg-green-100 text-green-800',
-    'Observado':   'bg-amber-100 text-amber-800',
+    'Pendiente':     'bg-yellow-100 text-yellow-800',
+    'En Evaluación': 'bg-blue-100 text-blue-800',
+    'Evaluado':      'bg-purple-100 text-purple-800',
+    'Devuelto':      'bg-orange-100 text-orange-800',
+    'Aprobado':      'bg-emerald-100 text-emerald-800',
+    'Rechazado':     'bg-red-100 text-red-800',
+    'Pagado':        'bg-blue-100 text-blue-800',
+    'En Revision':   'bg-purple-100 text-purple-800',
+    'Cerrado':       'bg-green-100 text-green-800',
+    'Observado':     'bg-amber-100 text-amber-800',
   }
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -154,6 +163,11 @@ export default function ARendirDetallePage() {
   const [aprobarLoading, setAprobarLoading] = useState(false)
   const [devolverOpen,   setDevolverOpen]   = useState(false)
   const [devolverComent, setDevolverComent] = useState('')
+  const [rechazarOpen,   setRechazarOpen]   = useState(false)
+  const [rechazarComent, setRechazarComent] = useState('')
+  const [cerrarOpen,       setCerrarOpen]       = useState(false)
+  const [montoDevueltoInput, setMontoDevueltoInput] = useState('')
+  const [fechaDevolucionInput, setFechaDevolucionInput] = useState(new Date().toISOString().slice(0, 10))
 
   useEffect(() => {
     if (!id) return
@@ -190,13 +204,81 @@ export default function ARendirDetallePage() {
     if (!solicitud || !devolverComent.trim()) return
     setActionLoading(true)
     try {
-      await devolverARendir(solicitud.id, devolverComent.trim())
-      toast.success('Observado — el solicitante puede corregir y reenviar')
+      if (solicitud.estado === 'En Evaluación') {
+        await devolverDesdeEvaluacionARendir(solicitud.id, devolverComent.trim())
+        toast.success('Devuelto al solicitante para que corrija')
+      } else {
+        await devolverARendir(solicitud.id, devolverComent.trim())
+        toast.success('Observado — el solicitante puede corregir y reenviar')
+      }
       setDevolverOpen(false); setDevolverComent('')
       const sol = await getARendirById(Number(id))
       setSolicitud(sol); setDetalles(sol.detalles ?? [])
     } catch {
       toast.error('Error al devolver')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleEnviarEvaluacion() {
+    if (!solicitud) return
+    setActionLoading(true)
+    try {
+      await enviarARevisionARendir(solicitud.id)
+      toast.success('Enviado a evaluación')
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } catch {
+      toast.error('Error al enviar a evaluación')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleReenviarDevuelto() {
+    if (!solicitud) return
+    setActionLoading(true)
+    try {
+      await reenviarDesdeDevueltoARendir(solicitud.id)
+      toast.success('Reenviado a evaluación')
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } catch {
+      toast.error('Error al reenviar')
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleMarcarEvaluado() {
+    if (!solicitud || !user?.id) return
+    setActionLoading(true)
+    try {
+      await marcarEvaluadoARendir(solicitud.id, user.id)
+      toast.success('Marcado como evaluado — pasa al aprobador')
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error al evaluar')
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } finally {
+      setActionLoading(false)
+    }
+  }
+
+  async function handleRechazar() {
+    if (!solicitud || !user?.id || !rechazarComent.trim()) return
+    setActionLoading(true)
+    try {
+      await rechazarARendir(solicitud.id, user.id, rechazarComent.trim())
+      toast.success('Adelanto rechazado')
+      setRechazarOpen(false); setRechazarComent('')
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } catch {
+      toast.error('Error al rechazar')
     } finally {
       setActionLoading(false)
     }
@@ -281,17 +363,31 @@ export default function ARendirDetallePage() {
     setFirmaOpen(true)
   }
 
-  async function handleCerrar() {
+  async function handleCerrar(montoDevuelto?: number, fechaDevolucion?: string) {
     if (!solicitud || !user?.id) return
     setActionLoading(true)
     try {
-      await cerrarRendicion(solicitud.id, user.id)
+      await cerrarRendicion(solicitud.id, user.id, montoDevuelto, fechaDevolucion)
       toast.success('Rendición cerrada')
-      setSolicitud(prev => prev ? { ...prev, estado: 'Cerrado' } : prev)
+      setCerrarOpen(false)
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
     } catch {
       toast.error('Error al cerrar')
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  const sobrante = solicitud ? solicitud.importe - solicitud.total_reembolso : 0
+
+  function handleIniciarCerrar() {
+    if (sobrante > 0) {
+      setMontoDevueltoInput(sobrante.toFixed(2))
+      setFechaDevolucionInput(new Date().toISOString().slice(0, 10))
+      setCerrarOpen(true)
+    } else {
+      handleCerrar()
     }
   }
 
@@ -331,7 +427,11 @@ export default function ARendirDetallePage() {
   const isVisualizador = userRole === ROLES.VISUALIZADOR
   const isOwner        = solicitud?.beneficiario_id === user?.id
 
-  const canAprobar        = solicitud?.estado === 'Pendiente' && (isAprobador || isAdmin)
+  const canEnviarEvaluacion = solicitud?.estado === 'Pendiente' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
+  const canEvaluar          = solicitud?.estado === 'En Evaluación' && (isEvaluador || isAdmin)
+  const canReenviarDevuelto = solicitud?.estado === 'Devuelto' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
+  const canAprobar        = solicitud?.estado === 'Evaluado' && (isAprobador || isAdmin)
+  const canRechazar       = solicitud?.estado === 'Evaluado' && (isAprobador || isAdmin)
   const canEditDet        = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
     ['Aprobado', 'Pagado', 'Observado'].includes(solicitud?.estado ?? '')
   const canReenviarConta  = solicitud?.estado === 'Observado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
@@ -401,11 +501,50 @@ export default function ARendirDetallePage() {
             </span>
           )}
 
-          {/* APROBADOR/ADMIN: Aprobar el adelanto (Pendiente) */}
+          {/* USUARIO/ADMIN: Enviar el adelanto a evaluación (Pendiente) */}
+          {canEnviarEvaluacion && (
+            <button onClick={handleEnviarEvaluacion} disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
+              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+              Enviar a evaluación
+            </button>
+          )}
+
+          {/* USUARIO/ADMIN: Reenviar tras ser devuelto por el evaluador (Devuelto) */}
+          {canReenviarDevuelto && (
+            <button onClick={handleReenviarDevuelto} disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
+              {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+              Reenviar a evaluación
+            </button>
+          )}
+
+          {/* EVALUADOR/ADMIN: Evaluar el adelanto (En Evaluación) */}
+          {canEvaluar && (
+            <>
+              <button onClick={handleMarcarEvaluado} disabled={actionLoading}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-purple-600 text-white text-xs font-semibold hover:bg-purple-700 disabled:opacity-50 transition-colors">
+                {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
+                Marcar evaluado
+              </button>
+              <button onClick={() => { setDevolverComent(''); setDevolverOpen(true) }} disabled={actionLoading}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
+                Devolver
+              </button>
+            </>
+          )}
+
+          {/* APROBADOR/ADMIN: Aprobar o rechazar el adelanto (Evaluado) */}
           {canAprobar && (
             <button onClick={() => setAprobarOpen(true)} disabled={actionLoading}
               className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
               <CheckCircle2 size={13} /> Aprobar adelanto
+            </button>
+          )}
+          {canRechazar && (
+            <button onClick={() => { setRechazarComent(''); setRechazarOpen(true) }} disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
+              Rechazar
             </button>
           )}
 
@@ -447,7 +586,7 @@ export default function ARendirDetallePage() {
           {/* VISUALIZADOR/EVALUADOR/ADMIN: Cerrar rendición (En Revision) */}
           {canCerrar && (
             <button
-              onClick={handleCerrar}
+              onClick={handleIniciarCerrar}
               disabled={actionLoading}
               className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
@@ -458,6 +597,25 @@ export default function ARendirDetallePage() {
 
         </div>
       </div>
+
+      {/* Alerta de devuelto — el evaluador encontró un error */}
+      {solicitud.estado === 'Devuelto' && solicitud.comentario && (
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl px-5 py-4">
+          <p className="text-xs font-semibold text-orange-700 uppercase mb-1">Devuelto por el evaluador</p>
+          <p className="text-sm text-orange-800">{solicitud.comentario}</p>
+          {canReenviarDevuelto && (
+            <p className="text-xs text-orange-600 mt-1">Corrige lo indicado y haz clic en "Reenviar a evaluación".</p>
+          )}
+        </div>
+      )}
+
+      {/* Alerta de rechazado */}
+      {solicitud.estado === 'Rechazado' && solicitud.comentario && (
+        <div className="bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+          <p className="text-xs font-semibold text-red-700 uppercase mb-1">Rechazado</p>
+          <p className="text-sm text-red-800">{solicitud.comentario}</p>
+        </div>
+      )}
 
       {/* Alerta de observación — contabilidad encontró un error */}
       {solicitud.estado === 'Observado' && solicitud.comentario && (
@@ -506,6 +664,10 @@ export default function ARendirDetallePage() {
             { label: 'Banco',            value: solicitud.banco },
             { label: solicitud.banco === 'BBVA' ? 'Número de cuenta' : 'Número CCI', value: solicitud.numero_cuenta },
             ...(solicitud.estado === 'Cerrado' && solicitud.aprobador_nombre ? [{ label: 'Cerrado por', value: solicitud.aprobador_nombre }] : []),
+            ...(solicitud.monto_devuelto != null ? [
+              { label: 'Devuelto a la empresa', value: fmtMoney(solicitud.monto_devuelto, solicitud.moneda) },
+              { label: 'Fecha de devolución', value: fmtDate(solicitud.fecha_devolucion) },
+            ] : []),
           ].map(({ label, value }) => (
             <div key={label}>
               <p className="text-xs text-gray-400 uppercase font-semibold mb-0.5">{label}</p>
@@ -729,7 +891,11 @@ export default function ARendirDetallePage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
             <h2 className="text-base font-semibold text-gray-900">Devolver A Rendir</h2>
-            <p className="text-sm text-gray-600">Quedará Observado para que el solicitante corrija y lo reenvíe directo a contabilidad (sin re-aprobación).</p>
+            <p className="text-sm text-gray-600">
+              {solicitud.estado === 'En Evaluación'
+                ? 'Quedará Devuelto para que el solicitante corrija y lo reenvíe a evaluación.'
+                : 'Quedará Observado para que el solicitante corrija y lo reenvíe directo a contabilidad (sin re-aprobación).'}
+            </p>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Motivo *</label>
               <textarea value={devolverComent} onChange={e => setDevolverComent(e.target.value)} rows={3}
@@ -745,6 +911,73 @@ export default function ARendirDetallePage() {
                 className="flex-1 h-10 rounded-xl bg-amber-500 text-white text-sm font-semibold hover:bg-amber-600 disabled:opacity-50 flex items-center justify-center gap-2">
                 {actionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
                 Devolver
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal rechazar */}
+      {rechazarOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Rechazar adelanto</h2>
+            <p className="text-sm text-gray-600">El adelanto quedará Rechazado — estado final.</p>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Motivo *</label>
+              <textarea value={rechazarComent} onChange={e => setRechazarComent(e.target.value)} rows={3}
+                placeholder="Describe el motivo del rechazo..."
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/30 resize-none" />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setRechazarOpen(false)} disabled={actionLoading}
+                className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={handleRechazar} disabled={actionLoading || !rechazarComent.trim()}
+                className="flex-1 h-10 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                Rechazar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal cerrar rendición con devolución de sobrante */}
+      {cerrarOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <h2 className="text-base font-semibold text-gray-900">Cerrar rendición</h2>
+            <p className="text-sm text-gray-600">
+              El adelanto ({fmtMoney(solicitud.importe, solicitud.moneda)}) fue mayor a lo gastado ({fmtMoney(solicitud.total_reembolso, solicitud.moneda)}).
+              Registra la devolución del sobrante a la empresa.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Monto devuelto *</label>
+                <input type="number" step="0.01" min="0" value={montoDevueltoInput}
+                  onChange={e => setMontoDevueltoInput(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Fecha *</label>
+                <input type="date" value={fechaDevolucionInput}
+                  onChange={e => setFechaDevolucionInput(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setCerrarOpen(false)} disabled={actionLoading}
+                className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button
+                onClick={() => handleCerrar(parseFloat(montoDevueltoInput) || 0, fechaDevolucionInput)}
+                disabled={actionLoading || !montoDevueltoInput || !fechaDevolucionInput}
+                className="flex-1 h-10 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                Cerrar rendición
               </button>
             </div>
           </div>

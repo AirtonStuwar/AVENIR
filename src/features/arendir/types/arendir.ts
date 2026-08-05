@@ -27,7 +27,7 @@ export interface SolicitudARendir {
   numero_cuenta: string | null
   numero_pago: number | null
   documento_sustento_path: string | null
-  estado: 'Pendiente' | 'Aprobado' | 'Pagado' | 'En Revision' | 'Cerrado' | 'Observado'
+  estado: 'Pendiente' | 'En Evaluación' | 'Evaluado' | 'Devuelto' | 'Aprobado' | 'Rechazado' | 'Pagado' | 'En Revision' | 'Cerrado' | 'Observado'
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
   comentario: string | null
@@ -37,6 +37,8 @@ export interface SolicitudARendir {
   fecha_pago: string | null
   cuenta_pago_id: number | null
   usuario_pago: string | null
+  monto_devuelto: number | null
+  fecha_devolucion: string | null
   // joins
   proyecto?: { id: number; nombre: string } | null
   proyecto_partida?: { id: number; nombre: string } | null
@@ -62,6 +64,7 @@ export type SolicitudARendirInsert = Omit<SolicitudARendir,
   'usuario_aprobador' | 'fecha_aprobacion' | 'comentario' | 'detalles' |
   'plan_contable_id' | 'usuario_evaluador' | 'plan_contable' |
   'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago' |
+  'monto_devuelto' | 'fecha_devolucion' |
   'beneficiario_nombre' | 'beneficiario_email' | 'beneficiario_dni' |
   'beneficiario_cargo' | 'aprobador_nombre' | 'evaluador_nombre'
 >

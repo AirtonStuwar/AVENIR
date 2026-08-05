@@ -210,7 +210,7 @@ export default function ARendirNuevaPage() {
 
       await recalcTotal(solicitudCreada.id)
 
-      toast.success('Solicitud registrada — contabilidad marcará el pago cuando el dinero sea entregado')
+      toast.success('Solicitud registrada — envíala a evaluación desde el detalle cuando esté lista')
       navigate(`/arendir/${solicitudCreada.id}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al enviar')

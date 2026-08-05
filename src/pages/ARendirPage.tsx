@@ -14,12 +14,16 @@ import type { Proyecto } from '../features/proyecto/types/proyecto'
 // ── Badge de estado ────────────────────────────────────────────
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   const map: Record<string, string> = {
-    'Pendiente':   'bg-yellow-100 text-yellow-800',
-    'Aprobado':    'bg-emerald-100 text-emerald-800',
-    'Pagado':      'bg-blue-100 text-blue-800',
-    'En Revision': 'bg-purple-100 text-purple-800',
-    'Cerrado':     'bg-green-100 text-green-800',
-    'Observado':   'bg-amber-100 text-amber-800',
+    'Pendiente':     'bg-yellow-100 text-yellow-800',
+    'En Evaluación': 'bg-blue-100 text-blue-800',
+    'Evaluado':      'bg-purple-100 text-purple-800',
+    'Devuelto':      'bg-orange-100 text-orange-800',
+    'Aprobado':      'bg-emerald-100 text-emerald-800',
+    'Rechazado':     'bg-red-100 text-red-800',
+    'Pagado':        'bg-blue-100 text-blue-800',
+    'En Revision':   'bg-purple-100 text-purple-800',
+    'Cerrado':       'bg-green-100 text-green-800',
+    'Observado':     'bg-amber-100 text-amber-800',
   }
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -42,9 +46,9 @@ function fmtDate(val: string | null) {
 
 // ── Page ───────────────────────────────────────────────────────
 const ESTADOS_ARENDIR: Record<string, string[]> = {
-  default:      ['Pendiente', 'Aprobado', 'Pagado', 'En Revision', 'Cerrado'],
-  aprobador:    ['Pendiente', 'Aprobado'],
-  evaluador:    ['En Revision', 'Cerrado'],
+  default:      ['Pendiente', 'En Evaluación', 'Evaluado', 'Devuelto', 'Aprobado', 'Rechazado', 'Pagado', 'En Revision', 'Cerrado', 'Observado'],
+  aprobador:    ['Evaluado', 'Aprobado', 'Rechazado'],
+  evaluador:    ['En Evaluación', 'Evaluado', 'Devuelto', 'En Revision', 'Cerrado'],
   visualizador: ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'],
 }
 

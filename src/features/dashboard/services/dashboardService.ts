@@ -128,7 +128,9 @@ export interface EvaluadorData {
   devueltas: SolicitudRow[]   // estado = Pendiente (devueltas)
   aprobadas: SolicitudRow[]   // estado = Aprobado
   detalles: DetalleRow[]
-  // A Rendir: sin plan contable — el evaluador solo "cierra" la rendición
+  // A Rendir: el evaluador evalúa el adelanto (En Evaluación → Evaluado) y luego cierra la rendición
+  arendirPorEvaluar: ARendirRow[]  // estado = En Evaluación
+  arendirEvaluados: ARendirRow[]   // estado = Evaluado
   arendirEnRevision: ARendirRow[]  // estado = En Revision
   arendirCerrados: ARendirRow[]    // estado = Cerrado
   // Reembolso y Devolución: el evaluador asigna plan contable → Evaluado
@@ -142,7 +144,7 @@ export async function getEvaluadorData(): Promise<EvaluadorData> {
   const [solRes, detRes, arendirRes, reembolsoRes, devolucionRes] = await Promise.all([
     supabase.from('solicitud').select(SOL_SELECT).order('fecha_creacion', { ascending: true }),
     supabase.from('solicitud_detalle').select('solicitud_id, valor_total, cantidad, valor_unitario'),
-    supabase.from('solicitud_arendir').select('id, importe, moneda, total_reembolso, estado, proyecto_id, fecha_pago').in('estado', ['En Revision', 'Cerrado']),
+    supabase.from('solicitud_arendir').select('id, importe, moneda, total_reembolso, estado, proyecto_id, fecha_pago').in('estado', ['En Evaluación', 'Evaluado', 'En Revision', 'Cerrado']),
     supabase.from('solicitud_reembolso').select('id, moneda, total_reembolso, estado, proyecto_id, fecha_pago').in('estado', ['En Revision', 'Evaluado']),
     supabase.from('devolucion_cliente').select('id, monto, moneda, estado, proyecto_id, fecha_pago').in('estado', ['En Revision', 'Evaluado']),
   ])
@@ -179,6 +181,8 @@ export async function getEvaluadorData(): Promise<EvaluadorData> {
     devueltas:  all.filter(s => s.estado_soli?.nombre === 'Pendiente'),
     aprobadas,
     detalles:   (detRes.data ?? []) as DetalleRow[],
+    arendirPorEvaluar:   arendirAll.filter(a => a.estado === 'En Evaluación'),
+    arendirEvaluados:    arendirAll.filter(a => a.estado === 'Evaluado'),
     arendirEnRevision:   arendirAll.filter(a => a.estado === 'En Revision'),
     arendirCerrados:     arendirAll.filter(a => a.estado === 'Cerrado'),
     reembolsoEnRevision: reembolsoAll.filter(r => r.estado === 'En Revision'),
