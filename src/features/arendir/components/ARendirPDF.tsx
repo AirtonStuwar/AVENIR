@@ -235,6 +235,12 @@ export function ARendirPDF({ solicitud, detalles, logoSrc, firmaUsuarioSrc, firm
             <Text style={s.headerLabel}>Fecha Requerida</Text>
             <Text style={s.headerValue}>{fmtDate(solicitud.fecha_rendicion)}</Text>
           </View>
+          {solicitud.motivo && (
+            <View style={[s.headerCard, { flex: 2 }]}>
+              <Text style={s.headerLabel}>Motivo</Text>
+              <Text style={s.headerValue}>{solicitud.motivo}</Text>
+            </View>
+          )}
         </View>
 
         {/* Table */}

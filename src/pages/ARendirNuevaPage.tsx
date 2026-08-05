@@ -72,6 +72,7 @@ export default function ARendirNuevaPage() {
   const [partidas,        setPartidas]        = useState<ProyectoPartida[]>([])
   const [moneda, setMoneda] = useState<'PEN' | 'USD'>('PEN')
   const [importe, setImporte] = useState('')
+  const [motivo, setMotivo] = useState('')
   const [fechaRendicion, setFechaRendicion] = useState('')
   const [banco, setBanco] = useState('')
   const [numeroCuenta, setNumeroCuenta] = useState('')
@@ -129,6 +130,7 @@ export default function ARendirNuevaPage() {
         proyecto_id: proyectoId ? Number(proyectoId) : null,
         proyecto_partida_id: partidaId ? Number(partidaId) : null,
         importe: Number(importe),
+        motivo: motivo.trim() || null,
         moneda,
         fecha_rendicion: fechaRendicion || null,
         banco: banco || null,
@@ -369,6 +371,18 @@ export default function ARendirNuevaPage() {
                 placeholder="0.00"
                 min="0"
                 step="0.01"
+                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D]"
+              />
+            </div>
+
+            {/* Motivo */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Motivo del adelanto</label>
+              <input
+                type="text"
+                value={motivo}
+                onChange={e => setMotivo(e.target.value)}
+                placeholder="Ej: Viaje a Lima, compra de materiales…"
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D]"
               />
             </div>

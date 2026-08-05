@@ -658,6 +658,7 @@ export default function ARendirDetallePage() {
             { label: 'Empresa',          value: solicitud.proyecto?.nombre },
             { label: 'Moneda',           value: solicitud.moneda === 'USD' ? 'Dólares (USD)' : 'Soles (PEN)' },
             { label: 'Importe adelanto', value: fmtMoney(solicitud.importe, solicitud.moneda) },
+            { label: 'Motivo',           value: solicitud.motivo },
             { label: 'Total reembolso',  value: fmtMoney(solicitud.total_reembolso, solicitud.moneda) },
             { label: 'Fecha requerida',  value: fmtDate(solicitud.fecha_rendicion) },
             { label: 'Fecha solicitud',  value: fmtDate(solicitud.fecha_creacion) },

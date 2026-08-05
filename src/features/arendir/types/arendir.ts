@@ -20,6 +20,7 @@ export interface SolicitudARendir {
   proyecto_id: number | null
   proyecto_partida_id: number | null
   importe: number
+  motivo: string | null
   moneda: string           // 'PEN' | 'USD'
   fecha_rendicion: string | null
   total_reembolso: number
