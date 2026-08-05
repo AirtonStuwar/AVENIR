@@ -158,7 +158,7 @@ export default function SolicitudesPage() {
         s.numero_cuenta ?? '',
         sanitizeBBVA(s.razon_social),
         montoAGirar(s),
-        'F',
+        s.solicitud_tipo?.nombre === 'Liberalidad' ? 'B' : 'F',
         s.numero_factura ?? '',
         'N',
         '',

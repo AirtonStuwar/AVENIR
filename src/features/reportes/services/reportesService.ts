@@ -856,7 +856,7 @@ export async function exportarBBVAConsolidado(rows: ReporteRow[]): Promise<numbe
       r.cuenta ?? '',
       sanitizeBBVA(r.beneficiario),
       importe,
-      esFacturable ? 'F' : 'B',
+      r.tipo === 'Liberalidad' ? 'B' : (esFacturable ? 'F' : 'B'),
       numeroDocumento,
       'N',
       r.tipo === 'Caja Chica' ? (r.codigo ?? '') : (REFERENCIA_POR_TIPO[r.tipo] ?? ''),
