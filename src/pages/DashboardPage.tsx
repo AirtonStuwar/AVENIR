@@ -427,6 +427,13 @@ function AprobadorDashboard() {
   const reembolsoFilPEN  = montoReembolso(reembolsoAuthFil, 'PEN')
   const reembolsoFilUSD  = montoReembolso(reembolsoAuthFil, 'USD')
 
+  const cajaChicaFilAuth = proyectoFilter ? cajaChica.filter(c => c.proyecto_id === proyectoFilter) : cajaChica
+  const cajaChicaFilPEN  = cajaChicaFilAuth.reduce((s, c) => s + (c.total_gastos ?? 0), 0)
+
+  const devAutTotal = proyectoFilter ? devoluciones.filter(d => d.estado === 'Autorizado' && d.proyecto_id === proyectoFilter) : devoluciones.filter(d => d.estado === 'Autorizado')
+  const devAutFilPEN = montoDevolucion(devAutTotal, 'PEN')
+  const devAutFilUSD = montoDevolucion(devAutTotal, 'USD')
+
   // ── Aprobado vs Pagado (gráficos) ─────────────────────────────
   const solPagadas   = aprobadasFiltradas.filter(s => s.fecha_pago)
   const arendirAprob = arendirKpi.filter(a => ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'].includes(a.estado))
@@ -545,7 +552,7 @@ function AprobadorDashboard() {
               <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Total comprometido S/</p>
             </div>
             <p className="text-3xl font-bold tracking-tight mb-4">
-              {fmtMoneyFull(montoAprobPEN + arendirFilPEN + reembolsoFilPEN, 'PEN')}
+              {fmtMoneyFull(montoAprobPEN + arendirFilPEN + reembolsoFilPEN + cajaChicaFilPEN + devAutFilPEN, 'PEN')}
             </p>
             <div className="space-y-1.5 border-t border-white/20 pt-3">
               <div className="flex justify-between text-sm">
@@ -560,6 +567,14 @@ function AprobadorDashboard() {
                 <span className="opacity-75">Reembolso Autorizado</span>
                 <span className="font-semibold">{fmtMoney(reembolsoFilPEN, 'PEN')}</span>
               </div>
+              <div className="flex justify-between text-sm">
+                <span className="opacity-75">Caja Chica Autorizada</span>
+                <span className="font-semibold">{fmtMoney(cajaChicaFilPEN, 'PEN')}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="opacity-75">Devolución Autorizada</span>
+                <span className="font-semibold">{fmtMoney(devAutFilPEN, 'PEN')}</span>
+              </div>
             </div>
           </div>
 
@@ -569,7 +584,7 @@ function AprobadorDashboard() {
               <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Total comprometido $</p>
             </div>
             <p className="text-3xl font-bold tracking-tight mb-4">
-              {fmtMoneyFull(montoAprobUSD + arendirFilUSD + reembolsoFilUSD, 'USD')}
+              {fmtMoneyFull(montoAprobUSD + arendirFilUSD + reembolsoFilUSD + devAutFilUSD, 'USD')}
             </p>
             <div className="space-y-1.5 border-t border-white/20 pt-3">
               <div className="flex justify-between text-sm">
@@ -583,6 +598,10 @@ function AprobadorDashboard() {
               <div className="flex justify-between text-sm">
                 <span className="opacity-75">Reembolso Autorizado</span>
                 <span className="font-semibold">{fmtMoney(reembolsoFilUSD, 'USD')}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="opacity-75">Devolución Autorizada</span>
+                <span className="font-semibold">{fmtMoney(devAutFilUSD, 'USD')}</span>
               </div>
             </div>
           </div>
