@@ -468,6 +468,9 @@ function AprobadorDashboard() {
   const montoCola      = montoSolicitudes(colaFiltrada, detalles)
   const montoAprobPEN  = montoSolicitudes(ocAprob, detalles, 'PEN')
   const montoAprobUSD  = montoSolicitudes(ocAprob, detalles, 'USD')
+  // Total comprometido: TODAS las solicitudes Aprobadas (OC + RxH + Liberalidad), no solo OC
+  const totalAprobadoPEN = montoSolicitudes(aprobadasFiltradas, detalles, 'PEN')
+  const totalAprobadoUSD = montoSolicitudes(aprobadasFiltradas, detalles, 'USD')
   const cmk            = currentMonthKey()
   const pmk            = prevMonthKey()
   const aprobMes       = aprobadasFiltradas.filter(s => s.fecha_creacion && monthKey(s.fecha_creacion) === cmk).length
@@ -552,12 +555,12 @@ function AprobadorDashboard() {
               <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Total comprometido S/</p>
             </div>
             <p className="text-3xl font-bold tracking-tight mb-4">
-              {fmtMoneyFull(montoAprobPEN + arendirFilPEN + reembolsoFilPEN + cajaChicaFilPEN + devAutFilPEN, 'PEN')}
+              {fmtMoneyFull(totalAprobadoPEN + arendirFilPEN + reembolsoFilPEN + cajaChicaFilPEN + devAutFilPEN, 'PEN')}
             </p>
             <div className="space-y-1.5 border-t border-white/20 pt-3">
               <div className="flex justify-between text-sm">
-                <span className="opacity-75">OC Aprobadas</span>
-                <span className="font-semibold">{fmtMoney(montoAprobPEN, 'PEN')}</span>
+                <span className="opacity-75">Solicitudes Aprobadas</span>
+                <span className="font-semibold">{fmtMoney(totalAprobadoPEN, 'PEN')}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="opacity-75">A Rendir Aprobados</span>
@@ -584,12 +587,12 @@ function AprobadorDashboard() {
               <p className="text-xs font-semibold uppercase tracking-widest opacity-70">Total comprometido $</p>
             </div>
             <p className="text-3xl font-bold tracking-tight mb-4">
-              {fmtMoneyFull(montoAprobUSD + arendirFilUSD + reembolsoFilUSD + devAutFilUSD, 'USD')}
+              {fmtMoneyFull(totalAprobadoUSD + arendirFilUSD + reembolsoFilUSD + devAutFilUSD, 'USD')}
             </p>
             <div className="space-y-1.5 border-t border-white/20 pt-3">
               <div className="flex justify-between text-sm">
-                <span className="opacity-75">OC Aprobadas</span>
-                <span className="font-semibold">{fmtMoney(montoAprobUSD, 'USD')}</span>
+                <span className="opacity-75">Solicitudes Aprobadas</span>
+                <span className="font-semibold">{fmtMoney(totalAprobadoUSD, 'USD')}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="opacity-75">A Rendir Aprobados</span>
