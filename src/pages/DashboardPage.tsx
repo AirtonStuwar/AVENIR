@@ -436,7 +436,8 @@ function AprobadorDashboard() {
 
   // ── Aprobado vs Pagado (gráficos) ─────────────────────────────
   const solPagadas   = aprobadasFiltradas.filter(s => s.fecha_pago)
-  const arendirAprob = arendirKpi.filter(a => ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'].includes(a.estado))
+  // Mismo criterio que "Total comprometido": A Rendir Pagado/En Revision/Cerrado (excluye Aprobado sin desembolsar aún)
+  const arendirAprob = arendirAuthFil
   const arendirPag   = arendirAprob.filter(a => a.fecha_pago)
   const reembolsoPag = reembolsoAuthFil.filter(r => r.fecha_pago)
   const cajaChicaFil = proyectoFilter ? cajaChica.filter(c => c.proyecto_id === proyectoFilter) : cajaChica
