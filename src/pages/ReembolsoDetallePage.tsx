@@ -26,7 +26,6 @@ import {
   addDetalleReembolso,
   updateDetalleReembolso,
   deleteDetalleReembolso,
-  uploadDetalleArchivoReembolso,
   uploadSustentoReembolso,
   updateReembolso,
 } from '../features/reembolso/services/reembolsoService'
@@ -204,7 +203,6 @@ export default function ReembolsoDetallePage() {
   const [detNumDoc,   setDetNumDoc]   = useState('')
   const [detConcepto, setDetConcepto] = useState('')
   const [detImporte,  setDetImporte]  = useState('')
-  const [detArchivo,  setDetArchivo]  = useState<File | null>(null)
   const [detSaving,   setDetSaving]   = useState(false)
   const [uploadingSustento, setUploadingSustento] = useState(false)
 
@@ -212,13 +210,13 @@ export default function ReembolsoDetallePage() {
 
   const resetDetForm = () => {
     setDetFormOpen(false); setDetEditId(null); setDetFecha(''); setDetProv('')
-    setDetTipoDoc('FACTURA'); setDetNumDoc(''); setDetConcepto(''); setDetImporte(''); setDetArchivo(null)
+    setDetTipoDoc('FACTURA'); setDetNumDoc(''); setDetConcepto(''); setDetImporte('')
   }
   const openDetAdd = () => { resetDetForm(); setDetFormOpen(true) }
   const openDetEdit = (d: ReembolsoDetalle) => {
     setDetEditId(d.id); setDetFecha(d.fecha_documento ?? ''); setDetProv(d.proveedor ?? '')
     setDetTipoDoc(d.tipo_documento ?? 'FACTURA'); setDetNumDoc(d.numero_documento ?? '')
-    setDetConcepto(d.concepto ?? ''); setDetImporte(String(d.importe)); setDetArchivo(null); setDetFormOpen(true)
+    setDetConcepto(d.concepto ?? ''); setDetImporte(String(d.importe)); setDetFormOpen(true)
   }
 
   const reloadData = async () => {
@@ -240,27 +238,20 @@ export default function ReembolsoDetallePage() {
     detSavingRef.current = true
     setDetSaving(true)
     try {
-      let archivoPath: string | null = null
-      if (detArchivo) archivoPath = await uploadDetalleArchivoReembolso(detArchivo, solicitud.id, detEditId ?? 0)
-
       if (detEditId) {
         await updateDetalleReembolso(detEditId, {
           fecha_documento: detFecha, proveedor: detProv.trim(), tipo_documento: detTipoDoc,
           numero_documento: detNumDoc.trim() || null, concepto: detConcepto.trim(),
-          importe: parseFloat(detImporte), ...(archivoPath ? { archivo_path: archivoPath } : {}),
+          importe: parseFloat(detImporte),
         })
         toast.success('Gasto actualizado')
       } else {
-        const nuevo = await addDetalleReembolso({
+        await addDetalleReembolso({
           solicitud_reembolso_id: solicitud.id, fecha_documento: detFecha,
           proveedor: detProv.trim(), tipo_documento: detTipoDoc,
           numero_documento: detNumDoc.trim() || null, concepto: detConcepto.trim(),
-          importe: parseFloat(detImporte), archivo_path: archivoPath,
+          importe: parseFloat(detImporte), archivo_path: null,
         })
-        if (detArchivo && !archivoPath) {
-          const path = await uploadDetalleArchivoReembolso(detArchivo, solicitud.id, nuevo.id)
-          await updateDetalleReembolso(nuevo.id, { archivo_path: path })
-        }
         toast.success('Gasto agregado')
       }
       resetDetForm()
@@ -711,16 +702,6 @@ export default function ReembolsoDetallePage() {
                 <label className="text-[10px] font-semibold text-gray-500 uppercase">Importe *</label>
                 <input type="number" step="0.01" min="0" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
                   value={detImporte} onChange={e => setDetImporte(e.target.value)} placeholder="0.00" />
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-gray-500 uppercase">Comprobante</label>
-                <label className="flex items-center gap-2 mt-1 cursor-pointer">
-                  <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs text-gray-600 hover:bg-gray-50">
-                    <Upload size={12} /> {detArchivo ? detArchivo.name : 'Subir archivo'}
-                  </span>
-                  <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
-                    onChange={e => setDetArchivo(e.target.files?.[0] ?? null)} />
-                </label>
               </div>
             </div>
             <div className="flex gap-2">

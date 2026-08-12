@@ -16,7 +16,6 @@ import {
   enviarReembolso,
   addDetalleReembolso,
   uploadSustentoReembolso,
-  uploadDetalleArchivoReembolso,
   uploadFirmaReembolso,
   getArchivoUrlReembolso,
   recalcTotalReembolso,
@@ -37,7 +36,6 @@ interface DetalleRow {
   numero_documento: string
   concepto: string
   importe: string
-  file: File | null
   savedId: number | null
   archivo_path: string | null
 }
@@ -50,7 +48,7 @@ function newRow(): DetalleRow {
     tempId: nextTempId++,
     fecha_documento: '', proveedor: '', tipo_documento: '',
     numero_documento: '', concepto: '', importe: '',
-    file: null, savedId: null, archivo_path: null,
+    savedId: null, archivo_path: null,
   }
 }
 
@@ -189,11 +187,6 @@ export default function ReembolsoNuevaPage() {
           importe: parseFloat(row.importe) || 0,
           archivo_path: null,
         })
-        if (row.file) {
-          const path = await uploadDetalleArchivoReembolso(row.file, solicitudCreada.id, det.id)
-          await supabase.from('solicitud_reembolso_detalle').update({ archivo_path: path }).eq('id', det.id)
-          det.archivo_path = path
-        }
         savedDetalles.push(det)
       }
 
@@ -475,7 +468,6 @@ export default function ReembolsoNuevaPage() {
                     <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-28">N° Doc.</th>
                     <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Concepto</th>
                     <th className="text-right px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-24">Importe</th>
-                    <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-28">Archivo</th>
                     <th className="w-8" />
                   </tr>
                 </thead>
@@ -520,17 +512,6 @@ export default function ReembolsoNuevaPage() {
                           onChange={e => updateRow(row.tempId, 'importe', e.target.value)}
                           className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs text-right focus:outline-none focus:ring-1 focus:ring-[#003D7D]/40"
                         />
-                      </td>
-                      <td className="px-2 py-1.5">
-                        <label className="flex items-center gap-1 h-8 px-2 rounded-lg border border-dashed border-gray-300 cursor-pointer hover:border-[#003D7D] transition-colors">
-                          <Upload size={11} className="text-gray-400 shrink-0" />
-                          <span className="truncate text-gray-500 max-w-[60px]">
-                            {row.file ? row.file.name.slice(0, 8) + '…' : 'Adjuntar'}
-                          </span>
-                          <input type="file" accept="application/pdf,image/*" className="hidden"
-                            onChange={e => updateRow(row.tempId, 'file', e.target.files?.[0] ?? null)}
-                          />
-                        </label>
                       </td>
                       <td className="px-2 py-1.5">
                         <button onClick={() => removeRow(row.tempId)} disabled={rows.length <= 1}
