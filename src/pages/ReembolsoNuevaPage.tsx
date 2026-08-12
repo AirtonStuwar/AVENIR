@@ -40,7 +40,7 @@ interface DetalleRow {
   archivo_path: string | null
 }
 
-const TIPOS_DOC = ['RECIBO', 'FACTURA', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
+const TIPOS_DOC = ['RECIBO', 'FACTURA', 'BOLETA', 'RXH', 'PLLA-MOV', 'TICKET', 'OTRO']
 let nextTempId = 1
 
 function newRow(): DetalleRow {

@@ -206,7 +206,7 @@ export default function ReembolsoDetallePage() {
   const [detSaving,   setDetSaving]   = useState(false)
   const [uploadingSustento, setUploadingSustento] = useState(false)
 
-  const TIPOS_DOC_DET = ['FACTURA', 'RECIBO', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
+  const TIPOS_DOC_DET = ['FACTURA', 'RECIBO', 'BOLETA', 'RXH', 'PLLA-MOV', 'TICKET', 'OTRO']
 
   const resetDetForm = () => {
     setDetFormOpen(false); setDetEditId(null); setDetFecha(''); setDetProv('')
