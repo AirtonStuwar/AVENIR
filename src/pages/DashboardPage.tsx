@@ -447,15 +447,23 @@ function AprobadorDashboard() {
   const devAut       = devFil.filter(d => d.estado === 'Autorizado')
   const devPag       = devAut.filter(d => d.fecha_pago)
 
+  // Monto neto de Solicitudes: igual que montoSolicitudes() pero restando monto_retencion
+  // (RxH con retención asignada por el evaluador, y Liberalidad con su 5% fijo) — el monto
+  // bruto sin retención no es lo que realmente se paga al beneficiario.
+  const montoRetencionSum = (sols: SolicitudRow[], moneda: 'PEN' | 'USD') =>
+    sols.filter(s => (s.moneda ?? 'PEN') === moneda).reduce((sum, s) => sum + (s.monto_retencion ?? 0), 0)
+  const montoSolicitudesNeto = (sols: SolicitudRow[], moneda: 'PEN' | 'USD') =>
+    montoSolicitudes(sols, detalles, moneda) - montoRetencionSum(sols, moneda)
+
   const pagosPEN = [
-    { modulo: 'Solicitudes', Aprobado: montoSolicitudes(aprobadasFiltradas, detalles, 'PEN'), Pagado: montoSolicitudes(solPagadas, detalles, 'PEN') },
+    { modulo: 'Solicitudes', Aprobado: montoSolicitudesNeto(aprobadasFiltradas, 'PEN'), Pagado: montoSolicitudesNeto(solPagadas, 'PEN') },
     { modulo: 'A Rendir',    Aprobado: montoARendir(arendirAprob, 'PEN'),                     Pagado: montoARendir(arendirPag, 'PEN') },
     { modulo: 'Reembolso',   Aprobado: montoReembolso(reembolsoAuthFil, 'PEN'),               Pagado: montoReembolso(reembolsoPag, 'PEN') },
     { modulo: 'Caja Chica',  Aprobado: cajaChicaFil.reduce((s, c) => s + (c.total_gastos ?? 0), 0), Pagado: cajaChicaPag.reduce((s, c) => s + (c.total_gastos ?? 0), 0) },
     { modulo: 'Devolución',  Aprobado: montoDevolucion(devAut, 'PEN'),                        Pagado: montoDevolucion(devPag, 'PEN') },
   ]
   const pagosUSD = [
-    { modulo: 'Solicitudes', Aprobado: montoSolicitudes(aprobadasFiltradas, detalles, 'USD'), Pagado: montoSolicitudes(solPagadas, detalles, 'USD') },
+    { modulo: 'Solicitudes', Aprobado: montoSolicitudesNeto(aprobadasFiltradas, 'USD'), Pagado: montoSolicitudesNeto(solPagadas, 'USD') },
     { modulo: 'A Rendir',    Aprobado: montoARendir(arendirAprob, 'USD'),                     Pagado: montoARendir(arendirPag, 'USD') },
     { modulo: 'Reembolso',   Aprobado: montoReembolso(reembolsoAuthFil, 'USD'),               Pagado: montoReembolso(reembolsoPag, 'USD') },
     { modulo: 'Devolución',  Aprobado: montoDevolucion(devAut, 'USD'),                        Pagado: montoDevolucion(devPag, 'USD') },
