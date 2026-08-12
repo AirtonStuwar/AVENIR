@@ -7,11 +7,13 @@ import type { CuentaBancaria } from '../services/cuentaBancariaService'
 interface Props {
   open: boolean
   proyectoId: number | null
+  title?: string
+  description?: string
   onConfirm: (cuentaId: number, fechaPago: string) => Promise<void>
   onCancel: () => void
 }
 
-export default function PagoModal({ open, proyectoId, onConfirm, onCancel }: Props) {
+export default function PagoModal({ open, proyectoId, title, description, onConfirm, onCancel }: Props) {
   const [cuentas, setCuentas]     = useState<CuentaBancaria[]>([])
   const [loading, setLoading]     = useState(false)
   const [saving, setSaving]       = useState(false)
@@ -60,7 +62,7 @@ export default function PagoModal({ open, proyectoId, onConfirm, onCancel }: Pro
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 rounded-t-2xl">
           <div className="flex items-center gap-2">
             <CreditCard size={16} className="text-emerald-600" />
-            <h2 className="text-sm font-semibold text-gray-800">Marcar como pagado</h2>
+            <h2 className="text-sm font-semibold text-gray-800">{title ?? 'Marcar como pagado'}</h2>
           </div>
           <button onClick={onCancel} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
             <X size={16} />
@@ -70,7 +72,7 @@ export default function PagoModal({ open, proyectoId, onConfirm, onCancel }: Pro
         {/* Body */}
         <div className="px-6 py-5 space-y-4">
           <p className="text-sm text-gray-600">
-            Selecciona la cuenta bancaria desde la cual se realizó el pago.
+            {description ?? 'Selecciona la cuenta bancaria desde la cual se realizó el pago.'}
           </p>
 
           {/* Fecha de pago */}

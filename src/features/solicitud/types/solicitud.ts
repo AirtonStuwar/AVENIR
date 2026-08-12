@@ -93,6 +93,7 @@ export interface Solicitud {
   usuario_pago: string | null
   detraccion_pagada: boolean
   fecha_pago_detraccion: string | null
+  cuenta_pago_detraccion_id: number | null
   aplica_igv: boolean
   proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null; presupuesto?: number | null } | null
   proyecto_partida?: { id: number; nombre: string; presupuesto_pen: number; presupuesto_usd: number } | null
@@ -151,6 +152,7 @@ export type SolicitudInsert = Omit<
   | 'usuario_pago'           // lo marca contabilidad
   | 'detraccion_pagada'      // lo marca contabilidad
   | 'fecha_pago_detraccion'  // lo marca contabilidad
+  | 'cuenta_pago_detraccion_id' // lo marca contabilidad
   | 'detalles'               // se reemplaza por SolicitudDetalleInsert[]
 > & {
     detalles?: SolicitudDetalleInsert[]

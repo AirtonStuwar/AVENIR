@@ -14,7 +14,7 @@ const SOL_SEL = [
   'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
   'numero_factura, monto_total, plan_contable_id, usuario_evaluador, moneda',
   'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
-  'detraccion_id, monto_detraccion, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, detraccion_pagada, fecha_pago_detraccion, aplica_igv',
+  'detraccion_id, monto_detraccion, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, detraccion_pagada, fecha_pago_detraccion, cuenta_pago_detraccion_id, aplica_igv',
   'proyecto:proyecto_id(id,nombre,ruc,direccion,presupuesto)',
   'proyecto_partida:proyecto_partida_id(id,nombre,presupuesto_pen,presupuesto_usd)',
   'detraccion:detraccion_id(id,codigo,concepto,porcentaje,monto_minimo)',
@@ -287,10 +287,10 @@ export async function getPlanContable(): Promise<PlanContable[]> {
   return (data ?? []) as PlanContable[]
 }
 
-export async function marcarDetraccionPagada(id: number, fechaPago: string): Promise<void> {
+export async function marcarDetraccionPagada(id: number, fechaPago: string, cuentaPagoDetraccionId: number): Promise<void> {
   const { error } = await supabase
     .from('solicitud')
-    .update({ detraccion_pagada: true, fecha_pago_detraccion: fechaPago })
+    .update({ detraccion_pagada: true, fecha_pago_detraccion: fechaPago, cuenta_pago_detraccion_id: cuentaPagoDetraccionId })
     .eq('id', id)
   if (error) throw error
 }

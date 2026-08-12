@@ -46,6 +46,9 @@ export interface ReporteRow {
   cuenta:         string | null
   correo:         string | null
   fecha_pago:     string | null
+  cuenta_pago:    string | null
+  fecha_pago_detraccion: string | null
+  cuenta_pago_detraccion: string | null
   // Plan contable (sin tipo de gasto ni código Starsoft)
   pc_cuenta_contable: string | null
   pc_nombre_cuenta:   string | null
@@ -83,6 +86,17 @@ async function enrichUsers(ids: (string | null)[]): Promise<Record<string, { nom
   return result
 }
 
+async function enrichCuentas(ids: (number | null)[]): Promise<Record<number, string>> {
+  const clean = [...new Set(ids.filter((id): id is number => id != null))]
+  if (!clean.length) return {}
+  const { data } = await supabase.from('cuenta_bancaria').select('id, banco, numero_cuenta').in('id', clean)
+  const result: Record<number, string> = {}
+  for (const c of (data ?? []) as { id: number; banco: string; numero_cuenta: string }[]) {
+    result[c.id] = `${c.banco} ${c.numero_cuenta}`
+  }
+  return result
+}
+
 // Plan contable joineado (campos sin tipo de gasto ni código Starsoft)
 interface PlanContableJoin {
   cuenta_contable_2020_starsoft: string | null
@@ -116,6 +130,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       'id, codigo, tipo_id, usuario_creador, razon_social, ruc, moneda, aplica_igv',
       'numero_factura, numero_rxh, porcentaje_retencion, monto_retencion',
       'detraccion_id, monto_detraccion, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura, fecha_pago',
+      'cuenta_pago_id, fecha_pago_detraccion, cuenta_pago_detraccion_id',
       'proyecto_id, proyecto_partida_id',
       'banco, numero_cuenta, cuenta_detracciones, contacto_correo',
       'estado_soli:estado_id(nombre)',
@@ -140,6 +155,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     porcentaje_retencion: number | null; monto_retencion: number | null
     monto_detraccion: number | null; fecha_aprobacion: string | null
     fecha_creacion: string | null; fecha_requerida: string | null; fecha_emision_factura: string | null; fecha_pago: string | null
+    cuenta_pago_id: number | null; fecha_pago_detraccion: string | null; cuenta_pago_detraccion_id: number | null
     banco: string | null; numero_cuenta: string | null; cuenta_detracciones: string | null; contacto_correo: string | null
     estado_soli: { nombre: string } | null
     solicitud_tipo: { nombre: string } | null
@@ -180,6 +196,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
 
   // Enrich users
   const userMap = await enrichUsers(aprobadas.map(s => s.usuario_creador))
+  const cuentaMap = await enrichCuentas(aprobadas.flatMap(s => [s.cuenta_pago_id, s.cuenta_pago_detraccion_id]))
 
   return aprobadas.map(s => {
     const arcs = archivosMap[s.id] ?? new Set()
@@ -232,6 +249,9 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       cuenta:       s.numero_cuenta,
       correo:       u?.correo ?? null,
       fecha_pago:   s.fecha_pago,
+      cuenta_pago:  s.cuenta_pago_id ? (cuentaMap[s.cuenta_pago_id] ?? null) : null,
+      fecha_pago_detraccion: s.fecha_pago_detraccion,
+      cuenta_pago_detraccion: s.cuenta_pago_detraccion_id ? (cuentaMap[s.cuenta_pago_detraccion_id] ?? null) : null,
       arc_contrato:   arcs.has('Contrato'),
       arc_sustento:   arcs.has('Sustento'),
       arc_cotizacion: arcs.has('Cotizacion'),
@@ -248,7 +268,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_arendir')
-    .select(`id, codigo, estado, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_rendicion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
+    .select(`id, codigo, estado, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, cuenta_pago_id, fecha_aprobacion, fecha_creacion, fecha_rendicion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
     .gte(dateField, fechaDesde)
     .lte(dateField, fechaHasta + 'T23:59:59')
 
@@ -260,7 +280,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
   const rows = (data ?? []) as unknown as {
     id: number; codigo: string | null; estado: string | null; beneficiario_id: string | null
     importe: number; total_reembolso: number; moneda: string | null
-    banco: string | null; numero_cuenta: string | null; fecha_aprobacion: string | null
+    banco: string | null; numero_cuenta: string | null; cuenta_pago_id: number | null; fecha_aprobacion: string | null
     fecha_creacion: string | null; fecha_rendicion: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
@@ -270,6 +290,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
   if (!rows.length) return []
 
   const userMap = await enrichUsers(rows.map(r => r.beneficiario_id))
+  const cuentaMap = await enrichCuentas(rows.map(r => r.cuenta_pago_id))
 
   // First detalle concepto + check archivos
   const ids = rows.map(r => r.id)
@@ -324,6 +345,9 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       cuenta:        r.numero_cuenta,
       correo:        u?.correo ?? null,
       fecha_pago:    r.fecha_pago,
+      cuenta_pago:   r.cuenta_pago_id ? (cuentaMap[r.cuenta_pago_id] ?? null) : null,
+      fecha_pago_detraccion: null,
+      cuenta_pago_detraccion: null,
       arc_contrato:   false,
       arc_sustento:   hasArch,
       arc_cotizacion: false,
@@ -340,7 +364,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_reembolso')
-    .select(`id, codigo, estado, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
+    .select(`id, codigo, estado, beneficiario_id, proyecto_id, proyecto_partida_id, total_reembolso, moneda, banco, numero_cuenta, cuenta_pago_id, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
     .gte(dateField, fechaDesde)
     .lte(dateField, fechaHasta + 'T23:59:59')
 
@@ -352,7 +376,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
   const rows = (data ?? []) as unknown as {
     id: number; codigo: string | null; estado: string | null; beneficiario_id: string | null
     total_reembolso: number; moneda: string | null
-    banco: string | null; numero_cuenta: string | null; fecha_aprobacion: string | null
+    banco: string | null; numero_cuenta: string | null; cuenta_pago_id: number | null; fecha_aprobacion: string | null
     fecha_creacion: string | null; fecha_requerida: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
     proyecto_partida: { nombre: string } | null
@@ -361,6 +385,7 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   if (!rows.length) return []
   const userMap = await enrichUsers(rows.map(r => r.beneficiario_id))
+  const cuentaMap = await enrichCuentas(rows.map(r => r.cuenta_pago_id))
 
   // First detalle concepto + archivos
   const ids = rows.map(r => r.id)
@@ -415,6 +440,9 @@ async function fetchReembolso(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       cuenta:        r.numero_cuenta,
       correo:        u?.correo ?? null,
       fecha_pago:    r.fecha_pago,
+      cuenta_pago:   r.cuenta_pago_id ? (cuentaMap[r.cuenta_pago_id] ?? null) : null,
+      fecha_pago_detraccion: null,
+      cuenta_pago_detraccion: null,
       arc_contrato:   false,
       arc_sustento:   hasArch,
       arc_cotizacion: false,
@@ -431,7 +459,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('caja_chica')
-    .select(`id, codigo, estado, responsable_id, proyecto_id, total_gastos, monto_asignado, banco, cuenta_bbva, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
+    .select(`id, codigo, estado, responsable_id, proyecto_id, total_gastos, monto_asignado, banco, cuenta_bbva, cuenta_pago_id, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
     .gte(dateField, fechaDesde)
     .lte(dateField, fechaHasta + 'T23:59:59')
 
@@ -442,7 +470,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   const rows = (data ?? []) as unknown as {
     id: number; codigo: string | null; estado: string | null; responsable_id: string | null
-    total_gastos: number; monto_asignado: number; banco: string; cuenta_bbva: string | null
+    total_gastos: number; monto_asignado: number; banco: string; cuenta_bbva: string | null; cuenta_pago_id: number | null
     fecha_aprobacion: string | null; fecha_creacion: string | null; fecha_pago: string | null
     proyecto: { nombre: string } | null
     plan_contable: PlanContableJoin | null
@@ -450,6 +478,7 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   if (!rows.length) return []
   const userMap = await enrichUsers(rows.map(r => r.responsable_id))
+  const cuentaMap = await enrichCuentas(rows.map(r => r.cuenta_pago_id))
 
   return rows.map(r => {
     const u = r.responsable_id ? (userMap[r.responsable_id] ?? null) : null
@@ -487,6 +516,9 @@ async function fetchCajaChica(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       cuenta:          r.cuenta_bbva,
       correo:          u?.correo ?? null,
       fecha_pago:      r.fecha_pago,
+      cuenta_pago:     r.cuenta_pago_id ? (cuentaMap[r.cuenta_pago_id] ?? null) : null,
+      fecha_pago_detraccion: null,
+      cuenta_pago_detraccion: null,
       arc_contrato:    false,
       arc_sustento:    false,
       arc_cotizacion:  false,
@@ -503,7 +535,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
 
   let q = supabase
     .from('devolucion_cliente')
-    .select('id, codigo, estado, creador_id, proyecto_id, cliente_nombre, cliente_dni, concepto, monto, moneda, banco, numero_cuenta, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)')
+    .select('id, codigo, estado, creador_id, proyecto_id, cliente_nombre, cliente_dni, concepto, monto, moneda, banco, numero_cuenta, cuenta_pago_id, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)')
     .gte(dateField, fechaDesde)
     .lte(dateField, fechaHasta + 'T23:59:59')
 
@@ -516,7 +548,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
     id: number; codigo: string | null; estado: string | null; creador_id: string | null
     cliente_nombre: string; cliente_dni: string | null; concepto: string | null
     monto: number; moneda: string | null
-    banco: string | null; numero_cuenta: string | null
+    banco: string | null; numero_cuenta: string | null; cuenta_pago_id: number | null
     sustento_path: string | null; boucher_separacion_path: string | null
     constancia_separacion_path: string | null; sustento_desistimiento_path: string | null
     fecha_aprobacion: string | null; fecha_creacion: string | null; fecha_pago: string | null
@@ -527,6 +559,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
 
   if (!rows.length) return []
   const userMap = await enrichUsers(rows.map(r => r.creador_id))
+  const cuentaMap = await enrichCuentas(rows.map(r => r.cuenta_pago_id))
 
   return rows.map(r => {
     const isPEN = (r.moneda ?? 'PEN') === 'PEN'
@@ -565,6 +598,9 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
       cuenta:        r.numero_cuenta,
       correo:        u?.correo ?? null,
       fecha_pago:    r.fecha_pago,
+      cuenta_pago:   r.cuenta_pago_id ? (cuentaMap[r.cuenta_pago_id] ?? null) : null,
+      fecha_pago_detraccion: null,
+      cuenta_pago_detraccion: null,
       arc_contrato:   false,
       arc_sustento:   !!r.sustento_path,
       arc_cotizacion: false,
@@ -663,6 +699,9 @@ export async function exportarReporteExcel(
     { header: 'CUENTA / CCI',    key: 'cuenta',          width: 22 },
     { header: 'CORREO',          key: 'correo',          width: 28 },
     { header: 'F. PAGO',         key: 'fecha_pago',      width: 13 },
+    { header: 'CUENTA DE PAGO',  key: 'cuenta_pago',     width: 24 },
+    { header: 'F. PAGO DETRACCIÓN',     key: 'fecha_pago_detraccion',  width: 16 },
+    { header: 'CUENTA PAGO DETRACCIÓN', key: 'cuenta_pago_detraccion', width: 24 },
     { header: 'CONTRATO',        key: 'arc_contrato',    width: 10 },
     { header: 'SUSTENTO',        key: 'arc_sustento',    width: 10 },
     { header: 'COTIZACIÓN',      key: 'arc_cotizacion',  width: 10 },
@@ -748,6 +787,9 @@ export async function exportarReporteExcel(
       row.cuenta,
       row.correo,
       fmtDate(row.fecha_pago),
+      row.cuenta_pago,
+      fmtDate(row.fecha_pago_detraccion),
+      row.cuenta_pago_detraccion,
       row.arc_contrato   ? 'SI' : '',
       row.arc_sustento   ? 'SI' : '',
       row.arc_cotizacion ? 'SI' : '',

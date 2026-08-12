@@ -150,8 +150,6 @@ export default function SolicitudDetallePage() {
   const [evaluarOpen,        setEvaluarOpen]        = useState(false)
   const [pagoOpen,           setPagoOpen]           = useState(false)
   const [detPagoOpen,        setDetPagoOpen]        = useState(false)
-  const [detFechaPago,       setDetFechaPago]       = useState('')
-  const [savingDetPago,      setSavingDetPago]      = useState(false)
 
   // Firma modal
   const [firmaOpen,      setFirmaOpen]      = useState(false)
@@ -504,19 +502,15 @@ export default function SolicitudDetallePage() {
     await reload(id!)
   }
 
-  const handleConfirmDetraccionPago = async () => {
-    if (!solicitud?.id || !detFechaPago) return
-    setSavingDetPago(true)
+  const handleConfirmDetraccionPago = async (cuentaId: number, fechaPago: string) => {
+    if (!solicitud?.id) return
     try {
-      await marcarDetraccionPagada(solicitud.id, detFechaPago)
+      await marcarDetraccionPagada(solicitud.id, fechaPago, cuentaId)
       toast.success('Detracción marcada como pagada')
       setDetPagoOpen(false)
-      setDetFechaPago('')
       await reload(id!)
     } catch {
       toast.error('Error al marcar la detracción como pagada')
-    } finally {
-      setSavingDetPago(false)
     }
   }
 
@@ -1316,7 +1310,7 @@ export default function SolicitudDetallePage() {
                 )}
                 {canMarcarDetraccionPag && (
                   <button
-                    onClick={() => { setDetFechaPago(''); setDetPagoOpen(true) }}
+                    onClick={() => setDetPagoOpen(true)}
                     className="flex items-center gap-1.5 h-7 px-3 rounded-xl bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
                   >
                     Marcar detracción pagada
@@ -1355,38 +1349,6 @@ export default function SolicitudDetallePage() {
               </div>
             </div>
 
-            {/* Mini-modal marcar detracción pagada */}
-            {detPagoOpen && (
-              <div className="border-t border-amber-100 bg-amber-50 px-6 py-4 flex flex-wrap items-end gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-                    Fecha de pago al Banco de la Nación *
-                  </label>
-                  <input
-                    type="date"
-                    value={detFechaPago}
-                    onChange={e => setDetFechaPago(e.target.value)}
-                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500/50"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setDetPagoOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-all"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    onClick={handleConfirmDetraccionPago}
-                    disabled={!detFechaPago || savingDetPago}
-                    className="px-4 py-2 rounded-xl bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-all flex items-center gap-2"
-                  >
-                    {savingDetPago ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : null}
-                    Confirmar
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -1434,6 +1396,15 @@ export default function SolicitudDetallePage() {
         proyectoId={solicitud?.proyecto_id ?? null}
         onConfirm={handleConfirmPago}
         onCancel={() => setPagoOpen(false)}
+      />
+
+      <PagoModal
+        open={detPagoOpen}
+        proyectoId={solicitud?.proyecto_id ?? null}
+        title="Marcar detracción pagada"
+        description="Selecciona la cuenta bancaria desde la cual se pagó la detracción al Banco de la Nación."
+        onConfirm={handleConfirmDetraccionPago}
+        onCancel={() => setDetPagoOpen(false)}
       />
 
       <EvaluarModal
