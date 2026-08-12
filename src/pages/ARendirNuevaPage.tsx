@@ -8,7 +8,7 @@ import { useAuthStore } from '../store/authStore'
 import { getProyectos, getPartidasByProyecto, getConsumoByProyectos } from '../features/proyecto/services/proyectoService'
 import type { ProyectoPartida } from '../features/proyecto/types/proyecto'
 import type { Consumo } from '../features/proyecto/services/proyectoService'
-import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
+import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta, esCuentaRecaudadora } from '../features/solicitud/constants/bancos'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import {
   createARendir,
@@ -419,7 +419,7 @@ export default function ARendirNuevaPage() {
               <input
                 type="text"
                 value={numeroCuenta}
-                onChange={e => setNumeroCuenta(e.target.value.replace(/\D/g, ''))}
+                onChange={e => setNumeroCuenta(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))}
                 maxLength={banco ? maxLengthNumeroCuenta(banco) : 20}
                 placeholder={banco ? placeholderNumeroCuenta(banco) : '—'}
                 disabled={!banco}

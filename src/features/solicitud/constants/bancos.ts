@@ -11,18 +11,20 @@ export const BANCOS = [
   'Citibank',
   'ICBC',
   'Alfin Banco',
+  'Cuenta Recaudadora',
 ]
 
 export const esBBVA = (banco: string) => banco === 'BBVA'
+export const esCuentaRecaudadora = (banco: string) => banco === 'Cuenta Recaudadora'
 
 export const labelNumeroCuenta = (banco: string) =>
-  esBBVA(banco) ? 'Número de cuenta' : 'Número CCI'
+  esCuentaRecaudadora(banco) ? 'Serie' : esBBVA(banco) ? 'Número de cuenta' : 'Número CCI'
 
 export const maxLengthNumeroCuenta = (banco: string) =>
-  esBBVA(banco) ? 18 : 20
+  esCuentaRecaudadora(banco) ? 100 : esBBVA(banco) ? 18 : 20
 
 export const placeholderNumeroCuenta = (banco: string) =>
-  esBBVA(banco) ? '18 dígitos' : '20 dígitos (CCI)'
+  esCuentaRecaudadora(banco) ? 'Serie (texto libre)' : esBBVA(banco) ? '18 dígitos' : '20 dígitos (CCI)'
 
 /**
  * Limpia un texto para el Excel de pagos masivos BBVA:

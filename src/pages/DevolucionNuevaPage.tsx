@@ -7,7 +7,7 @@ import { createDevolucion, updateDevolucion, uploadArchivoDevolucion } from '../
 import type { TipoArchivoDevolucion } from '../features/devolucion/services/devolucionService'
 import { getProyectos, getPartidasByProyecto } from '../features/proyecto/services/proyectoService'
 import type { Proyecto, ProyectoPartida } from '../features/proyecto/types/proyecto'
-import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
+import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta, esCuentaRecaudadora } from '../features/solicitud/constants/bancos'
 
 const INPUT = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all'
 const LABEL = 'block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1'
@@ -192,7 +192,7 @@ export default function DevolucionNuevaPage() {
             <label className={LABEL}>{banco ? labelNumeroCuenta(banco) : 'Número de cuenta'} *</label>
             <input className={INPUT} value={cuenta} disabled={!banco}
               maxLength={banco ? maxLengthNumeroCuenta(banco) : 20}
-              onChange={e => setCuenta(e.target.value.replace(/\D/g, ''))}
+              onChange={e => setCuenta(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))}
               placeholder={banco ? placeholderNumeroCuenta(banco) : 'Selecciona banco primero'} />
           </div>
         </div>

@@ -8,7 +8,7 @@ import {
   deleteCuentaProveedor,
 } from '../services/proveedorCuentaService'
 import type { ProveedorCuenta } from '../types/proveedor'
-import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta } from '../../solicitud/constants/bancos'
+import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, esCuentaRecaudadora } from '../../solicitud/constants/bancos'
 
 interface Props {
   ruc:         string
@@ -72,10 +72,12 @@ export default function ProveedorCuentasPanel({ ruc, razonSocial, onClose }: Pro
       toast.error('Banco y número de cuenta son obligatorios')
       return
     }
-    const largoEsperado = maxLengthNumeroCuenta(form.banco)
-    if (form.numero_cuenta.trim().length !== largoEsperado) {
-      toast.error(`${labelNumeroCuenta(form.banco)} debe tener ${largoEsperado} dígitos (tiene ${form.numero_cuenta.trim().length})`)
-      return
+    if (!esCuentaRecaudadora(form.banco)) {
+      const largoEsperado = maxLengthNumeroCuenta(form.banco)
+      if (form.numero_cuenta.trim().length !== largoEsperado) {
+        toast.error(`${labelNumeroCuenta(form.banco)} debe tener ${largoEsperado} dígitos (tiene ${form.numero_cuenta.trim().length})`)
+        return
+      }
     }
     setSaving(true)
     try {
@@ -184,7 +186,7 @@ export default function ProveedorCuentasPanel({ ruc, razonSocial, onClose }: Pro
                   <input
                     type="text"
                     value={form.numero_cuenta}
-                    onChange={e => set('numero_cuenta', e.target.value.replace(/\D/g, ''))}
+                    onChange={e => set('numero_cuenta', esCuentaRecaudadora(form.banco) ? e.target.value : e.target.value.replace(/\D/g, ''))}
                     maxLength={maxLengthNumeroCuenta(form.banco)}
                     placeholder={`${maxLengthNumeroCuenta(form.banco)} dígitos`}
                     className={INPUT}

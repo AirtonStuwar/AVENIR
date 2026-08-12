@@ -5,7 +5,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { supabase } from '../api/supabase'
 import { createCajaChica, getSaldoAnterior } from '../features/caja-chica/services/cajaChicaService'
-import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
+import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta, esCuentaRecaudadora } from '../features/solicitud/constants/bancos'
 
 const INPUT = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all'
 const LABEL = 'block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide'
@@ -146,7 +146,7 @@ export default function CajaChicaNuevaPage() {
               <label className={LABEL}>{labelNumeroCuenta(banco)}</label>
               <input className={INPUT} placeholder={placeholderNumeroCuenta(banco)}
                 maxLength={maxLengthNumeroCuenta(banco)}
-                value={cuentaBbva} onChange={e => setCuentaBbva(e.target.value.replace(/\D/g, ''))} />
+                value={cuentaBbva} onChange={e => setCuentaBbva(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))} />
             </div>
           </div>
 

@@ -24,7 +24,7 @@ import { useAuthStore } from '../store/authStore'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import type { SolicitudDetalle, SolicitudFormaPago, PlanContable, SolicitudUpdate } from '../features/solicitud/types/solicitud'
 import { buscarRuc, getTipoCambioUSD } from '../features/solicitud/services/rucService'
-import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../features/solicitud/constants/bancos'
+import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta, esCuentaRecaudadora } from '../features/solicitud/constants/bancos'
 import { getCuentasByProveedor } from '../features/proveedor/services/proveedorCuentaService'
 import type { ProveedorCuenta } from '../features/proveedor/types/proveedor'
 
@@ -569,7 +569,7 @@ export default function SolicitudNuevaPage() {
                       maxLength={maxLengthNumeroCuenta(banco)}
                       value={numero_cuenta}
                       readOnly={cuentasProveedor.length > 0}
-                      onChange={cuentasProveedor.length > 0 ? undefined : (e) => setNumeroCuenta(e.target.value.replace(/\D/g, ''))}
+                      onChange={cuentasProveedor.length > 0 ? undefined : (e) => setNumeroCuenta(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))}
                     />
                   </div>
                   <div>

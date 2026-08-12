@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import toast from 'react-hot-toast'
-import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta } from '../constants/bancos'
+import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta, esCuentaRecaudadora } from '../constants/bancos'
 import { getProyectos } from '../../proyecto/services/proyectoService'
 import { getFormasPago } from '../services/solicitudService'
 import { supabase } from '../../../api/supabase'
@@ -336,7 +336,7 @@ export default function SolicitudModal({ open, onClose, onCreate, solicitud, onU
                   placeholder={placeholderNumeroCuenta(banco)}
                   maxLength={maxLengthNumeroCuenta(banco)}
                   value={numero_cuenta}
-                  onChange={(e) => { setNumeroCuenta(e.target.value.replace(/\D/g, '')); clearErrors() }}
+                  onChange={(e) => { setNumeroCuenta(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, '')); clearErrors() }}
                 />
                 {errors.numero_cuenta && <p className="mt-1 text-sm text-red-600">{errors.numero_cuenta}</p>}
               </div>
