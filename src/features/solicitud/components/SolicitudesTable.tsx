@@ -4,6 +4,40 @@ import type { Solicitud } from '../types/solicitud'
 import { getProyectos } from '../../proyecto/services/proyectoService'
 import { getAreas } from '../../usuario/services/usuarioService'
 
+function fmtMoney(val: number, moneda = 'PEN'): string {
+  const sym = moneda === 'USD' ? '$ ' : 'S/ '
+  const loc = moneda === 'USD' ? 'en-US' : 'es-PE'
+  return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+// Monto neto que corresponde girar (descuenta detracción en OC y retención en RxH;
+// Liberalidad ya viene neteada en monto_total desde que se crea). Igual que en SolicitudesPage.
+function montoAGirar(s: Solicitud): number {
+  const total = s.monto_total ?? 0
+  const tipo  = s.solicitud_tipo?.nombre
+  if (tipo === 'Liberalidad') return total
+  if (tipo === 'Recibo por Honorarios') return total - (s.monto_retencion ?? 0)
+  if (!s.detraccion_id) return total
+  const isPEN = (s.moneda ?? 'PEN') === 'PEN'
+  if (isPEN) return total - (s.monto_detraccion ?? 0)
+  const pct = s.detraccion?.porcentaje ?? 0
+  return Math.round((total - total * pct / 100) * 100) / 100
+}
+
+// Monto de detracción/retención aplicado, con su moneda de referencia.
+// La detracción siempre está en soles (SUNAT); la retención va en la moneda propia de la solicitud.
+function montoDetraccionORetencion(s: Solicitud): { monto: number; moneda: string } | null {
+  const tipo = s.solicitud_tipo?.nombre
+  if (tipo === 'Recibo por Honorarios' || tipo === 'Liberalidad') {
+    if (s.monto_retencion == null) return null
+    return { monto: s.monto_retencion, moneda: s.moneda ?? 'PEN' }
+  }
+  if (s.detraccion_id && s.monto_detraccion != null) {
+    return { monto: s.monto_detraccion, moneda: 'PEN' }
+  }
+  return null
+}
+
 function fmtDate(d: string | null): string {
   if (!d) return '—'
   try {
@@ -56,6 +90,7 @@ interface Props {
   onClearFilters?: () => void
   estadoFilter?: string | null
   onEstadoFilterChange?: (v: string | null) => void
+  showMontoPago?: boolean
 }
 
 export default function SolicitudesTable({
@@ -66,6 +101,7 @@ export default function SolicitudesTable({
   monedaFilter, onMonedaFilterChange,
   areaFilter, onAreaFilterChange, ordenVencimiento, onOrdenVencimientoChange,
   hasFiltrosActivos, onClearFilters, estadoFilter, onEstadoFilterChange,
+  showMontoPago,
 }: Props) {
   const [searchVal, setSearchVal] = useState('')
   const [proyectos, setProyectos] = useState<Array<{id: number; nombre: string}>>([])
@@ -337,7 +373,11 @@ export default function SolicitudesTable({
                     />
                   </th>
                 )}
-                {['Código', 'Razón social', 'Estado', 'Factura', 'Empresa', 'Fecha pedido', 'Vencimiento', 'Creado por', 'Área', 'RUC', ''].map(h => (
+                {[
+                  'Código', 'Razón social', 'Estado', 'Factura',
+                  ...(showMontoPago ? ['Monto a pagar', 'Detracción/Retención'] : []),
+                  'Empresa', 'Fecha pedido', 'Vencimiento', 'Creado por', 'Área', 'RUC', '',
+                ].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -392,6 +432,21 @@ export default function SolicitudesTable({
                           : <span className="text-red-400 italic">{isRxH ? 'RxH no subido' : 'No subida'}</span>
                       })()}
                     </td>
+                    {showMontoPago && (
+                      <>
+                        <td className="px-4 py-3 whitespace-nowrap text-xs font-semibold text-gray-800">
+                          {s.monto_total != null ? fmtMoney(montoAGirar(s), s.moneda ?? 'PEN') : <span className="text-gray-300 font-normal">—</span>}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-xs">
+                          {(() => {
+                            const det = montoDetraccionORetencion(s)
+                            return det
+                              ? <span className="font-medium text-amber-700">{fmtMoney(det.monto, det.moneda)}</span>
+                              : <span className="text-gray-300">—</span>
+                          })()}
+                        </td>
+                      </>
+                    )}
                     <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{s.proyecto?.nombre ?? '—'}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-500 text-xs">{fmtDate(s.fecha_pedido)}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-xs">

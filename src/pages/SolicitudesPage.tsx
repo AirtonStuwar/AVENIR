@@ -435,6 +435,7 @@ export default function SolicitudesPage() {
         onPagoFilterChange={isVisualizador ? handlePagoChange : undefined}
         monedaFilter={isVisualizador ? monedaLocal : undefined}
         onMonedaFilterChange={isVisualizador ? handleMonedaChange : undefined}
+        showMontoPago={canMarcarPago}
         areaFilter={areaFilter}
         onAreaFilterChange={handleAreaChange}
         estadoFilter={isEvaluador ? estadoNombre : undefined}
