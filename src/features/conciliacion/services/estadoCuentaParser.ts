@@ -31,12 +31,27 @@ function resolverFecha(ddmm: string, fechaHastaRef: string): string | null {
 }
 
 /**
+ * Lee una celda de fecha del banco, que según el export puede venir como texto "DD-MM"
+ * (sin año) o como fecha nativa de Excel (con cellDates:true, SheetJS ya la entrega como Date).
+ * Se usan los componentes LOCALES del Date (no UTC) para evitar que la conversión de zona
+ * horaria del navegador corra el día.
+ */
+function parseFechaCelda(raw: unknown, fechaHastaRef: string): string | null {
+  if (raw instanceof Date) {
+    const y = raw.getFullYear(), mo = raw.getMonth() + 1, d = raw.getDate()
+    return `${y}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  }
+  const txt = norm(raw)
+  return txt ? resolverFecha(txt, fechaHastaRef) : null
+}
+
+/**
  * Parsea el reporte "Consulta de Estado de Cuenta" (CI00) de BBVA — soporta .xlsb y .xlsx.
  * fechaHastaRef se usa para inferir el año de las fechas del banco (el reporte no trae año en cada fila).
  */
 export async function parseEstadoCuentaBBVA(file: File, fechaHastaRef: string): Promise<EstadoCuentaBBVA> {
   const buf = await file.arrayBuffer()
-  const wb = XLSX.read(buf, { type: 'array' })
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true })
   const sheet = wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, raw: true, defval: null })
 
@@ -72,25 +87,25 @@ export async function parseEstadoCuentaBBVA(file: File, fechaHastaRef: string): 
   for (let i = headerRowIdx + 1; i < rows.length; i++) {
     const row = rows[i] ?? []
     const descripcion = norm(row[2])
-    const fechaTxt = norm(row[0])
+    const fechaRaw = row[0]
 
     if (descripcion.toUpperCase().includes('SALDO ANTERIOR')) {
       saldoAnterior = toNumber(row[8])
       continue
     }
     if (descripcion.toUpperCase().includes('TOTALES POR ITF')) break
-    if (!fechaTxt && !descripcion) {
+    if (fechaRaw == null && !descripcion) {
       if (movimientos.length > 0) break
       continue
     }
-    if (!fechaTxt) continue
+    if (fechaRaw == null) continue
 
     const monto = toNumber(row[6])
     if (monto == null) continue
 
     movimientos.push({
-      fecha_oper: resolverFecha(fechaTxt, fechaHastaRef),
-      fecha_valor: resolverFecha(norm(row[1]), fechaHastaRef),
+      fecha_oper: parseFechaCelda(fechaRaw, fechaHastaRef),
+      fecha_valor: parseFechaCelda(row[1], fechaHastaRef),
       descripcion,
       n_operacion: norm(row[5]) || null,
       monto,
