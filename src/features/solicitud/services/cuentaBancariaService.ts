@@ -13,6 +13,7 @@ export interface CuentaBancaria {
   estado: string
   // join
   proyecto_partida?: { nombre: string } | null
+  proyecto?: { nombre: string } | null
 }
 
 export async function getCuentasByProyecto(proyectoId: number): Promise<CuentaBancaria[]> {
@@ -20,6 +21,16 @@ export async function getCuentasByProyecto(proyectoId: number): Promise<CuentaBa
     .from('cuenta_bancaria')
     .select('*, proyecto_partida:proyecto_partida_id(nombre)')
     .eq('proyecto_id', proyectoId)
+    .eq('estado', 'Activo')
+    .order('banco')
+  if (error) throw error
+  return (data ?? []) as unknown as CuentaBancaria[]
+}
+
+export async function getAllCuentasBancarias(): Promise<CuentaBancaria[]> {
+  const { data, error } = await supabase
+    .from('cuenta_bancaria')
+    .select('*, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre)')
     .eq('estado', 'Activo')
     .order('banco')
   if (error) throw error
