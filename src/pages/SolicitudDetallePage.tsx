@@ -1300,7 +1300,7 @@ export default function SolicitudDetallePage() {
                 {solicitud.detraccion_pagada ? (
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">
                     <CheckCircle size={11} /> Det. Pagada {solicitud.fecha_pago_detraccion
-                      ? new Intl.DateTimeFormat('es-PE', { month: '2-digit', year: 'numeric' }).format(new Date(solicitud.fecha_pago_detraccion + 'T00:00:00'))
+                      ? new Intl.DateTimeFormat('es-PE', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(solicitud.fecha_pago_detraccion + 'T00:00:00'))
                       : ''}
                   </span>
                 ) : isAprobado && (
