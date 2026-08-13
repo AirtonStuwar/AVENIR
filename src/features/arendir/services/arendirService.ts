@@ -34,7 +34,7 @@ async function enrichARendir(items: SolicitudARendir[]): Promise<SolicitudARendi
 
 // ── CRUD Principal ─────────────────────────────────────────────
 export async function getARendir(filtros: ARendirFiltros = {}): Promise<ARendirPaginado> {
-  const { page = 1, pageSize = 10, role, userId, estado, proyectoId } = filtros
+  const { page = 1, pageSize = 10, role, userId, estado, proyectoId, monedaFilter } = filtros
   let q = supabase.from('solicitud_arendir').select(SEL, { count: 'exact' })
   if (role === ROLES.USUARIO && userId) q = q.eq('beneficiario_id', userId)
   if (role === ROLES.APROBADOR) {
@@ -50,6 +50,7 @@ export async function getARendir(filtros: ARendirFiltros = {}): Promise<ARendirP
     q = q.eq('estado', estado)
   }
   if (proyectoId) q = q.eq('proyecto_id', proyectoId)
+  if (monedaFilter) q = q.eq('moneda', monedaFilter)
   q = q.order('fecha_creacion', { ascending: false })
        .range((page - 1) * pageSize, page * pageSize - 1)
   const { data, count, error } = await q

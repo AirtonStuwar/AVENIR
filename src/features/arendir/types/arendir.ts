@@ -77,6 +77,7 @@ export interface ARendirFiltros {
   userId?: string | null
   estado?: string | null
   proyectoId?: number | null
+  monedaFilter?: 'PEN' | 'USD' | null
 }
 
 export interface ARendirPaginado {

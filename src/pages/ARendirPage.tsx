@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Plus, Eye, Loader2, Receipt, Download, Filter } from 'lucide-react'
+import { Plus, Eye, Loader2, Receipt, Download, Filter, CreditCard } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import toast from 'react-hot-toast'
 import { useState, useEffect } from 'react'
@@ -10,6 +10,8 @@ import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
 import type { SolicitudARendir } from '../features/arendir/types/arendir'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
+import BulkPagoModal from '../features/solicitud/components/BulkPagoModal'
+import { marcarPagadoARendir } from '../features/arendir/services/arendirService'
 
 // ── Badge de estado ────────────────────────────────────────────
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
@@ -54,11 +56,11 @@ const ESTADOS_ARENDIR: Record<string, string[]> = {
 
 export default function ARendirPage() {
   const navigate   = useNavigate()
-  const { userRole } = useAuthStore()
+  const { userRole, user } = useAuthStore()
   const {
     data, total, page, pageSize, totalPages, loading,
-    estadoFilter, proyectoFilter,
-    setPage, setEstadoFilter, setProyectoFilter, refresh,
+    estadoFilter, proyectoFilter, monedaFilter,
+    setPage, setEstadoFilter, setProyectoFilter, setMonedaFilter, refresh,
   } = useARendir()
 
   const canCreate      = userRole === ROLES.USUARIO || userRole === ROLES.ADMIN
@@ -66,6 +68,7 @@ export default function ARendirPage() {
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [proyectos,   setProyectos]   = useState<Proyecto[]>([])
+  const [bulkPagoOpen, setBulkPagoOpen] = useState(false)
 
   useEffect(() => {
     getProyectos({ pageSize: 100 })
@@ -133,6 +136,22 @@ export default function ARendirPage() {
     toast.success(`Excel generado con ${selected.length} registro${selected.length > 1 ? 's' : ''}`)
   }
 
+  const selectedPorPagar = data.filter(s => selectedIds.has(s.id) && s.estado === 'Aprobado')
+
+  const handleBulkPagoConfirm = async (cuentaId: number, fechaPago: string) => {
+    if (!user?.id) return
+    const results = await Promise.allSettled(
+      selectedPorPagar.map(s => marcarPagadoARendir(s.id, cuentaId, fechaPago, user.id))
+    )
+    const ok   = results.filter(r => r.status === 'fulfilled').length
+    const fail = results.filter(r => r.status === 'rejected').length
+    if (ok > 0)   toast.success(`${ok} adelanto${ok > 1 ? 's' : ''} marcado${ok > 1 ? 's' : ''} como pagado${ok > 1 ? 's' : ''}`)
+    if (fail > 0) toast.error(`${fail} no se pudo${fail > 1 ? 'n' : ''} marcar`)
+    setBulkPagoOpen(false)
+    setSelectedIds(new Set())
+    refresh()
+  }
+
   return (
     <div className="p-6 space-y-4">
 
@@ -148,6 +167,15 @@ export default function ARendirPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {isVisualizador && selectedPorPagar.length > 0 && (
+            <button
+              onClick={() => setBulkPagoOpen(true)}
+              className="flex items-center gap-2 h-9 px-4 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition-colors"
+            >
+              <CreditCard size={15} />
+              Marcar pagado ({selectedPorPagar.length})
+            </button>
+          )}
           {isVisualizador && selectedIds.size > 0 && (
             <button
               onClick={handleExport}
@@ -204,10 +232,23 @@ export default function ARendirPage() {
           ))}
         </select>
 
+        {/* Moneda */}
+        {isVisualizador && (
+          <select
+            value={monedaFilter ?? ''}
+            onChange={e => setMonedaFilter(e.target.value ? e.target.value as 'PEN' | 'USD' : null)}
+            className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+          >
+            <option value="">Moneda: Todas</option>
+            <option value="PEN">Soles (S/)</option>
+            <option value="USD">Dólares ($)</option>
+          </select>
+        )}
+
         {/* Limpiar */}
-        {(estadoFilter || proyectoFilter) && (
+        {(estadoFilter || proyectoFilter || monedaFilter) && (
           <button
-            onClick={() => { setEstadoFilter(null); setProyectoFilter(null) }}
+            onClick={() => { setEstadoFilter(null); setProyectoFilter(null); setMonedaFilter(null) }}
             className="h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
           >
             Limpiar
@@ -354,6 +395,15 @@ export default function ARendirPage() {
 
       {/* Unused refresh workaround */}
       <span className="hidden" onClick={refresh} />
+
+      <BulkPagoModal
+        open={bulkPagoOpen}
+        title="Marcar pagado (masivo)"
+        description={`Se marcará como entregado el adelanto de las ${selectedPorPagar.length} solicitudes seleccionadas.`}
+        cantidad={selectedPorPagar.length}
+        onConfirm={handleBulkPagoConfirm}
+        onCancel={() => setBulkPagoOpen(false)}
+      />
     </div>
   )
 }

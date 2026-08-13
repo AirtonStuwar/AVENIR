@@ -12,12 +12,13 @@ export function useReembolso() {
   const [loading,        setLoading]       = useState(true)
   const [estadoFilter,   setEstadoFilter]  = useState<string | null>(null)
   const [proyectoFilter, setProyectoFilter] = useState<number | null>(null)
+  const [monedaFilter,   setMonedaFilterState] = useState<'PEN' | 'USD' | null>(null)
   const pageSize = 10
 
-  const load = useCallback(async (p: number, estado: string | null, proyectoId: number | null) => {
+  const load = useCallback(async (p: number, estado: string | null, proyectoId: number | null, moneda: 'PEN' | 'USD' | null) => {
     setLoading(true)
     try {
-      const res = await getReembolsos({ page: p, pageSize, role: userRole, userId: user?.id, estado, proyectoId })
+      const res = await getReembolsos({ page: p, pageSize, role: userRole, userId: user?.id, estado, proyectoId, monedaFilter: moneda })
       setData(res.data)
       setTotal(res.total)
       setTotalPages(res.totalPages)
@@ -28,19 +29,21 @@ export function useReembolso() {
     }
   }, [userRole, user?.id, pageSize])
 
-  useEffect(() => { load(page, estadoFilter, proyectoFilter) }, [load, page, estadoFilter, proyectoFilter])
+  useEffect(() => { load(page, estadoFilter, proyectoFilter, monedaFilter) }, [load, page, estadoFilter, proyectoFilter, monedaFilter])
 
   const setPage = (p: number) => setPageState(p)
   const handleSetEstadoFilter   = (v: string | null) => { setEstadoFilter(v);   setPageState(1) }
   const handleSetProyectoFilter = (v: number | null) => { setProyectoFilter(v); setPageState(1) }
-  const refresh = useCallback(() => load(page, estadoFilter, proyectoFilter), [load, page, estadoFilter, proyectoFilter])
+  const handleSetMonedaFilter   = (v: 'PEN' | 'USD' | null) => { setMonedaFilterState(v); setPageState(1) }
+  const refresh = useCallback(() => load(page, estadoFilter, proyectoFilter, monedaFilter), [load, page, estadoFilter, proyectoFilter, monedaFilter])
 
   return {
     data, total, page, pageSize, totalPages, loading,
-    estadoFilter, proyectoFilter,
+    estadoFilter, proyectoFilter, monedaFilter,
     setPage,
     setEstadoFilter: handleSetEstadoFilter,
     setProyectoFilter: handleSetProyectoFilter,
+    setMonedaFilter: handleSetMonedaFilter,
     refresh,
   }
 }
