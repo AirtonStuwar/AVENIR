@@ -46,6 +46,8 @@ interface Props {
   onProyectoFilterChange?: (id: number | null) => void
   pagoFilter?: 'pendiente' | 'pagado' | null
   onPagoFilterChange?: (v: 'pendiente' | 'pagado' | null) => void
+  monedaFilter?: 'PEN' | 'USD' | null
+  onMonedaFilterChange?: (v: 'PEN' | 'USD' | null) => void
   areaFilter?: number | null
   onAreaFilterChange?: (id: number | null) => void
   ordenVencimiento?: boolean
@@ -61,6 +63,7 @@ export default function SolicitudesTable({
   onSearch, onPageChange, onRefresh, onCreate, onView, onCancel,
   selectedIds, onSelectionChange, mesAprobacion, onMesAprobacionChange,
   proyectoFilter, onProyectoFilterChange, pagoFilter, onPagoFilterChange,
+  monedaFilter, onMonedaFilterChange,
   areaFilter, onAreaFilterChange, ordenVencimiento, onOrdenVencimientoChange,
   hasFiltrosActivos, onClearFilters, estadoFilter, onEstadoFilterChange,
 }: Props) {
@@ -213,6 +216,18 @@ export default function SolicitudesTable({
               <option value="">Pago: Todos</option>
               <option value="pendiente">Por pagar</option>
               <option value="pagado">Pagados</option>
+            </select>
+          )}
+
+          {onMonedaFilterChange && (
+            <select
+              value={monedaFilter ?? ''}
+              onChange={e => onMonedaFilterChange(e.target.value ? e.target.value as 'PEN' | 'USD' : null)}
+              className="h-9 flex-1 sm:flex-none rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 min-w-0"
+            >
+              <option value="">Moneda: Todas</option>
+              <option value="PEN">Soles (S/)</option>
+              <option value="USD">Dólares ($)</option>
             </select>
           )}
 

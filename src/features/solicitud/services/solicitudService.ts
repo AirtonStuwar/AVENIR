@@ -117,7 +117,7 @@ export async function updateUsuario(id: string, payload: Partial<Omit<Usuario, '
 }
 
 export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<SolicitudPaginado> {
-  const { search, proyecto_id, estado_id, estadoNombre, mes_aprobacion, pagoFilter, areaId, ordenVencimiento, page = 1, pageSize = 10, role, userId } = filtros
+  const { search, proyecto_id, estado_id, estadoNombre, mes_aprobacion, pagoFilter, monedaFilter, areaId, ordenVencimiento, page = 1, pageSize = 10, role, userId } = filtros
   const from = (page - 1) * pageSize
   const to   = from + pageSize - 1
 
@@ -189,6 +189,9 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
     query = query.is('fecha_pago', null).not('estado_id', 'is', null)
   } else if (pagoFilter === 'pagado') {
     query = query.not('fecha_pago', 'is', null)
+  }
+  if (monedaFilter) {
+    query = query.eq('moneda', monedaFilter)
   }
   if (mes_aprobacion !== undefined && mes_aprobacion !== null) {
     const year      = new Date().getFullYear()

@@ -49,6 +49,8 @@ export function useSolicitudes(filtrosIniciales: SolicitudFiltros = {}) {
     setFiltros((f) => ({ ...f, mes_aprobacion: mes ?? undefined, page: 1 }))
   const setPagoFilter = (pago: 'pendiente' | 'pagado' | null) =>
     setFiltros((f) => ({ ...f, pagoFilter: pago ?? undefined, page: 1 }))
+  const setMonedaFilter = (moneda: 'PEN' | 'USD' | null) =>
+    setFiltros((f) => ({ ...f, monedaFilter: moneda ?? undefined, page: 1 }))
   const setAreaFilter = (areaId: number | null) =>
     setFiltros((f) => ({ ...f, areaId: areaId ?? undefined, page: 1 }))
   const setEstadoNombre = (estadoNombre: string | null) =>
@@ -92,5 +94,5 @@ export function useSolicitudes(filtrosIniciales: SolicitudFiltros = {}) {
     }
   }
 
-  return { ...result, loading, filtros, setPage, setSearch, setProyectoFilter, setMesAprobacion, setPagoFilter, setAreaFilter, setOrdenVencimiento, setEstadoNombre, refresh, create, update, remove }
+  return { ...result, loading, filtros, setPage, setSearch, setProyectoFilter, setMesAprobacion, setPagoFilter, setMonedaFilter, setAreaFilter, setOrdenVencimiento, setEstadoNombre, refresh, create, update, remove }
 }

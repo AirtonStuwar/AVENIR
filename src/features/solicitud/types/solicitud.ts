@@ -182,6 +182,7 @@ export interface SolicitudFiltros {
   estadoNombre?: string | null
   mes_aprobacion?: number | null
   pagoFilter?: 'pendiente' | 'pagado' | null
+  monedaFilter?: 'PEN' | 'USD' | null
   areaId?: number | null
   ordenVencimiento?: boolean
   page?: number

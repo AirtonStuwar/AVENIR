@@ -1,16 +1,19 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { Send, ThumbsUp, X, Loader2, Download, FileSpreadsheet } from 'lucide-react'
+import { Send, ThumbsUp, X, Loader2, Download, FileSpreadsheet, CreditCard, Landmark } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import SolicitudesTable from '../features/solicitud/components/SolicitudesTable'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
+import BulkPagoModal from '../features/solicitud/components/BulkPagoModal'
 import { useSolicitudes } from '../features/solicitud/hooks/useSolicitudes'
 import {
   cancelarSolicitud,
   enviarARevision,
   aprobarSolicitud,
+  marcarDetraccionPagada,
 } from '../features/solicitud/services/solicitudService'
+import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
 import { useAuthStore } from '../store/authStore'
 import { useSolicitudFiltrosStore } from '../store/solicitudFiltrosStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -40,17 +43,17 @@ export default function SolicitudesPage() {
 
   // ── Filtros persistentes (sobreviven a navegar a un detalle y volver) ──
   const {
-    proyectoFilter, areaFilter, mesAprobacion, pagoFilter: pagoLocal, ordenVencimiento, estadoNombre,
+    proyectoFilter, areaFilter, mesAprobacion, pagoFilter: pagoLocal, monedaFilter: monedaLocal, ordenVencimiento, estadoNombre,
     setProyectoFilter: setProyectoStore, setAreaFilter: setAreaStore,
-    setMesAprobacion: setMesStore, setPagoFilter: setPagoStore,
+    setMesAprobacion: setMesStore, setPagoFilter: setPagoStore, setMonedaFilter: setMonedaStore,
     setOrdenVencimiento: setOrdenStore, setEstadoNombre: setEstadoStore,
     clear: clearFiltrosStore,
   } = useSolicitudFiltrosStore()
 
   const {
     data, total, page, pageSize, totalPages, loading, setPage, setSearch,
-    setProyectoFilter, setMesAprobacion, setPagoFilter, setAreaFilter, setOrdenVencimiento, setEstadoNombre, refresh,
-  } = useSolicitudes({ proyecto_id: proyectoFilter, areaId: areaFilter, mes_aprobacion: mesAprobacion, pagoFilter: pagoLocal, ordenVencimiento, estadoNombre })
+    setProyectoFilter, setMesAprobacion, setPagoFilter, setMonedaFilter, setAreaFilter, setOrdenVencimiento, setEstadoNombre, refresh,
+  } = useSolicitudes({ proyecto_id: proyectoFilter, areaId: areaFilter, mes_aprobacion: mesAprobacion, pagoFilter: pagoLocal, monedaFilter: monedaLocal, ordenVencimiento, estadoNombre })
 
   const isVisualizador = userRole === ROLES.VISUALIZADOR
   const isEvaluador    = userRole === ROLES.EVALUADOR
@@ -75,6 +78,11 @@ export default function SolicitudesPage() {
     setPagoFilter(v)
   }
 
+  const handleMonedaChange = (v: 'PEN' | 'USD' | null) => {
+    setMonedaStore(v)
+    setMonedaFilter(v)
+  }
+
   const handleAreaChange = (id: number | null) => {
     setAreaStore(id)
     setAreaFilter(id)
@@ -85,13 +93,14 @@ export default function SolicitudesPage() {
     setOrdenVencimiento(activo)
   }
 
-  const hasFiltrosActivos = !!(proyectoFilter || areaFilter || mesAprobacion || pagoLocal || ordenVencimiento || estadoNombre)
+  const hasFiltrosActivos = !!(proyectoFilter || areaFilter || mesAprobacion || pagoLocal || monedaLocal || ordenVencimiento || estadoNombre)
   const handleClearFiltros = () => {
     clearFiltrosStore()
     setProyectoFilter(null)
     setAreaFilter(null)
     setMesAprobacion(null)
     setPagoFilter(null)
+    setMonedaFilter(null)
     setOrdenVencimiento(false)
     setEstadoNombre(null)
   }
@@ -250,6 +259,43 @@ export default function SolicitudesPage() {
     toast.success(`Excel SPOT generado con ${solicitudesDetr.length} registro(s)`)
   }
 
+  // ── Marcar pagado / detracción pagada (masivo) ─────────────────
+  const canMarcarPago = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
+  const selectedPorPagar = data.filter(s =>
+    selectedIds.has(s.id) && s.estado_soli?.nombre === 'Aprobado' && !s.fecha_pago)
+  const selectedDetraccionPendiente = data.filter(s =>
+    selectedIds.has(s.id) && !!s.detraccion_id && !s.detraccion_pagada)
+
+  const [bulkPagoOpen, setBulkPagoOpen] = useState(false)
+  const [bulkDetOpen,  setBulkDetOpen]  = useState(false)
+
+  const handleBulkPagoConfirm = async (cuentaId: number, fechaPago: string) => {
+    if (!user?.id) return
+    const results = await Promise.allSettled(
+      selectedPorPagar.map(s => marcarPagado('solicitud', s.id, cuentaId, fechaPago, user.id))
+    )
+    const ok   = results.filter(r => r.status === 'fulfilled').length
+    const fail = results.filter(r => r.status === 'rejected').length
+    if (ok > 0)   toast.success(`${ok} solicitud${ok > 1 ? 'es' : ''} marcada${ok > 1 ? 's' : ''} como pagada${ok > 1 ? 's' : ''}`)
+    if (fail > 0) toast.error(`${fail} no se pudo${fail > 1 ? 'n' : ''} marcar`)
+    setBulkPagoOpen(false)
+    setSelectedIds(new Set())
+    refresh()
+  }
+
+  const handleBulkDetraccionConfirm = async (cuentaId: number, fechaPago: string) => {
+    const results = await Promise.allSettled(
+      selectedDetraccionPendiente.map(s => marcarDetraccionPagada(s.id, fechaPago, cuentaId))
+    )
+    const ok   = results.filter(r => r.status === 'fulfilled').length
+    const fail = results.filter(r => r.status === 'rejected').length
+    if (ok > 0)   toast.success(`${ok} detracción${ok > 1 ? 'es' : ''} marcada${ok > 1 ? 's' : ''} como pagada${ok > 1 ? 's' : ''}`)
+    if (fail > 0) toast.error(`${fail} no se pudo${fail > 1 ? 'n' : ''} marcar`)
+    setBulkDetOpen(false)
+    setSelectedIds(new Set())
+    refresh()
+  }
+
   // ── Cancelar individual ───────────────────────────────────────
   const canCancelFromList = userRole === ROLES.ADMIN || userRole === ROLES.USUARIO
 
@@ -335,6 +381,26 @@ export default function SolicitudesPage() {
             </button>
           )}
 
+          {canMarcarPago && selectedPorPagar.length > 0 && (
+            <button
+              onClick={() => setBulkPagoOpen(true)}
+              disabled={bulkLoading}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
+            >
+              <CreditCard size={12} /> Marcar pagado ({selectedPorPagar.length})
+            </button>
+          )}
+
+          {canMarcarPago && selectedDetraccionPendiente.length > 0 && (
+            <button
+              onClick={() => setBulkDetOpen(true)}
+              disabled={bulkLoading}
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            >
+              <Landmark size={12} /> Marcar detracción pagada ({selectedDetraccionPendiente.length})
+            </button>
+          )}
+
           <button
             onClick={() => setSelectedIds(new Set())}
             disabled={bulkLoading}
@@ -367,6 +433,8 @@ export default function SolicitudesPage() {
         onMesAprobacionChange={isVisualizador ? handleMesChange : undefined}
         pagoFilter={isVisualizador ? pagoLocal : undefined}
         onPagoFilterChange={isVisualizador ? handlePagoChange : undefined}
+        monedaFilter={isVisualizador ? monedaLocal : undefined}
+        onMonedaFilterChange={isVisualizador ? handleMonedaChange : undefined}
         areaFilter={areaFilter}
         onAreaFilterChange={handleAreaChange}
         estadoFilter={isEvaluador ? estadoNombre : undefined}
@@ -385,6 +453,23 @@ export default function SolicitudesPage() {
         variant="red"
         onConfirm={confirmCancel}
         onCancel={() => setConfirmOpen(false)}
+      />
+
+      <BulkPagoModal
+        open={bulkPagoOpen}
+        title="Marcar pagado (masivo)"
+        cantidad={selectedPorPagar.length}
+        onConfirm={handleBulkPagoConfirm}
+        onCancel={() => setBulkPagoOpen(false)}
+      />
+
+      <BulkPagoModal
+        open={bulkDetOpen}
+        title="Marcar detracción pagada (masivo)"
+        description={`Se registrará el pago de la detracción (SUNAT) de las ${selectedDetraccionPendiente.length} solicitudes seleccionadas.`}
+        cantidad={selectedDetraccionPendiente.length}
+        onConfirm={handleBulkDetraccionConfirm}
+        onCancel={() => setBulkDetOpen(false)}
       />
     </div>
   )
