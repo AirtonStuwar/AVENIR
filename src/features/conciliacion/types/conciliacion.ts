@@ -25,6 +25,7 @@ export interface RegistroPagable {
   beneficiario: string | null
   monto: number
   fecha_pago: string
+  banco: string | null
 }
 
 export interface MatchGrupo {

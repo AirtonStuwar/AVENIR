@@ -33,7 +33,7 @@ export function rangoDesdeMovimientos(movimientos: MovimientoBanco[]): { desde: 
 interface SolicitudPagableRow {
   id: number; codigo: string | null; razon_social: string | null
   monto_total: number | null; monto_detraccion: number | null; monto_retencion: number | null
-  detraccion_id: number | null; moneda: string | null
+  detraccion_id: number | null; moneda: string | null; banco: string | null
   solicitud_tipo: { nombre: string } | null
   detraccion: { porcentaje: number } | null
 }
@@ -41,7 +41,7 @@ interface SolicitudPagableRow {
 async function fetchSolicitudesPagables(cuentaId: number, fechaDesde: string, fechaHasta: string): Promise<RegistroPagable[]> {
   const { data, error } = await supabase
     .from('solicitud')
-    .select('id, codigo, razon_social, monto_total, monto_detraccion, monto_retencion, detraccion_id, moneda, fecha_pago, solicitud_tipo:tipo_id(nombre), detraccion:detraccion_id(porcentaje)')
+    .select('id, codigo, razon_social, monto_total, monto_detraccion, monto_retencion, detraccion_id, moneda, banco, fecha_pago, solicitud_tipo:tipo_id(nombre), detraccion:detraccion_id(porcentaje)')
     .eq('cuenta_pago_id', cuentaId)
     .gte('fecha_pago', fechaDesde)
     .lte('fecha_pago', fechaHasta)
@@ -64,7 +64,7 @@ async function fetchSolicitudesPagables(cuentaId: number, fechaDesde: string, fe
     return {
       modulo: 'solicitud' as ModuloConciliable,
       id: s.id, codigo: s.codigo, beneficiario: s.razon_social,
-      monto, fecha_pago: s.fecha_pago,
+      monto, fecha_pago: s.fecha_pago, banco: s.banco,
     }
   })
 }
@@ -75,7 +75,7 @@ async function fetchGenericoPagables(
 ): Promise<RegistroPagable[]> {
   const { data, error } = await supabase
     .from(tabla)
-    .select(`id, codigo, ${campoBeneficiario}, ${campoMonto}, fecha_pago`)
+    .select(`id, codigo, ${campoBeneficiario}, ${campoMonto}, fecha_pago, banco`)
     .eq('cuenta_pago_id', cuentaId)
     .gte('fecha_pago', fechaDesde)
     .lte('fecha_pago', fechaHasta)
@@ -87,6 +87,7 @@ async function fetchGenericoPagables(
     beneficiario: (r[campoBeneficiario] as string | null) ?? null,
     monto: (r[campoMonto] as number | null) ?? 0,
     fecha_pago: r.fecha_pago as string,
+    banco: (r.banco as string | null) ?? null,
   }))
 }
 
@@ -118,6 +119,8 @@ async function resolveBeneficiarios(rows: RegistroPagable[]): Promise<RegistroPa
 
 const centavos = (n: number) => Math.round(n * 100)
 const diffDias = (a: string, b: string) => Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86400000)
+// Mismo criterio que el Excel de pago masivo BBVA: 'P' = cuenta propia BBVA, 'I' = interbancario (CCI).
+const tipoAbono = (r: RegistroPagable): 'P' | 'I' => (r.banco === 'BBVA' ? 'P' : 'I')
 
 function buscarSubconjunto(candidatos: RegistroPagable[], objetivoCentavos: number, maxItems = 12): RegistroPagable[] | null {
   if (candidatos.length === 0 || candidatos.length > maxItems) return null
@@ -162,16 +165,20 @@ export function conciliar(movimientos: MovimientoBanco[], registros: RegistroPag
       continue
     }
 
-    // 2) Match por grupo: varios registros de la misma fecha_pago que sumen el monto del movimiento
+    // 2) Match por grupo: varios registros de la misma fecha_pago Y mismo tipo de abono
+    // (BBVA propio 'P' vs interbancario 'I' — BBVA nunca mezcla ambos en un mismo movimiento
+    // de pago masivo, así que agrupar por esta clave evita combinaciones falsas y grupos
+    // demasiado grandes para el buscador de subconjuntos).
     let matched = false
     if (fechaRef) {
       const cercanos = disponibles.filter(r => diffDias(r.fecha_pago, fechaRef) <= 3)
-      const porFecha = new Map<string, RegistroPagable[]>()
+      const porFechaYTipo = new Map<string, RegistroPagable[]>()
       for (const r of cercanos) {
-        const arr = porFecha.get(r.fecha_pago) ?? []
-        arr.push(r); porFecha.set(r.fecha_pago, arr)
+        const clave = `${r.fecha_pago}|${tipoAbono(r)}`
+        const arr = porFechaYTipo.get(clave) ?? []
+        arr.push(r); porFechaYTipo.set(clave, arr)
       }
-      for (const grupo of porFecha.values()) {
+      for (const grupo of porFechaYTipo.values()) {
         const combinacion = buscarSubconjunto(grupo, objetivo)
         if (combinacion) {
           for (const r of combinacion) {
