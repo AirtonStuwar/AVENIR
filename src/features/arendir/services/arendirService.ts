@@ -23,9 +23,11 @@ async function enrichARendir(items: SolicitudARendir[]): Promise<SolicitudARendi
   const map = Object.fromEntries((users ?? []).map(u => [u.id, u]))
   return items.map(i => ({
     ...i,
-    beneficiario_nombre: map[i.beneficiario_id ?? '']?.nombre_completo ?? null,
+    // el nombre/dni guardado manualmente en la solicitud tiene prioridad (permite crearla
+    // a nombre de otra persona); si no se llenó, cae al perfil de beneficiario_id
+    beneficiario_nombre: i.beneficiario_nombre ?? map[i.beneficiario_id ?? '']?.nombre_completo ?? null,
+    beneficiario_dni:    i.beneficiario_dni ?? map[i.beneficiario_id ?? '']?.dni ?? null,
     beneficiario_email:  map[i.beneficiario_id ?? '']?.correo ?? null,
-    beneficiario_dni:    map[i.beneficiario_id ?? '']?.dni ?? null,
     beneficiario_cargo:  map[i.beneficiario_id ?? '']?.cargo ?? null,
     aprobador_nombre:    map[i.usuario_aprobador ?? '']?.nombre_completo ?? null,
     evaluador_nombre:    map[i.usuario_evaluador ?? '']?.nombre_completo ?? null,

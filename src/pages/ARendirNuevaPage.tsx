@@ -66,6 +66,7 @@ export default function ARendirNuevaPage() {
   const [solicitudCreada, setSolicitudCreada] = useState<SolicitudARendir | null>(null)
 
   // Step 1 form
+  const [beneficiarioNombre, setBeneficiarioNombre] = useState(usuarioProfile?.nombre_completo ?? '')
   const [dniEdit, setDniEdit] = useState(usuarioProfile?.dni ?? '')
   const [proyectoId,      setProyectoId]      = useState<string>('')
   const [partidaId,       setPartidaId]       = useState<string>('')
@@ -121,11 +122,6 @@ export default function ARendirNuevaPage() {
     }
     setSaving(true)
     try {
-      // Actualizar DNI si cambió
-      if (dniEdit !== (usuarioProfile?.dni ?? '')) {
-        await supabase.from('usuario').update({ dni: dniEdit || null }).eq('id', user.id)
-      }
-
       const payload = {
         proyecto_id: proyectoId ? Number(proyectoId) : null,
         proyecto_partida_id: partidaId ? Number(partidaId) : null,
@@ -135,6 +131,8 @@ export default function ARendirNuevaPage() {
         fecha_rendicion: fechaRendicion || null,
         banco: banco || null,
         numero_cuenta: numeroCuenta || null,
+        beneficiario_nombre: beneficiarioNombre.trim() || null,
+        beneficiario_dni: dniEdit.trim() || null,
       }
 
       let sol: SolicitudARendir
@@ -159,8 +157,8 @@ export default function ARendirNuevaPage() {
         sol.documento_sustento_path = path
       }
 
-      sol.beneficiario_nombre = usuarioProfile?.nombre_completo ?? null
-      sol.beneficiario_dni    = dniEdit || null
+      sol.beneficiario_nombre = beneficiarioNombre.trim() || null
+      sol.beneficiario_dni    = dniEdit.trim() || null
       sol.beneficiario_cargo  = usuarioProfile?.cargo ?? null
       setSolicitudCreada(sol)
       setStep(2)
@@ -264,13 +262,16 @@ export default function ARendirNuevaPage() {
           <h2 className="text-base font-semibold text-gray-900">Datos generales</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Beneficiario read-only */}
+            {/* Beneficiario editable — por defecto quien crea la solicitud, pero se puede
+                cambiar si se está creando a nombre de otra persona (ej. sin acceso al sistema) */}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Beneficiario</label>
               <input
-                readOnly
-                value={usuarioProfile?.nombre_completo ?? usuarioProfile?.correo ?? ''}
-                className="w-full h-10 px-3 rounded-xl border border-gray-200 bg-gray-50 text-sm text-gray-600 cursor-not-allowed"
+                type="text"
+                value={beneficiarioNombre}
+                onChange={e => setBeneficiarioNombre(e.target.value)}
+                placeholder="Nombre del beneficiario"
+                className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D]"
               />
             </div>
 
