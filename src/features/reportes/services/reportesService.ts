@@ -268,7 +268,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   let q = supabase
     .from('solicitud_arendir')
-    .select(`id, codigo, estado, beneficiario_id, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, cuenta_pago_id, fecha_aprobacion, fecha_creacion, fecha_rendicion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
+    .select(`id, codigo, estado, beneficiario_id, beneficiario_nombre, beneficiario_dni, proyecto_id, proyecto_partida_id, importe, total_reembolso, moneda, banco, numero_cuenta, cuenta_pago_id, fecha_aprobacion, fecha_creacion, fecha_rendicion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(${PC_COLS})`)
     .gte(dateField, fechaDesde)
     .lte(dateField, fechaHasta + 'T23:59:59')
 
@@ -279,6 +279,7 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
 
   const rows = (data ?? []) as unknown as {
     id: number; codigo: string | null; estado: string | null; beneficiario_id: string | null
+    beneficiario_nombre: string | null; beneficiario_dni: string | null
     importe: number; total_reembolso: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null; cuenta_pago_id: number | null; fecha_aprobacion: string | null
     fecha_creacion: string | null; fecha_rendicion: string | null; fecha_pago: string | null
@@ -321,9 +322,10 @@ async function fetchARendir(filtros: ReporteFiltros): Promise<ReporteRow[]> {
       fecha_emision:   null,
       requerido_por: u?.nombre ?? null,
       area:          u?.area ?? null,
-      beneficiario:  u?.nombre ?? null,
+      // el nombre/dni manual (beneficiario distinto de quien crea la solicitud) tiene prioridad
+      beneficiario:  r.beneficiario_nombre ?? u?.nombre ?? null,
       documento:     null,
-      ruc:           u?.dni ?? null,
+      ruc:           r.beneficiario_dni ?? u?.dni ?? null,
       proyecto:      r.proyecto?.nombre ?? null,
       partida:       r.proyecto_partida?.nombre ?? null,
       concepto:      conceptoMap[r.id] ?? 'Rendición de gastos',
