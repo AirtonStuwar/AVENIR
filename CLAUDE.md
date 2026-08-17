@@ -44,7 +44,11 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 
 **Persistencia de filtros (`src/store/solicitudFiltrosStore.ts`):** store Zustand aparte (no es parte de `useSolicitudes`) que guarda `proyectoFilter`, `areaFilter`, `mesAprobacion`, `pagoFilter`, `ordenVencimiento`. `SolicitudesPage` lee este store y lo pasa como `filtrosIniciales` a `useSolicitudes()`, así que al entrar al detalle de una solicitud y volver (el componente se desmonta/remonta), los filtros elegidos siguen aplicados — antes se perdían porque vivían en `useState` local de la página. Botón "Limpiar filtros" (visible solo si hay algún filtro activo) resetea el store y los filtros del hook a la vez. La búsqueda de texto y la página de paginación **no** persisten (a propósito, por decisión del usuario).
 
-**Orden de columnas en `SolicitudesTable`:** Código, Razón social, **Estado**, Factura, Empresa, Fecha pedido, Vencimiento, Creado por, Área, **RUC** — Estado y RUC intercambiaron posiciones respecto al orden original (RUC ahora al final, junto a las acciones).
+**Orden de columnas en `SolicitudesTable`:** Código, Razón social, **Estado**, Factura, [**Monto a pagar**, **Detracción/Retención** — solo VISUALIZADOR/ADMIN, ver abajo], Empresa, Fecha pedido, Vencimiento, Creado por, Área, **RUC** — Estado y RUC intercambiaron posiciones respecto al orden original (RUC ahora al final, junto a las acciones).
+
+**Columnas "Monto a pagar" / "Detracción/Retención"** (prop `showMontoPago` en `SolicitudesTable`, `true` cuando `userRole` es VISUALIZADOR o ADMIN): "Monto a pagar" reutiliza `montoAGirar(s)` (duplicada como función local en `SolicitudesTable.tsx` — mismo cálculo que el de `SolicitudesPage.tsx` para el Excel BBVA: descuenta detracción en OC, retención en RxH, Liberalidad ya neteada). "Detracción/Retención" muestra el monto aplicado — **la detracción siempre en soles** (SUNAT, igual que en el resto del sistema) y **la retención en la moneda propia de la solicitud** (a diferencia de la detracción, que siempre es en soles); si no tiene ninguna de las dos, muestra `—`.
+
+**Filtro de moneda y marcado masivo de pago/detracción (`SolicitudesPage`):** dropdown Moneda (Soles/Dólares/Todas, solo VISUALIZADOR, persistido en `solicitudFiltrosStore`) junto a los demás filtros. Dos botones de acción masiva aparecen sobre la selección (VISUALIZADOR/ADMIN): "Marcar pagado" (solicitudes Aprobadas sin `fecha_pago`, usa `marcarPagado('solicitud', ...)`) y "Marcar detracción pagada" (solicitudes con `detraccion_id` y `!detraccion_pagada`, usa `marcarDetraccionPagada(...)`) — ambos abren `BulkPagoModal` y aplican a toda la selección con `Promise.allSettled`, igual que A Rendir/Reembolso.
 
 **Routing** (`App.tsx`):
 - `/login` — public
@@ -52,6 +56,7 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 - `/arendir`, `/arendir/nueva`, `/arendir/:id` — A Rendir module, also behind `ProtectedRoute`
 - `/reembolso`, `/reembolso/nueva`, `/reembolso/:id` — Reembolso module, also behind `ProtectedRoute`
 - `/reportes` — Módulo Reportes (ADMIN + VISUALIZADOR), also behind `ProtectedRoute`
+- `/conciliacion` — Módulo Conciliación Bancaria (ADMIN + VISUALIZADOR), also behind `ProtectedRoute`
 - `/areas` — Gasto por Área (ADMIN + APROBADOR), also behind `ProtectedRoute`
 - `/caja-chica`, `/caja-chica/nueva`, `/caja-chica/:id` — Módulo Caja Chica, also behind `ProtectedRoute`
 - Catch-all redirects to `/dashboard`
@@ -64,7 +69,7 @@ El campo `prioridad` fue eliminado de la tabla `solicitud` (UI y tipos) — no s
 
 `area_usuario` links users to areas; only rows with `estado = 1` are treated as active when enriching solicitudes with area names.
 
-**`usuarioService.ts`** (`src/features/usuario/services/usuarioService.ts`) — standalone service with no types or hooks of its own; imports `Usuario` from `src/features/solicitud/types/solicitud.ts`. Exports: `updateUsuarioPerfil` (nombres/apellidos/cargo), `changePassword`, `saveUserFirma`, `deleteUserFirma`, `getUserFirmaUrl`, `getUserFirmaBlob`. Note: `usuario.dni` is saved directly via inline Supabase call in `ARendirNuevaPage` (Step 1), not through this service.
+**`usuarioService.ts`** (`src/features/usuario/services/usuarioService.ts`) — standalone service with no types or hooks of its own; imports `Usuario` from `src/features/solicitud/types/solicitud.ts`. Exports: `updateUsuarioPerfil` (nombres/apellidos/cargo), `changePassword`, `saveUserFirma`, `deleteUserFirma`, `getUserFirmaUrl`, `getUserFirmaBlob`. `ARendirNuevaPage` (Step 1) ya **no** toca `usuario.dni` — desde que se agregó el beneficiario/DNI manual, ambos se guardan solo en `solicitud_arendir` (ver módulo A Rendir).
 
 **Supabase Storage:** Dos buckets relevantes:
 - `solicitud-archivos` — documentos y firmas por solicitud. Signed URLs con 1 hora de expiración. Storage path: `{solicitudId}/{tipoArchivo}/{timestamp}.{ext}`. Tipos de firma: `Firma_Usuario`, `Firma_Aprobador` (se suben al ejecutar `enviarARevision` / `aprobarSolicitud`).
@@ -251,7 +256,8 @@ Gestión de **rendición de gastos con adelantos**. Un empleado solicita un adel
 - `solicitud_arendir_detalle` — líneas de gasto (N por solicitud)
 
 **Campos de `solicitud_arendir`:**
-- `id`, `codigo` (auto-generado por trigger), `beneficiario_id` (UUID FK auth.users)
+- `id`, `codigo` (auto-generado por trigger), `beneficiario_id` (UUID FK auth.users — siempre quien crea la solicitud)
+- `beneficiario_nombre`, `beneficiario_dni` (text, nullable) — override manual del beneficiario mostrado (ver "Beneficiario y DNI manuales")
 - `proyecto_id` (FK → proyecto, nullable)
 - `importe` (numeric) — monto del adelanto solicitado
 - `moneda` (text) — `'PEN'` | `'USD'`, elegido en Step 1 del wizard
@@ -261,9 +267,9 @@ Gestión de **rendición de gastos con adelantos**. Un empleado solicita un adel
 - `fecha_rendicion` (date, nullable) — fecha límite de rendición
 - `total_reembolso` (numeric) — suma de los detalles, recalculada automáticamente
 - `documento_sustento_path` (text, nullable) — path en storage del sustento general
-- `estado` (text): `'Pendiente'` | `'En Revision'` | `'Evaluado'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'`
+- `estado` (text): `'Pendiente'` | `'En Evaluación'` | `'Evaluado'` | `'Devuelto'` | `'Aprobado'` | `'Rechazado'` | `'Pagado'` | `'En Revision'` | `'Cerrado'` | `'Observado'`
 - `usuario_aprobador` (uuid, nullable), `fecha_aprobacion` (timestamp, nullable)
-- `usuario_evaluador` (uuid, nullable), `plan_contable_id` (FK → `plan_contable_brash`, nullable)
+- `usuario_evaluador` (uuid, nullable), `plan_contable_id` (FK → `plan_contable_brash`, nullable — existe la columna pero A Rendir no la usa, ver flujo de estados)
 - `comentario` (text, nullable) — motivo de rechazo o devolución
 - `fecha_creacion` (timestamp)
 - `fecha_pago` (date, nullable), `cuenta_pago_id` (FK → `cuenta_bancaria`, nullable), `usuario_pago` (UUID FK, nullable)
@@ -281,10 +287,18 @@ Gestión de **rendición de gastos con adelantos**. Un empleado solicita un adel
 - `{solicitudId}/firma_aprobador/{timestamp}.png` — firma del aprobador
 - Signed URLs con 1 hora de expiración.
 
-**Flujo de estados (real, distinto al de Solicitud/Reembolso/Devolución — sin evaluador con plan contable, es un adelanto de dinero):**
+**Flujo de estados (real — corregido, esta sección estaba desactualizada respecto al código):** a diferencia de lo que se documentó antes, A Rendir **sí tiene un paso de evaluador** antes del aprobador (igual que Solicitud/Reembolso), solo que ese primer paso del EVALUADOR no asigna plan contable — es un simple cambio de estado. El EVALUADOR además vuelve a actuar más adelante para "cerrar" la rendición.
 ```
 Pendiente
-  ↓ APROBADOR/ADMIN → aprobarARendir → Aprobado
+  ↓ USUARIO/ADMIN (dueño) → enviarARevisionARendir → En Evaluación
+En Evaluación
+  ├─ EVALUADOR/ADMIN → marcarEvaluadoARendir(id, userId) → Evaluado
+  └─ EVALUADOR/ADMIN → devolverDesdeEvaluacionARendir(comentario) → Devuelto
+Devuelto
+  ↓ USUARIO/ADMIN (dueño) → reenviarDesdeDevueltoARendir → En Evaluación
+Evaluado
+  ├─ APROBADOR/ADMIN → aprobarARendir → Aprobado
+  └─ APROBADOR/ADMIN → rechazarARendir(comentario) → Rechazado
 Aprobado
   ├─ VISUALIZADOR/ADMIN → marcarPagadoARendir → Pagado  (dinero entregado)
   └─ VISUALIZADOR/ADMIN → devolverARendir(comentario)   → Observado
@@ -295,19 +309,25 @@ En Revision
 Observado
   ↓ USUARIO/ADMIN (dueño) → reenviarContabilidadARendir → Aprobado  (sin volver a pasar por aprobador)
 ```
-El EVALUADOR aquí **no asigna plan contable** — su única acción es "Cerrar rendición" desde En Revision, un simple cambio de estado (`cerrarRendicion`, compartido con VISUALIZADOR). Por eso [[protección contra doble evaluación]] no aplica a A Rendir.
+El EVALUADOR aquí **no asigna plan contable** en ninguna de sus dos acciones (ni al marcar "Evaluado" ni al "Cerrar rendición") — a diferencia de Solicitud/Reembolso/Devolución, donde el paso de evaluación sí fija `plan_contable_id`. Por eso [[protección contra doble evaluación]] no aplica a A Rendir (no hay datos que se puedan pisar entre dos evaluadores, solo un cambio de estado).
 
 **Wizard de creación (2 pasos):**
-1. **Datos generales** — beneficiario (read-only, usuario logueado), DNI (editable, guardado en `usuario`), proyecto (opcional), moneda (PEN/USD), importe adelanto, fecha de rendición, banco (select de `bancos.ts`), número de cuenta/CCI (label y maxLength según banco, se limpia al cambiar banco), documento sustento (opcional). Al completar: crea registro en `Pendiente`. `banco` y `numero_cuenta` se guardan en `solicitud_arendir` pero **no aparecen en el PDF** — solo se usan en la descarga Excel BBVA.
+1. **Datos generales** — beneficiario (**editable**, texto libre, precargado con el nombre de quien crea la solicitud pero se puede cambiar para crearla a nombre de otra persona — ver "Beneficiario y DNI manuales" más abajo), DNI (editable, se guarda **solo en esa solicitud**, ya no toca el perfil del usuario), proyecto (opcional), moneda (PEN/USD), importe adelanto, fecha de rendición, banco (select de `bancos.ts`), número de cuenta/CCI (label y maxLength según banco, se limpia al cambiar banco), documento sustento (opcional). Al completar: crea registro en `Pendiente`. `banco` y `numero_cuenta` se guardan en `solicitud_arendir` pero **no aparecen en el PDF** — solo se usan en la descarga Excel BBVA.
 2. **Detalle de gastos** — tabla editable de líneas (fecha, proveedor, tipo doc, N° doc, concepto, importe, archivo adjunto). Muestra balance: si adelanto > total → "usuario devuelve diferencia"; si adelanto < total → "empresa reembolsa diferencia". Permite subir firma del beneficiario, generar PDF y enviar a revisión.
 
+**Beneficiario y DNI manuales (`beneficiario_nombre`, `beneficiario_dni` en `solicitud_arendir`, nullable):** permiten crear la solicitud a nombre de otra persona (ej. un trabajador de campo sin acceso al sistema) sin tocar el perfil real del usuario que crea la solicitud. `beneficiario_id` sigue siendo siempre quien crea la solicitud (para RLS/ownership); estos dos campos son solo de **visualización**, con prioridad sobre el nombre/DNI del perfil de `beneficiario_id` cuando están llenos — la resolución de prioridad vive en `enrichARendir()` (`arendirService.ts`) y en `fetchARendir()` (`reportesService.ts`, módulo Reportes). Si un lugar nuevo necesita mostrar el beneficiario de A Rendir, debe replicar ese mismo criterio (manual primero, perfil real como fallback) — de lo contrario mostrará a quien creó la solicitud en vez del beneficiario real (bug ya corregido una vez en Reportes).
+
 **ARendirDetallePage — acciones por rol y estado:**
-- APROBADOR/ADMIN en Pendiente: "Aprobar adelanto" → Aprobado
+- USUARIO (dueño)/ADMIN en Pendiente: "Enviar a evaluación" → En Evaluación
+- EVALUADOR/ADMIN en En Evaluación: "Evaluar" → Evaluado, o "Devolver" (comentario) → Devuelto
+- USUARIO (dueño)/ADMIN en Devuelto: "Reenviar" → En Evaluación
+- APROBADOR/ADMIN en Evaluado: "Aprobar" → Aprobado, o "Rechazar" (comentario) → Rechazado
 - VISUALIZADOR/ADMIN en Aprobado: "Marcar dinero entregado" (abre `PagoModal`) → Pagado, o "Devolver" (comentario) → Observado
 - USUARIO (dueño)/ADMIN en Pagado: "Enviar rendición" → En Revision
 - VISUALIZADOR/EVALUADOR/ADMIN en En Revision: "Cerrar rendición" → Cerrado
 - ADMIN/USUARIO (dueño) en Observado: "Reenviar a contabilidad" → Aprobado
-- Todos desde En Revision en adelante: "Descargar PDF"
+- Botón "Descargar PDF": visible desde **Pagado** en adelante (Pagado, En Revision, Cerrado) — no antes, porque recién en Pagado tiene sentido imprimir el comprobante de entrega de dinero
+- Botón "Agregar gasto" (líneas de `solicitud_arendir_detalle`): visible en **Aprobado, Pagado u Observado**, para el dueño o ADMIN
 - Badge "Pagado dd/mm/yyyy" en header cuando `fecha_pago` está presente
 
 **Orden estable de gastos:** `getCajaChicaById` ordena los `detalles` embebidos por `id` ascendente (`.order('id', { ascending: true, foreignTable: 'caja_chica_detalle' })`) — antes no tenía orden explícito, así que la lista podía mostrarse en distinto orden cada vez que se recargaba (por ejemplo al editar un gasto), dando la sensación de que los ítems "se movían". Ordenar por `id` (que nunca cambia) garantiza que cada gasto se quede siempre en la misma posición, sin importar qué campo se edite.
@@ -351,10 +371,13 @@ El EVALUADOR aquí **no asigna plan contable** — su única acción es "Cerrar 
   - VISUALIZADOR: Evaluado · Autorizado
   - ADMIN / USUARIO: los 6 estados completos
 - Dropdown **Proyecto** — todos los proyectos
+- Dropdown **Moneda** (Soles/Dólares/Todas) — solo VISUALIZADOR/ADMIN, filtra por `moneda` a nivel de query
 - Botón "Limpiar" visible cuando hay algún filtro activo
 - VISUALIZADOR ve por defecto `estado IN ('Evaluado', 'Autorizado')`; si selecciona un estado específico del filtro, se aplica ese
 
-**`useArendir` hook:** estado local (data, total, page, totalPages, loading), pageSize fijo de 10, filtra por rol/userId automáticamente. Expone `setPage`, `setEstadoFilter`, `setProyectoFilter`, `refresh`. Al cambiar cualquier filtro, la página vuelve a 1.
+**`useArendir` hook:** estado local (data, total, page, totalPages, loading), pageSize fijo de 10, filtra por rol/userId automáticamente. Expone `setPage`, `setEstadoFilter`, `setProyectoFilter`, `setMonedaFilter`, `refresh`. Al cambiar cualquier filtro, la página vuelve a 1.
+
+**Marcado masivo de "pagado" (`ARendirPage`):** VISUALIZADOR/ADMIN puede seleccionar varias filas en estado `Aprobado` (checkboxes, mismo patrón que la selección para Excel BBVA) y hacer clic en "Marcar pagado" — abre `BulkPagoModal` (`src/features/solicitud/components/BulkPagoModal.tsx`, componente compartido entre los 3 módulos con Excel BBVA) con fecha + cuenta bancaria, y aplica `marcarPagadoARendir` a todas las seleccionadas de una vez (`Promise.allSettled`), en vez de entrar al detalle de cada una. A diferencia del `PagoModal` individual (scoped a un solo proyecto vía `getCuentasByProyecto`), `BulkPagoModal` usa `getAllCuentasBancarias()` porque la selección puede incluir solicitudes de distintas empresas.
 
 **Diferencias clave vs. módulo Solicitud (OC):**
 - Con moneda PEN/USD (campo `moneda`, DEFAULT 'PEN') — se elige en Step 1
@@ -402,6 +425,8 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 - El wizard y detalle tienen la misma estructura pero sin la lógica de balance adelanto vs gasto
 
 `ReembolsoDetallePage` también permite editar gastos inline y tiene botón "Marcar pagado" para VISUALIZADOR en estado Autorizado (igual que `ARendirDetallePage`). El **documento sustento general** (`documento_sustento_path`) se puede subir o reemplazar directamente desde el detalle (no solo en el wizard) mientras `canEditDet` sea `true` (estados Pendiente, Devuelto u Observado, dueño o ADMIN) — usa `uploadSustentoReembolso()` + `updateReembolso()`.
+
+**Filtro de moneda y marcado masivo de pago (`ReembolsoPage`):** mismo patrón que A Rendir — dropdown Moneda (Soles/Dólares/Todas, solo VISUALIZADOR/ADMIN, via `setMonedaFilter` en `useReembolso`) y botón "Marcar pagado" masivo sobre la selección en estado `Autorizado` sin `fecha_pago`, usando `BulkPagoModal` + `marcarPagado('solicitud_reembolso', ...)` (la función genérica de `cuentaBancariaService.ts`, no cambia de estado — a diferencia de A Rendir, Reembolso se queda en `Autorizado` y solo se llena `fecha_pago`).
 
 ---
 
@@ -554,6 +579,8 @@ Consolidación de registros aprobados/autorizados de todos los módulos en un Ex
 **Modo "todos los estados" para EVALUADOR (`ReporteFiltros.todosEstados`):** el EVALUADOR trabaja con registros en Pendiente/En Revision/Evaluado, no solo Aprobado/Autorizado, así que `ReportesPage` detecta `userRole === ROLES.EVALUADOR` y pasa `todosEstados: true` a `getReporteData()`/`exportarReporteExcel()`. En ese modo, cada uno de los 5 fetchers (`fetchSolicitudes`, `fetchARendir`, `fetchReembolso`, `fetchCajaChica`, `fetchDevoluciones`) **omite el filtro de `estado`** (trae cualquier estado) y **filtra por `fecha_creacion` en vez de `fecha_aprobacion`** (muchos registros aún no tienen fecha de aprobación). El ordenamiento final también usa `fecha_solicitud` en este modo. Los labels de fecha en la UI cambian a "Fecha desde/hasta (creación)" cuando `isEvaluador`.
 
 **`ReporteRow` interface:** `tipo` (`'OC'|'RxH'|'A Rendir'|'Reembolso'|'Caja Chica'|'Devolución'`), **`estado`** (nombre del estado actual del registro — siempre poblado, no solo en modo evaluador), `codigo`, `fecha_solicitud`, `fecha_requerida`, `fecha_aprobada`, `fecha_emision`, `fecha_pago`, `requerido_por`, `area`, `beneficiario`, `documento` (= `numero_factura` para OC, `numero_rxh` para RxH, null para otros), `ruc` (RUC para OC/RxH, DNI para A Rendir/Reembolso/Caja Chica), `proyecto`, `partida`, `concepto`, `moneda`, `total_usd`, `total_pen`, `detraccion`, `retencion`, `girar_usd`, `girar_pen`, `banco`, `cuenta`, `correo`, `archivo_contrato`, `archivo_sustento`, `archivo_cotizacion`, `archivo_factura`, `archivo_otros`.
+
+**`fetchARendir()` — beneficiario/RUC:** `beneficiario` y `ruc` dan prioridad al override manual (`r.beneficiario_nombre ?? u?.nombre`, `r.beneficiario_dni ?? u?.dni`) — bug corregido: antes solo usaba el perfil de `beneficiario_id`, así que si la solicitud se creó a nombre de otra persona (ver "Beneficiario y DNI manuales" en el módulo A Rendir), el reporte mostraba el nombre de quien creó la solicitud en vez del beneficiario real. `requerido_por` sigue mostrando siempre a quien creó la solicitud (vía `beneficiario_id`), sin cambios — es una distinción intencional, igual que en OC donde `requerido_por` es el creador interno y `beneficiario` es el proveedor.
 
 **Detracción en reportes:** `detraccion` siempre en S/ (SUNAT), sin importar la moneda de la solicitud. `girar_usd` descuenta la detracción en dólares: `total - (total × porcentaje / 100)`, **sin redondear** el descuento intermedio (solo el resultado final a 2 decimales) — el redondeo a soles enteros solo aplica al depósito SUNAT (`monto_detraccion`), no al monto girado en dólares. `girar_pen` descuenta detracción y retención en soles.
 
@@ -728,6 +755,8 @@ Autorizado
 - `trg_recalc_arendir_total` — recalcula `total_reembolso` en A Rendir al modificar detalles
 - `trg_recalc_reembolso_total` — recalcula `total_reembolso` en Reembolso al modificar detalles
 
+**⚠️ Bug pendiente de confirmar — Excel BBVA de Caja Chica usa el monto equivocado:** `handleExport()` en `CajaChicaPage.tsx` pone `cc.total_gastos` en la columna "Importe abonar" (lo ya gastado por el responsable), pero lo que Contabilidad debería transferir/depositar para reponer el fondo es `cc.transferencia` (`monto_asignado - saldo_anterior`) — son montos distintos por diseño y hoy el Excel gira el equivocado. Detectado en sesión pero no corregido aún porque falta confirmación del usuario; si se toca este archivo, avisar/confirmar antes de arreglarlo.
+
 ---
 
 ## UI Label Mapping (Empresa / Centro de costo)
@@ -791,3 +820,35 @@ Página `/areas` — visible para **ADMIN (1)** y **APROBADOR (9)**.
 **Sidebar:** item "Áreas" con ícono `Building2`, roles [1, 9].
 
 **Sidebar:** item "Caja Chica" con ícono `Wallet`, roles ALL (todos los roles ven el listado, solo USUARIO y ADMIN crean).
+
+---
+
+## Módulo Conciliación Bancaria
+
+Cruza el estado de cuenta bancario (Excel descargado del banco) contra los pagos ya registrados en AVENIR, para que VISUALIZADOR/ADMIN no tengan que revisar manualmente movimiento por movimiento. Por ahora **solo BBVA**.
+
+**Ruta:** `/conciliacion` — visible para ADMIN (1) y VISUALIZADOR (10). Sidebar: ícono `Landmark`.
+
+**Feature folder:** `src/features/conciliacion/` — `types/conciliacion.ts`, `services/estadoCuentaParser.ts`, `services/conciliacionService.ts`. Página: `src/pages/ConciliacionBancariaPage.tsx`.
+
+**No hay tabla de "pagos pendientes" propia** — el módulo lee en vivo de los 5 módulos existentes (`solicitud`, `solicitud_arendir`, `solicitud_reembolso`, `caja_chica`, `devolucion_cliente`) filtrando por `cuenta_pago_id` + `fecha_pago`, igual criterio que usa Estado de Pago. Sí persiste el **resultado** de cada conciliación corrida, en 3 tablas nuevas: `conciliacion_bancaria` (cabecera: cuenta, rango de fechas, saldos, archivo, usuario), `conciliacion_movimiento` (cada movimiento del banco procesado, con su `estado_match`), `conciliacion_match` (qué registros de AVENIR calzaron con cada movimiento — 1 o varios). RLS: `es_rol_privilegiado()` en las 3, igual patrón que el resto del sistema.
+
+**`estadoCuentaParser.ts` — `parseEstadoCuentaBBVA(file, fechaHastaRef)`:** parsea el reporte BBVA **"Consulta de Estado de Cuenta"** (código CI00) usando la librería `xlsx` (SheetJS, no `exceljs` — es la única que lee `.xlsb`). Busca la fila de cabecera por texto ("FECHA OPER."), y desde ahí extrae movimientos hasta "TOTALES POR ITF". **Existe otro reporte BBVA distinto, "Saldo y Detalle de la Cuenta"**, con columnas totalmente diferentes (`F.Operac./Importe` en vez de `FECHA OPER./CARGO-ABONO`) — el parser **no** lo reconoce y lanza error; si un usuario lo sube por error, hay que pedirle específicamente el reporte "Consulta de Estado de Cuenta".
+
+**Fechas del banco — dos formatos posibles:** el export de BBVA a veces trae la fecha como texto `"DD-MM"` (sin año, hay que inferirlo) y a veces como **celda de fecha nativa de Excel** (ej. `8/10/26`). El parser lee el workbook con `cellDates: true` y `parseFechaCelda()` maneja ambos casos — si es un `Date`, usa sus componentes **locales** (`getFullYear/getMonth/getDate`, no `getUTC*`) para evitar que la zona horaria del navegador corra el día. Antes de este fix, un archivo con fechas nativas dejaba `fecha_oper`/`fecha_valor` en `null` para **todos** los movimientos, y como `rangoDesdeMovimientos()` no encontraba ninguna fecha válida, la conciliación fallaba por completo ("no se pudo determinar el rango de fechas del archivo").
+
+**`rangoDesdeMovimientos(movimientos)`:** el rango de búsqueda de registros pagables (`getRegistrosPagables`) se calcula del **propio archivo subido** (primer/último movimiento ± 3 días de tolerancia), **no** del fechaDesde/fechaHasta que tipee el usuario en el filtro — así nunca puede cruzar con registros de un período que el estado de cuenta no cubre, aunque el usuario ponga un rango más amplio por error.
+
+**Algoritmo de cruce (`conciliar()`):** para cada movimiento de cargo (`monto < 0`) del banco:
+1. **Match individual** — mismo monto (comparado en centavos) + `fecha_pago` dentro de ±3 días.
+2. **Match por grupo** (pago masivo BBVA) — si no hay match individual, agrupa los candidatos restantes por **`fecha_pago` + tipo de abono** (`banco === 'BBVA' ? 'P' : 'I'`, mismo criterio que el Excel BBVA de pagos) y corre `buscarSubconjunto()` (backtracking de subset-sum, máx. 12 candidatos por grupo — más que eso y se rinde sin buscar, para no colgar el navegador con combinatoria exponencial) buscando una combinación que sume el monto exacto del movimiento.
+
+**Por qué se agrupa también por tipo de abono, no solo por fecha:** BBVA nunca mezcla en un mismo movimiento de pago masivo transferencias a cuentas BBVA propias y transferencias interbancarias — son siempre dos movimientos separados. Agrupar solo por fecha mezclaba ambos tipos en una sola bolsa de candidatos, lo que además podía superar el límite de 12 y hacer que la búsqueda ni se intentara. Caso real que confirmó esto: un día con 13 solicitudes pagadas por la misma cuenta se partía en 7 (BBVA) + 6 (interbancario) — separados, cada grupo sumaba exacto el monto de su movimiento; juntos, superaban el límite y no matcheaba nada.
+
+**Monto neto por registro (`fetchSolicitudesPagables`/`fetchGenericoPagables` en `conciliacionService.ts`):** mismo criterio que `montoAGirar()` de `SolicitudesPage.tsx` — OC descuenta detracción, RxH descuenta retención, Liberalidad ya neteada, A Rendir/Reembolso usan `total_reembolso`, Caja Chica usa `transferencia` (no `total_gastos` — ver el bug pendiente documentado en el módulo Caja Chica), Devolución usa `monto`.
+
+**Resultado (`ResultadoConciliacion`):** `conciliados` (match individual o grupo), `sinMatchBanco` (movimientos del banco sin ningún match — posible pago no registrado en AVENIR, o algo que no es un pago del sistema como comisiones/traspasos internos), `sinMatchSistema` (registros pagados en AVENIR que no aparecen en el banco — posible `fecha_pago` mal registrada, o el banco aún no procesa la salida).
+
+**Página:** filtros (cuenta bancaria — `getAllCuentasBancarias()`, todas las empresas; fecha desde/hasta; archivo), 3 tarjetas KPI (Conciliados / Solo en el banco / Solo en AVENIR), tabs con detalle de cada grupo, botón "Descargar" (Excel de 3 hojas, `exportarConciliacionExcel`) y "Guardar" (`guardarConciliacion`, persiste en las 3 tablas nuevas).
+
+---
