@@ -43,7 +43,7 @@ function fmtDate(val: string | null) {
 
 const ESTADOS_REEMBOLSO: Record<string, string[]> = {
   default:      ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado', 'Rechazado', 'Devuelto'],
-  evaluador:    ['En Revision', 'Pendiente', 'Evaluado'],
+  evaluador:    ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado', 'Rechazado', 'Devuelto'],
   aprobador:    ['Evaluado', 'Autorizado', 'Rechazado', 'Devuelto'],
   visualizador: ['Evaluado', 'Autorizado'],
 }

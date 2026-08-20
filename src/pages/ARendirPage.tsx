@@ -50,7 +50,7 @@ function fmtDate(val: string | null) {
 const ESTADOS_ARENDIR: Record<string, string[]> = {
   default:      ['Pendiente', 'En Evaluación', 'Evaluado', 'Devuelto', 'Aprobado', 'Rechazado', 'Pagado', 'En Revision', 'Cerrado', 'Observado'],
   aprobador:    ['Evaluado', 'Aprobado', 'Rechazado'],
-  evaluador:    ['En Evaluación', 'Evaluado', 'Devuelto', 'En Revision', 'Cerrado'],
+  evaluador:    ['Pendiente', 'En Evaluación', 'Evaluado', 'Devuelto', 'Aprobado', 'Rechazado', 'Pagado', 'En Revision', 'Cerrado', 'Observado'],
   visualizador: ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'],
 }
 

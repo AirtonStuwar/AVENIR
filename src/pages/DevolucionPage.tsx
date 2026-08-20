@@ -13,7 +13,7 @@ import type { Proyecto } from '../features/proyecto/types/proyecto'
 
 const ESTADOS_DEVOLUCION: Record<string, string[]> = {
   default:      ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado', 'Rechazado', 'Devuelto', 'Observado'],
-  evaluador:    ['En Revision', 'Evaluado'],
+  evaluador:    ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado', 'Rechazado', 'Devuelto', 'Observado'],
   aprobador:    ['Evaluado', 'Autorizado', 'Rechazado'],
   visualizador: ['Evaluado', 'Autorizado'],
 }

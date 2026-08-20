@@ -35,9 +35,6 @@ export async function getDevoluciones(filtros: DevolucionFiltros = {}): Promise<
   const { page = 1, pageSize = 10, role, userId, estado, proyectoId } = filtros
   let q = supabase.from('devolucion_cliente').select(SEL, { count: 'exact' })
   if (role === ROLES.USUARIO && userId) q = q.eq('creador_id', userId)
-  if (role === ROLES.EVALUADOR && userId) {
-    q = q.or(`estado.eq.En Revision,usuario_evaluador.eq.${userId}`)
-  }
   if (role === ROLES.VISUALIZADOR) {
     if (estado) q = q.eq('estado', estado)
     else q = q.in('estado', ['Evaluado', 'Autorizado'])

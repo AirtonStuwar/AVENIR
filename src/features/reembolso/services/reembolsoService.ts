@@ -37,9 +37,6 @@ export async function getReembolsos(filtros: ReembolsoFiltros = {}): Promise<Ree
   const { page = 1, pageSize = 10, role, userId, estado, proyectoId, monedaFilter } = filtros
   let q = supabase.from('solicitud_reembolso').select(SEL, { count: 'exact' })
   if (role === ROLES.USUARIO && userId) q = q.eq('beneficiario_id', userId)
-  if (role === ROLES.EVALUADOR && userId) {
-    q = q.or(`estado.eq.En Revision,usuario_evaluador.eq.${userId}`)
-  }
   if (role === ROLES.VISUALIZADOR) {
     if (estado) {
       q = q.eq('estado', estado)

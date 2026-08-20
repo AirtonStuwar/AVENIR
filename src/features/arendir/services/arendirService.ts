@@ -42,9 +42,6 @@ export async function getARendir(filtros: ARendirFiltros = {}): Promise<ARendirP
   if (role === ROLES.APROBADOR) {
     if (estado) q = q.eq('estado', estado)
     else q = q.in('estado', ['Evaluado', 'Aprobado'])
-  } else if (role === ROLES.EVALUADOR) {
-    if (estado) q = q.eq('estado', estado)
-    else q = q.in('estado', ['En Evaluación', 'Evaluado', 'En Revision', 'Cerrado'])
   } else if (role === ROLES.VISUALIZADOR) {
     if (estado) q = q.eq('estado', estado)
     else q = q.in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'])
