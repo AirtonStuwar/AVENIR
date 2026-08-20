@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import toast from 'react-hot-toast'
 import JSZip from 'jszip'
-import { CheckCircle, Download, Eye, FileText, Trash2, Upload } from 'lucide-react'
+import { CheckCircle, Download, Eye, FileText, Plus, Trash2, Upload, X } from 'lucide-react'
 import {
   deleteArchivoSolicitud,
   getArchivosBySolicitud,
@@ -13,6 +13,7 @@ import type { SolicitudArchivo } from '../types/solicitud'
 const TIPOS_REQUERIDOS = ['Contrato', 'Cotizacion', 'Sustento'] as const
 const TIPOS_OPCIONALES = ['Cuadro Comparativo', 'Factura XML', 'Factura PDF'] as const
 const TIPOS = [...TIPOS_REQUERIDOS, ...TIPOS_OPCIONALES] as const
+const TIPO_OTROS = 'Otros'
 
 // Tipos de archivo aceptados por cada documento
 const ACCEPT: Record<string, string> = {
@@ -28,14 +29,21 @@ interface Props {
   tiposOpcionales?: string[] // sobrescribe tipos que normalmente son obligatorios → los marca como opcionales
   canDownloadAll?: boolean   // muestra el botón "Descargar todos" en el header
   zipName?: string           // nombre del ZIP y la carpeta interna (ej. código de la solicitud)
+  showOtros?: boolean        // muestra la sección de "Archivos adicionales" (archivos sueltos + comentario opcional)
 }
 
-export default function SolicitudArchivos({ solicitudId, editable, onChange, tiposVisibles, tiposOpcionales, canDownloadAll, zipName }: Props) {
+export default function SolicitudArchivos({ solicitudId, editable, onChange, tiposVisibles, tiposOpcionales, canDownloadAll, zipName, showOtros }: Props) {
   const [archivos,  setArchivos]  = useState<SolicitudArchivo[]>([])
   const [loading,   setLoading]   = useState(true)
   const [uploading, setUploading] = useState<string | null>(null)
   const [downloadingAll, setDownloadingAll] = useState(false)
   const refs = useRef<Record<string, HTMLInputElement | null>>({})
+
+  // ── Archivos adicionales ("Otros") ──────────────────────────────
+  const [pendingOtro, setPendingOtro] = useState<File | null>(null)
+  const [otroComentario, setOtroComentario] = useState('')
+  const [otroUploading, setOtroUploading] = useState(false)
+  const otroInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => { loadArchivos() }, [solicitudId])
 
@@ -84,8 +92,26 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
     }
   }
 
+  const handleUploadOtro = async (file: File, comentario: string) => {
+    setOtroUploading(true)
+    try {
+      const nuevo = await uploadArchivoSolicitud(file, solicitudId, TIPO_OTROS, comentario.trim() || null)
+      const next  = [...archivos, nuevo]
+      setArchivos(next)
+      onChange?.(next)
+      setPendingOtro(null)
+      setOtroComentario('')
+      toast.success('Archivo agregado')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Error al subir archivo')
+    } finally {
+      setOtroUploading(false)
+    }
+  }
+
   const handleDelete = async (archivo: SolicitudArchivo) => {
-    if (!confirm(`¿Eliminar ${archivo.tipo_archivo}?`)) return
+    const label = archivo.tipo_archivo === TIPO_OTROS ? (archivo.nombre_archivo ?? 'este archivo') : archivo.tipo_archivo
+    if (!confirm(`¿Eliminar ${label}?`)) return
     try {
       await deleteArchivoSolicitud(archivo.id, archivo.archivo_path!)
       const next = archivos.filter(a => a.id !== archivo.id)
@@ -108,8 +134,10 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
 
   const tiposAMostrar: string[] = tiposVisibles ?? [...TIPOS]
 
+  const otros = archivos.filter(a => a.tipo_archivo === TIPO_OTROS)
+
   // Solo documentos visibles (excluye firmas u otros tipos internos)
-  const descargables = archivos.filter(a => tiposAMostrar.includes(a.tipo_archivo ?? ''))
+  const descargables = archivos.filter(a => tiposAMostrar.includes(a.tipo_archivo ?? '') || a.tipo_archivo === TIPO_OTROS)
 
   const handleDownloadAll = async () => {
     if (descargables.length === 0) { toast.error('No hay documentos adjuntos'); return }
@@ -269,6 +297,88 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
               </div>
             )
           })}
+        </div>
+      )}
+
+      {showOtros && !loading && (
+        <div className="px-6 pb-6 pt-2 border-t border-gray-100">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Archivos adicionales</h3>
+
+          <div className="space-y-2">
+            {otros.map(archivo => (
+              <div key={archivo.id} className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-start gap-3">
+                <FileText size={15} className="text-gray-400 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-gray-800 truncate" title={archivo.nombre_archivo ?? ''}>{archivo.nombre_archivo}</p>
+                  {archivo.comentario && (
+                    <p className="text-xs text-gray-500 mt-0.5">{archivo.comentario}</p>
+                  )}
+                </div>
+                <button onClick={() => handleView(archivo)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-100 transition-colors shrink-0" title="Ver documento">
+                  <Eye size={13} />
+                </button>
+                {editable && (
+                  <button onClick={() => handleDelete(archivo)} className="p-1.5 rounded-lg text-red-400 hover:bg-red-100 transition-colors shrink-0" title="Eliminar">
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {editable && pendingOtro && (
+              <div className="rounded-xl border-2 border-dashed border-[#003D7D]/30 bg-[#003D7D]/[0.03] px-4 py-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <FileText size={15} className="text-[#003D7D] shrink-0" />
+                  <span className="text-sm text-gray-800 truncate flex-1">{pendingOtro.name}</span>
+                  <button onClick={() => { setPendingOtro(null); setOtroComentario('') }} className="p-1 rounded-lg text-gray-400 hover:bg-gray-200 transition-colors shrink-0" title="Cancelar">
+                    <X size={14} />
+                  </button>
+                </div>
+                <input
+                  type="text"
+                  value={otroComentario}
+                  onChange={e => setOtroComentario(e.target.value)}
+                  placeholder="Comentario opcional…"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+                />
+                <button
+                  onClick={() => handleUploadOtro(pendingOtro, otroComentario)}
+                  disabled={otroUploading}
+                  className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors"
+                >
+                  {otroUploading
+                    ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    : <Upload size={12} />}
+                  Subir
+                </button>
+              </div>
+            )}
+
+            {editable && !pendingOtro && (
+              <>
+                <input
+                  ref={otroInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) setPendingOtro(f)
+                    e.target.value = ''
+                  }}
+                />
+                <button
+                  onClick={() => otroInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 py-2 text-xs text-gray-500 hover:text-[#003D7D] hover:bg-gray-50 rounded-lg border border-dashed border-gray-200 transition-all"
+                >
+                  <Plus size={12} /> Agregar archivo
+                </button>
+              </>
+            )}
+
+            {!editable && otros.length === 0 && (
+              <span className="text-xs text-gray-400 italic">Sin archivos adicionales</span>
+            )}
+          </div>
         </div>
       )}
     </div>

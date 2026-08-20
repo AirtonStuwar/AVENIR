@@ -170,6 +170,7 @@ export interface SolicitudArchivo {
   nombre_archivo: string | null
   archivo_path: string | null
   tipo_archivo: string | null
+  comentario: string | null
   fecha_creacion: string | null
 }
 

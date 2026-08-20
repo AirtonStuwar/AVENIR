@@ -462,7 +462,8 @@ export async function getArchivosBySolicitud(solicitud_id: number): Promise<Soli
 export async function uploadArchivoSolicitud(
   file: File,
   solicitudId: number,
-  tipoArchivo: string
+  tipoArchivo: string,
+  comentario?: string | null,
 ): Promise<SolicitudArchivo> {
   const ext  = file.name.split('.').pop() ?? 'pdf'
   const path = `${solicitudId}/${tipoArchivo.replace(/ /g, '_')}/${Date.now()}.${ext}`
@@ -474,7 +475,7 @@ export async function uploadArchivoSolicitud(
 
   const { data, error } = await supabase
     .from('solicitud_archivo')
-    .insert({ solicitud_id: solicitudId, nombre_archivo: file.name, archivo_path: path, tipo_archivo: tipoArchivo })
+    .insert({ solicitud_id: solicitudId, nombre_archivo: file.name, archivo_path: path, tipo_archivo: tipoArchivo, comentario: comentario || null })
     .select()
     .maybeSingle()
   if (error) throw error

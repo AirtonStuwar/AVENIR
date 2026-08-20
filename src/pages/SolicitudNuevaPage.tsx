@@ -1023,6 +1023,7 @@ export default function SolicitudNuevaPage() {
               solicitudId={solicitudId}
               editable={true}
               onChange={setArchivos}
+              showOtros
               tiposVisibles={isRxH
                 ? tiposVisiblesRxH
                 : isLiberalidad

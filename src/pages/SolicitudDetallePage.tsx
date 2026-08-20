@@ -1040,6 +1040,7 @@ export default function SolicitudDetallePage() {
         <SolicitudArchivos
           solicitudId={solicitud.id}
           editable={canEdit}
+          showOtros
           canDownloadAll={userRole === ROLES.VISUALIZADOR || userRole === ROLES.EVALUADOR}
           zipName={
             ([solicitud.razon_social, solicitud.numero_factura ?? solicitud.numero_rxh]
