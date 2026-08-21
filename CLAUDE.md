@@ -695,7 +695,7 @@ Fondo rotativo de efectivo por empresa para gastos menores (agua, luz, insumos, 
 - `proyecto.monto_caja_chica` — campo que define el fondo por empresa (configurado por ADMIN)
 
 **Campos de `caja_chica`:**
-- `id`, `codigo` (auto: CC-MM-YYYY-NNN), `proyecto_id` (FK), `responsable_id` (UUID FK)
+- `id`, `codigo` (autogenerado, ver "Código por empresa" abajo), `proyecto_id` (FK), `responsable_id` (UUID FK)
 - `periodo_desde`, `periodo_hasta` (dates)
 - `monto_asignado` — fondo total de la empresa
 - `saldo_anterior` — sobrante de la caja chica anterior (se acumula)
@@ -750,10 +750,17 @@ Autorizado
 **Dropdown de áreas:** consulta directo la tabla `area` (no `area_usuario`) para mostrar todas las áreas disponibles como código de costos.
 
 **Triggers:**
-- `trg_caja_chica_codigo` — genera código automático CC-MM-YYYY-NNN
+- `trg_caja_chica_codigo` → función `generate_caja_chica_codigo()` — genera el código (ver "Código por empresa" abajo)
 - `trg_recalc_caja_chica` — recalcula `total_gastos` y `saldo_actual` al modificar detalles
 - `trg_recalc_arendir_total` — recalcula `total_reembolso` en A Rendir al modificar detalles
 - `trg_recalc_reembolso_total` — recalcula `total_reembolso` en Reembolso al modificar detalles
+
+**Código por empresa (`EMPRESA-AÑO-NNN`, ej. `CONCYSSA-2026-012`):** antes de migrar a AVENIR, varias empresas ya llevaban su propia numeración de Caja Chica por fuera del sistema. Para continuar esa numeración en vez de reiniciar en 1, `generate_caja_chica_codigo()` arma el código con el prefijo de la empresa (`proyecto.prefijo_caja_chica`, nullable) + el año de `periodo_desde` + un correlativo que **se reinicia cada año, por empresa** (no es un correlativo global como antes). El código viejo (`CC-MM-YYYY-NNN`, correlativo único para todo el sistema sin distinguir empresa) sigue siendo el formato de fallback si una empresa no tiene `prefijo_caja_chica` configurado — y las cajas chicas ya creadas con ese formato viejo no se renombran, se quedan tal cual.
+
+- `proyecto.prefijo_caja_chica` (text, nullable) — prefijo corto de la empresa usado en el código. Asignados hasta ahora: Concyssa Promotora Inmobiliaria → `CONCYSSA`, Mixxo → `MIXXO`, Astete Park View → `PARK`, Tinto Magdalena → `TINTO`, Avenir Costazul → `COSTAZUL`, Parque Fátima → `FATIMA`.
+- `caja_chica_correlativo_inicial` (tabla nueva: `proyecto_id`, `anio`, `numero_inicial`) — el "número de arranque" para el primer código nuevo de una empresa en un año dado (para continuar la numeración externa que ya traían). Solo tiene filas para 2026 (los 6 valores de arriba); a partir de 2027 cada empresa arranca en 1 salvo que se agregue una fila nueva para ese año. RLS: SELECT para roles privilegiados, INSERT/UPDATE/DELETE solo ADMIN.
+- La función busca el máximo correlativo ya usado ese año para esa empresa (con el formato nuevo); si no hay ninguno, usa `numero_inicial` de `caja_chica_correlativo_inicial` (o 1 si tampoco hay fila ahí) como punto de partida.
+- El `codigo` se trata como texto simple en todo el frontend (Reportes, Excel BBVA, PDF, listados) — nada lo parsea ni asume el formato `CC-...`, así que el cambio de formato no requirió tocar código de la app, solo la función SQL.
 
 **⚠️ Bug pendiente de confirmar — Excel BBVA de Caja Chica usa el monto equivocado:** `handleExport()` en `CajaChicaPage.tsx` pone `cc.total_gastos` en la columna "Importe abonar" (lo ya gastado por el responsable), pero lo que Contabilidad debería transferir/depositar para reponer el fondo es `cc.transferencia` (`monto_asignado - saldo_anterior`) — son montos distintos por diseño y hoy el Excel gira el equivocado. Detectado en sesión pero no corregido aún porque falta confirmación del usuario; si se toca este archivo, avisar/confirmar antes de arreglarlo.
 
