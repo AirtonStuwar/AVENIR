@@ -4,11 +4,14 @@ import toast from 'react-hot-toast'
 import { pdf } from '@react-pdf/renderer'
 import {
   ChevronLeft, Loader2, CheckCircle2, Download, ExternalLink,
-  Plus, Trash2, Pencil, Upload, Send,
+  Plus, Trash2, Pencil, Upload, Send, ShieldAlert,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
+import CorreccionModal from '../features/solicitud/components/CorreccionModal'
+import { registrarCorreccion } from '../features/solicitud/services/correccionService'
+import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
 import {
   getARendirById,
   enviarARevisionARendir,
@@ -168,6 +171,7 @@ export default function ARendirDetallePage() {
   const [cerrarOpen,       setCerrarOpen]       = useState(false)
   const [montoDevueltoInput, setMontoDevueltoInput] = useState('')
   const [fechaDevolucionInput, setFechaDevolucionInput] = useState(new Date().toISOString().slice(0, 10))
+  const [correccionOpen, setCorreccionOpen] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -310,6 +314,19 @@ export default function ARendirDetallePage() {
     } catch (err) {
       console.error('Error al marcar pagado:', err)
       toast.error('Error al guardar — revisa la consola para más detalles')
+    }
+  }
+
+  async function handleCorreccion(campo: string, valorAnterior: string | null, valorNuevo: string, categoria: CategoriaCorreccion, motivo: string) {
+    if (!solicitud?.id || !user?.id) return
+    try {
+      await registrarCorreccion('solicitud_arendir', solicitud.id, campo, valorAnterior, valorNuevo, categoria, motivo, user.id)
+      toast.success('Corrección guardada')
+      setCorreccionOpen(false)
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } catch {
+      toast.error('Error al guardar la corrección')
     }
   }
 
@@ -649,7 +666,17 @@ export default function ARendirDetallePage() {
 
       {/* Datos generales */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Datos generales</h2>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-sm font-semibold text-gray-900">Datos generales</h2>
+          {isAdmin && (
+            <button
+              onClick={() => setCorreccionOpen(true)}
+              className="ml-auto flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors"
+            >
+              <ShieldAlert size={12} /> Corregir
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {[
             { label: 'Beneficiario',     value: solicitud.beneficiario_nombre },
@@ -998,6 +1025,18 @@ export default function ARendirDetallePage() {
         title="Firma del beneficiario"
         onClose={() => setFirmaOpen(false)}
         onConfirm={handleEnviarRendicion}
+      />
+
+      <CorreccionModal
+        open={correccionOpen}
+        campos={[
+          { campo: 'beneficiario_nombre', label: 'Beneficiario', valorActual: solicitud?.beneficiario_nombre ?? null },
+          { campo: 'beneficiario_dni',    label: 'DNI',          valorActual: solicitud?.beneficiario_dni ?? null },
+          { campo: 'banco',               label: 'Banco',        valorActual: solicitud?.banco ?? null },
+          { campo: 'numero_cuenta',       label: 'Número de cuenta / CCI', valorActual: solicitud?.numero_cuenta ?? null },
+        ]}
+        onConfirm={handleCorreccion}
+        onCancel={() => setCorreccionOpen(false)}
       />
     </div>
   )
