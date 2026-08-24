@@ -3,8 +3,11 @@ import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
   ArrowLeft, Plus, Trash2, Pencil, Send, CheckCircle, Ban, RotateCcw,
-  Upload, Loader2, AlertCircle, Wallet, Download, ExternalLink,
+  Upload, Loader2, AlertCircle, Wallet, Download, ExternalLink, ShieldAlert,
 } from 'lucide-react'
+import CorreccionModal from '../features/solicitud/components/CorreccionModal'
+import { registrarCorreccion } from '../features/solicitud/services/correccionService'
+import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
 import { pdf } from '@react-pdf/renderer'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -96,6 +99,7 @@ export default function CajaChicaDetallePage() {
   const [planSelected, setPlanSelected] = useState<PlanContable | null>(null)
   const [planDropOpen, setPlanDropOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
+  const [correccionOpen, setCorreccionOpen] = useState(false)
 
   const loadData = async () => {
     if (!id) return
@@ -113,6 +117,18 @@ export default function CajaChicaDetallePage() {
 
   useEffect(() => { loadData() }, [id])
   useEffect(() => { getAreas().then(setAreas).catch(() => {}) }, [])
+
+  const handleCorreccion = async (campo: string, valorAnterior: string | null, valorNuevo: string, categoria: CategoriaCorreccion, motivo: string) => {
+    if (!cc || !user) return
+    try {
+      await registrarCorreccion('caja_chica', cc.id, campo, valorAnterior, valorNuevo, categoria, motivo, user.id)
+      toast.success('Corrección guardada')
+      setCorreccionOpen(false)
+      await loadData()
+    } catch {
+      toast.error('Error al guardar la corrección')
+    }
+  }
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center text-gray-400">
@@ -498,6 +514,14 @@ export default function CajaChicaDetallePage() {
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <Wallet size={15} className="text-[#003D7D]" />
             <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Información general</h2>
+            {userRole === ROLES.ADMIN && (
+              <button
+                onClick={() => setCorreccionOpen(true)}
+                className="ml-auto flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors"
+              >
+                <ShieldAlert size={12} /> Corregir
+              </button>
+            )}
           </div>
           <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
             <InfoField label="Código" value={cc.codigo} />
@@ -780,6 +804,16 @@ export default function CajaChicaDetallePage() {
         message={pendingAction?.message ?? ''}
         onConfirm={pendingAction?.onConfirm ?? (async () => {})}
         onCancel={() => setPendingAction(null)}
+      />
+
+      <CorreccionModal
+        open={correccionOpen}
+        campos={[
+          { campo: 'banco', label: 'Banco', valorActual: cc.banco },
+          { campo: 'cuenta_bbva', label: 'Cuenta bancaria', valorActual: cc.cuenta_bbva },
+        ]}
+        onConfirm={handleCorreccion}
+        onCancel={() => setCorreccionOpen(false)}
       />
     </div>
   )
