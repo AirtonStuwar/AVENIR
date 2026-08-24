@@ -3,11 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import JSZip from 'jszip'
 import {
-  ChevronLeft, Loader2, CheckCircle2, XCircle, ExternalLink, RotateCcw, AlertCircle, FileText, BookOpen, Pencil, Upload, Download,
+  ChevronLeft, Loader2, CheckCircle2, XCircle, ExternalLink, RotateCcw, AlertCircle, FileText, BookOpen, Pencil, Upload, Download, ShieldAlert,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
+import CorreccionModal from '../features/solicitud/components/CorreccionModal'
+import { registrarCorreccion } from '../features/solicitud/services/correccionService'
+import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
 import {
   getDevolucionById,
   enviarDevolucion,
@@ -185,6 +188,19 @@ export default function DevolucionDetallePage() {
     if (!id) return
     const d = await getDevolucionById(Number(id))
     setDev(d)
+  }
+
+  const [correccionOpen, setCorreccionOpen] = useState(false)
+  const handleCorreccion = async (campo: string, valorAnterior: string | null, valorNuevo: string, categoria: CategoriaCorreccion, motivo: string) => {
+    if (!dev?.id || !user?.id) return
+    try {
+      await registrarCorreccion('devolucion_cliente', dev.id, campo, valorAnterior, valorNuevo, categoria, motivo, user.id)
+      toast.success('Corrección guardada')
+      setCorreccionOpen(false)
+      await reload()
+    } catch {
+      toast.error('Error al guardar la corrección')
+    }
   }
 
   async function handleEnviar() {
@@ -533,9 +549,19 @@ export default function DevolucionDetallePage() {
 
       {/* Datos generales */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <RotateCcw size={15} className="text-[#003D7D]" /> Datos de la devolución
-        </h2>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+            <RotateCcw size={15} className="text-[#003D7D]" /> Datos de la devolución
+          </h2>
+          {isAdmin && (
+            <button
+              onClick={() => setCorreccionOpen(true)}
+              className="ml-auto flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors"
+            >
+              <ShieldAlert size={12} /> Corregir
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {[
             { label: 'Cliente',          value: dev.cliente_nombre },
@@ -792,6 +818,18 @@ export default function DevolucionDetallePage() {
         proyectoId={dev?.proyecto_id ?? null}
         onConfirm={handleConfirmPago}
         onCancel={() => setPagoOpen(false)}
+      />
+
+      <CorreccionModal
+        open={correccionOpen}
+        campos={[
+          { campo: 'cliente_nombre', label: 'Cliente',        valorActual: dev?.cliente_nombre ?? null },
+          { campo: 'cliente_dni',    label: 'DNI',             valorActual: dev?.cliente_dni ?? null },
+          { campo: 'banco',          label: 'Banco',           valorActual: dev?.banco ?? null },
+          { campo: 'numero_cuenta',  label: 'Número de cuenta / CCI', valorActual: dev?.numero_cuenta ?? null },
+        ]}
+        onConfirm={handleCorreccion}
+        onCancel={() => setCorreccionOpen(false)}
       />
     </div>
   )
