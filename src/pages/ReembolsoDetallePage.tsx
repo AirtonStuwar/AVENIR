@@ -5,11 +5,14 @@ import { pdf } from '@react-pdf/renderer'
 import {
   ChevronLeft, Loader2, FileText, CheckCircle2, XCircle,
   RotateCcw, Download, ExternalLink, BookOpen,
-  Plus, Trash2, Pencil, Upload,
+  Plus, Trash2, Pencil, Upload, ShieldAlert,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
+import CorreccionModal from '../features/solicitud/components/CorreccionModal'
+import { registrarCorreccion } from '../features/solicitud/services/correccionService'
+import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
 import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
 import {
   getReembolsoById,
@@ -299,6 +302,19 @@ export default function ReembolsoDetallePage() {
     toast.success('Marcado como pagado')
     setPagoOpen(false)
     await reloadData()
+  }
+
+  const [correccionOpen, setCorreccionOpen] = useState(false)
+  const handleCorreccion = async (campo: string, valorAnterior: string | null, valorNuevo: string, categoria: CategoriaCorreccion, motivo: string) => {
+    if (!solicitud?.id || !user?.id) return
+    try {
+      await registrarCorreccion('solicitud_reembolso', solicitud.id, campo, valorAnterior, valorNuevo, categoria, motivo, user.id)
+      toast.success('Corrección guardada')
+      setCorreccionOpen(false)
+      await reloadData()
+    } catch {
+      toast.error('Error al guardar la corrección')
+    }
   }
 
   async function handleEnviar() {
@@ -605,7 +621,17 @@ export default function ReembolsoDetallePage() {
 
       {/* Datos generales */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">Datos generales</h2>
+        <div className="flex items-center gap-2 mb-4">
+          <h2 className="text-sm font-semibold text-gray-900">Datos generales</h2>
+          {isAdmin && (
+            <button
+              onClick={() => setCorreccionOpen(true)}
+              className="ml-auto flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors"
+            >
+              <ShieldAlert size={12} /> Corregir
+            </button>
+          )}
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {[
             { label: 'Beneficiario',    value: solicitud.beneficiario_nombre },
@@ -817,6 +843,16 @@ export default function ReembolsoDetallePage() {
         onConfirm={handleRechazar} onCancel={() => setRechazarOpen(false)} loading={actionLoading} />
       <ComentarioModal open={devolverOpen} title="Motivo de devolución"
         onConfirm={handleDevolver} onCancel={() => setDevolverOpen(false)} loading={actionLoading} />
+
+      <CorreccionModal
+        open={correccionOpen}
+        campos={[
+          { campo: 'banco',         label: 'Banco',        valorActual: solicitud?.banco ?? null },
+          { campo: 'numero_cuenta', label: 'Número de cuenta / CCI', valorActual: solicitud?.numero_cuenta ?? null },
+        ]}
+        onConfirm={handleCorreccion}
+        onCancel={() => setCorreccionOpen(false)}
+      />
     </div>
   )
 }
