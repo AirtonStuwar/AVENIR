@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown, Search } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown, Search, ShieldAlert } from 'lucide-react'
 import { pdf } from '@react-pdf/renderer'
 import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
@@ -18,6 +18,9 @@ import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import EvaluarModal from '../features/solicitud/components/EvaluarModal'
 import PagoModal from '../features/solicitud/components/PagoModal'
+import CorreccionModal from '../features/solicitud/components/CorreccionModal'
+import { registrarCorreccion } from '../features/solicitud/services/correccionService'
+import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
 import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
 import { getTipoCambioUSD } from '../features/solicitud/services/rucService'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
@@ -158,12 +161,26 @@ export default function SolicitudDetallePage() {
   // PDF
   const [downloadingPDF, setDownloadingPDF] = useState(false)
 
+  const [correccionOpen, setCorreccionOpen] = useState(false)
+
   // ── Data loading ──────────────────────────────────────────────
   const reload = async (currentId: string) => {
     const sol = await getSolicitudById(Number(currentId))
     setSolicitud(sol)
     setDetalles(sol.detalles ?? [])
     await getEncuestaBySolicitud(Number(currentId)).then(setEncuesta).catch(() => {})
+  }
+
+  const handleCorreccion = async (campo: string, valorAnterior: string | null, valorNuevo: string, categoria: CategoriaCorreccion, motivo: string) => {
+    if (!solicitud?.id || !user?.id || !id) return
+    try {
+      await registrarCorreccion('solicitud', solicitud.id, campo, valorAnterior, valorNuevo, categoria, motivo, user.id)
+      toast.success('Corrección guardada')
+      setCorreccionOpen(false)
+      await reload(id)
+    } catch {
+      toast.error('Error al guardar la corrección')
+    }
   }
 
   useEffect(() => {
@@ -789,6 +806,12 @@ export default function SolicitudDetallePage() {
             {isObservado && canEdit && (
               <span className="text-xs text-amber-600 italic">Datos bancarios bloqueados — corrige documentos y detalles</span>
             )}
+            {userRole === ROLES.ADMIN && (
+              <button onClick={() => setCorreccionOpen(true)}
+                className="ml-auto flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 text-xs font-semibold hover:bg-amber-100 transition-colors">
+                <ShieldAlert size={12} /> Corregir
+              </button>
+            )}
           </div>
           <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
             <InfoField label="Código"          value={solicitud.codigo} />
@@ -1406,6 +1429,22 @@ export default function SolicitudDetallePage() {
         description="Selecciona la cuenta bancaria desde la cual se pagó la detracción al Banco de la Nación."
         onConfirm={handleConfirmDetraccionPago}
         onCancel={() => setDetPagoOpen(false)}
+      />
+
+      <CorreccionModal
+        open={correccionOpen}
+        campos={[
+          { campo: 'razon_social',      label: 'Razón social', valorActual: solicitud?.razon_social ?? null },
+          { campo: 'ruc',               label: 'RUC / DNI',    valorActual: solicitud?.ruc ?? null },
+          { campo: 'direccion',         label: 'Dirección',    valorActual: solicitud?.direccion ?? null },
+          { campo: 'contacto_nombre',   label: 'Contacto',     valorActual: solicitud?.contacto_nombre ?? null },
+          { campo: 'contacto_telefono', label: 'Teléfono',     valorActual: solicitud?.contacto_telefono ?? null },
+          { campo: 'contacto_correo',   label: 'Correo',       valorActual: solicitud?.contacto_correo ?? null },
+          { campo: 'banco',             label: 'Banco',        valorActual: solicitud?.banco ?? null },
+          { campo: 'numero_cuenta',     label: 'N° cuenta',    valorActual: solicitud?.numero_cuenta ?? null },
+        ]}
+        onConfirm={handleCorreccion}
+        onCancel={() => setCorreccionOpen(false)}
       />
 
       <EvaluarModal
