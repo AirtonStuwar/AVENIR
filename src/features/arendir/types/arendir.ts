@@ -28,7 +28,7 @@ export interface SolicitudARendir {
   numero_cuenta: string | null
   numero_pago: number | null
   documento_sustento_path: string | null
-  estado: 'Pendiente' | 'En Evaluación' | 'Evaluado' | 'Devuelto' | 'Aprobado' | 'Rechazado' | 'Pagado' | 'En Revision' | 'Cerrado' | 'Observado'
+  estado: 'Pendiente' | 'En Evaluación' | 'Evaluado' | 'Devuelto' | 'Aprobado' | 'Rechazado' | 'Pagado' | 'En Revision' | 'Cerrado' | 'Observado' | 'Cancelado'
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
   comentario: string | null

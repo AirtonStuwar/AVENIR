@@ -9,11 +9,13 @@ import {
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
+import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import CorreccionModal from '../features/solicitud/components/CorreccionModal'
 import { registrarCorreccion } from '../features/solicitud/services/correccionService'
 import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
 import {
   getARendirById,
+  cancelarARendir,
   enviarARevisionARendir,
   marcarEvaluadoARendir,
   devolverDesdeEvaluacionARendir,
@@ -63,6 +65,7 @@ function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
     'En Revision':   'bg-purple-100 text-purple-800',
     'Cerrado':       'bg-green-100 text-green-800',
     'Observado':     'bg-amber-100 text-amber-800',
+    'Cancelado':     'bg-gray-100 text-gray-500',
   }
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
@@ -172,6 +175,7 @@ export default function ARendirDetallePage() {
   const [montoDevueltoInput, setMontoDevueltoInput] = useState('')
   const [fechaDevolucionInput, setFechaDevolucionInput] = useState(new Date().toISOString().slice(0, 10))
   const [correccionOpen, setCorreccionOpen] = useState(false)
+  const [cancelarOpen, setCancelarOpen] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -330,6 +334,19 @@ export default function ARendirDetallePage() {
     }
   }
 
+  async function handleCancelar() {
+    if (!solicitud?.id) return
+    try {
+      await cancelarARendir(solicitud.id)
+      toast.success('Adelanto cancelado')
+      setCancelarOpen(false)
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } catch {
+      toast.error('Error al cancelar')
+    }
+  }
+
   async function handleEnviarRendicion(blob: Blob) {
     if (!solicitud || !user?.id) return
     setActionLoading(true)
@@ -445,6 +462,7 @@ export default function ARendirDetallePage() {
   const isOwner        = solicitud?.beneficiario_id === user?.id
 
   const canEnviarEvaluacion = solicitud?.estado === 'Pendiente' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
+  const canCancelar         = solicitud?.estado === 'Pendiente' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
   const canEvaluar          = solicitud?.estado === 'En Evaluación' && (isEvaluador || isAdmin)
   const canReenviarDevuelto = solicitud?.estado === 'Devuelto' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
   const canAprobar        = solicitud?.estado === 'Evaluado' && (isAprobador || isAdmin)
@@ -524,6 +542,14 @@ export default function ARendirDetallePage() {
               className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
               {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
               Enviar a evaluación
+            </button>
+          )}
+
+          {/* USUARIO (dueño)/ADMIN: cancelar si lo crearon por error (Pendiente) */}
+          {canCancelar && (
+            <button onClick={() => setCancelarOpen(true)}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors">
+              Cancelar
             </button>
           )}
 
@@ -1025,6 +1051,16 @@ export default function ARendirDetallePage() {
         title="Firma del beneficiario"
         onClose={() => setFirmaOpen(false)}
         onConfirm={handleEnviarRendicion}
+      />
+
+      <ConfirmModal
+        open={cancelarOpen}
+        title="Cancelar adelanto"
+        message="¿Cancelar este adelanto? Esta acción no se puede deshacer."
+        confirmLabel="Sí, cancelar"
+        variant="red"
+        onConfirm={handleCancelar}
+        onCancel={() => setCancelarOpen(false)}
       />
 
       <CorreccionModal

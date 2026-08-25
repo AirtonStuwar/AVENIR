@@ -10,12 +10,14 @@ import {
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
+import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import CorreccionModal from '../features/solicitud/components/CorreccionModal'
 import { registrarCorreccion } from '../features/solicitud/services/correccionService'
 import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
 import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
 import {
   getReembolsoById,
+  cancelarReembolso,
   enviarReembolso,
   marcarEvaluadoReembolso,
   devolverDesdeRevisionReembolso,
@@ -305,6 +307,18 @@ export default function ReembolsoDetallePage() {
   }
 
   const [correccionOpen, setCorreccionOpen] = useState(false)
+  const [cancelarOpen, setCancelarOpen] = useState(false)
+  const handleCancelar = async () => {
+    if (!solicitud?.id) return
+    try {
+      await cancelarReembolso(solicitud.id)
+      toast.success('Reembolso cancelado')
+      setCancelarOpen(false)
+      await reloadData()
+    } catch {
+      toast.error('Error al cancelar')
+    }
+  }
   const handleCorreccion = async (campo: string, valorAnterior: string | null, valorNuevo: string, categoria: CategoriaCorreccion, motivo: string) => {
     if (!solicitud?.id || !user?.id) return
     try {
@@ -563,6 +577,13 @@ export default function ReembolsoDetallePage() {
               className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
               {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
               Enviar a revisión
+            </button>
+          )}
+
+          {(isAdmin || (userRole === ROLES.USUARIO && isOwner)) && solicitud.estado === 'Pendiente' && (
+            <button onClick={() => setCancelarOpen(true)}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors">
+              Cancelar
             </button>
           )}
 
@@ -843,6 +864,16 @@ export default function ReembolsoDetallePage() {
         onConfirm={handleRechazar} onCancel={() => setRechazarOpen(false)} loading={actionLoading} />
       <ComentarioModal open={devolverOpen} title="Motivo de devolución"
         onConfirm={handleDevolver} onCancel={() => setDevolverOpen(false)} loading={actionLoading} />
+
+      <ConfirmModal
+        open={cancelarOpen}
+        title="Cancelar reembolso"
+        message="¿Cancelar este reembolso? Esta acción no se puede deshacer."
+        confirmLabel="Sí, cancelar"
+        variant="red"
+        onConfirm={handleCancelar}
+        onCancel={() => setCancelarOpen(false)}
+      />
 
       <CorreccionModal
         open={correccionOpen}

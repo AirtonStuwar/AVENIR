@@ -87,6 +87,13 @@ export async function enviarReembolso(id: number): Promise<void> {
   if (error) throw error
 }
 
+/** USUARIO (dueño)/ADMIN: cancela el reembolso creado por error → Cancelado (solo desde Pendiente) */
+export async function cancelarReembolso(id: number): Promise<void> {
+  const { error } = await supabase.from('solicitud_reembolso')
+    .update({ estado: 'Cancelado' }).eq('id', id)
+  if (error) throw error
+}
+
 export async function marcarEvaluadoReembolso(
   id: number,
   planContableId: number,

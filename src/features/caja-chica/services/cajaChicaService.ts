@@ -170,6 +170,11 @@ export async function enviarCajaChica(id: number): Promise<void> {
   await updateCajaChica(id, { estado: 'En Revision' } as Partial<CajaChica>)
 }
 
+/** USUARIO (dueño)/ADMIN: cancela la caja chica creada por error → Cancelado (solo desde Pendiente) */
+export async function cancelarCajaChica(id: number): Promise<void> {
+  await updateCajaChica(id, { estado: 'Cancelado' } as Partial<CajaChica>)
+}
+
 export async function marcarEvaluadoCajaChica(id: number, planContableId: number, evaluadorId: string): Promise<void> {
   const { data, error } = await supabase.from('caja_chica')
     .update({

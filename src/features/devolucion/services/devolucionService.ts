@@ -83,6 +83,13 @@ export async function enviarDevolucion(id: number): Promise<void> {
   if (error) throw error
 }
 
+/** USUARIO (dueño)/ADMIN: cancela la devolución creada por error → Cancelado (solo desde Pendiente) */
+export async function cancelarDevolucion(id: number): Promise<void> {
+  const { error } = await supabase.from('devolucion_cliente')
+    .update({ estado: 'Cancelado' }).eq('id', id)
+  if (error) throw error
+}
+
 /** EVALUADOR/ADMIN: asigna plan contable y marca Evaluado */
 export async function marcarEvaluadoDevolucion(
   id: number,

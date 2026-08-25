@@ -8,11 +8,13 @@ import {
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
+import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import CorreccionModal from '../features/solicitud/components/CorreccionModal'
 import { registrarCorreccion } from '../features/solicitud/services/correccionService'
 import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
 import {
   getDevolucionById,
+  cancelarDevolucion,
   enviarDevolucion,
   marcarEvaluadoDevolucion,
   devolverDesdeRevisionDevolucion,
@@ -191,6 +193,18 @@ export default function DevolucionDetallePage() {
   }
 
   const [correccionOpen, setCorreccionOpen] = useState(false)
+  const [cancelarOpen, setCancelarOpen] = useState(false)
+  const handleCancelar = async () => {
+    if (!dev?.id) return
+    try {
+      await cancelarDevolucion(dev.id)
+      toast.success('Devolución cancelada')
+      setCancelarOpen(false)
+      await reload()
+    } catch {
+      toast.error('Error al cancelar')
+    }
+  }
   const handleCorreccion = async (campo: string, valorAnterior: string | null, valorNuevo: string, categoria: CategoriaCorreccion, motivo: string) => {
     if (!dev?.id || !user?.id) return
     try {
@@ -463,6 +477,12 @@ export default function DevolucionDetallePage() {
               className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
               {actionLoading ? <Loader2 size={13} className="animate-spin" /> : <FileText size={13} />}
               Enviar a revisión
+            </button>
+          )}
+          {dev.estado === 'Pendiente' && (isAdmin || (userRole === ROLES.USUARIO && isOwner)) && (
+            <button onClick={() => setCancelarOpen(true)}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl border border-gray-200 text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors">
+              Cancelar
             </button>
           )}
           {canEvaluar && (
@@ -818,6 +838,16 @@ export default function DevolucionDetallePage() {
         proyectoId={dev?.proyecto_id ?? null}
         onConfirm={handleConfirmPago}
         onCancel={() => setPagoOpen(false)}
+      />
+
+      <ConfirmModal
+        open={cancelarOpen}
+        title="Cancelar devolución"
+        message="¿Cancelar esta devolución? Esta acción no se puede deshacer."
+        confirmLabel="Sí, cancelar"
+        variant="red"
+        onConfirm={handleCancelar}
+        onCancel={() => setCancelarOpen(false)}
       />
 
       <CorreccionModal

@@ -13,7 +13,7 @@ export interface CajaChica {
   banco: string
   cuenta_bbva: string | null
   documento_sustento_path: string | null
-  estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto' | 'Observado'
+  estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto' | 'Observado' | 'Cancelado'
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
   comentario: string | null

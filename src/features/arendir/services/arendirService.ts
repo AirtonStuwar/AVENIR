@@ -84,6 +84,14 @@ export async function updateARendir(id: number, payload: Partial<SolicitudARendi
 
 // ── Estado helpers ─────────────────────────────────────────────
 
+/** USUARIO (dueño)/ADMIN: cancela el adelanto creado por error → Cancelado (solo desde Pendiente) */
+export async function cancelarARendir(id: number): Promise<void> {
+  const { error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Cancelado' })
+    .eq('id', id)
+  if (error) throw error
+}
+
 /** USUARIO/ADMIN: envía el adelanto a evaluación → En Evaluación */
 export async function enviarARevisionARendir(id: number): Promise<void> {
   const { error } = await supabase.from('solicitud_arendir')

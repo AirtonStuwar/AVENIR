@@ -14,6 +14,7 @@ import { ROLES } from '../features/solicitud/types/solicitud'
 import {
   getCajaChicaById,
   createDetalleCajaChica, updateDetalleCajaChica, deleteDetalleCajaChica,
+  cancelarCajaChica,
   enviarCajaChica, marcarEvaluadoCajaChica, devolverDesdeRevisionCajaChica,
   autorizarCajaChica, rechazarCajaChica, devolverCajaChica,
   observarCajaChica, reenviarContabilidadCajaChica,
@@ -48,6 +49,7 @@ const ESTADO_BADGE: Record<string, string> = {
   'Rechazado': 'bg-red-100 text-red-700',
   'Devuelto': 'bg-amber-100 text-amber-700',
   'Observado': 'bg-amber-100 text-amber-800',
+  'Cancelado': 'bg-gray-100 text-gray-500',
 }
 
 const TIPOS_DOC = ['FACTURA', 'RECIBO', 'RECIBO POR HONORARIOS', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
@@ -315,6 +317,19 @@ export default function CajaChicaDetallePage() {
     })
   }
 
+  const handleCancelar = () => {
+    setPendingAction({
+      title: 'Cancelar caja chica',
+      message: '¿Cancelar esta caja chica? Esta acción no se puede deshacer.',
+      onConfirm: async () => {
+        setActioning(true)
+        try { await cancelarCajaChica(cc.id); toast.success('Caja chica cancelada'); await loadData() }
+        catch { toast.error('Error al cancelar') }
+        finally { setActioning(false); setPendingAction(null) }
+      },
+    })
+  }
+
   const handleOpenEvaluar = async () => {
     setEvaluarOpen(true)
     if (!planOpciones.length) {
@@ -451,6 +466,12 @@ export default function CajaChicaDetallePage() {
               <button onClick={handleEnviar} disabled={actioning}
                 className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-sm font-medium hover:bg-[#002D5C] disabled:opacity-50 transition-all">
                 <Send size={14} /> Enviar a revisión
+              </button>
+            )}
+            {isPendiente && (isOwner || userRole === ROLES.ADMIN) && (
+              <button onClick={handleCancelar} disabled={actioning}
+                className="flex items-center gap-1.5 h-9 px-4 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-all">
+                Cancelar
               </button>
             )}
             {canEvaluar && (
