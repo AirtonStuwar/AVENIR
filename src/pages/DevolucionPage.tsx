@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Eye, Loader2, RotateCcw, Download, Filter } from 'lucide-react'
+import { Plus, Eye, Loader2, RotateCcw, Download, Filter, CreditCard } from 'lucide-react'
 import ExcelJS from 'exceljs'
 import toast from 'react-hot-toast'
 import { useDevolucion } from '../features/devolucion/hooks/useDevolucion'
@@ -10,6 +10,8 @@ import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
 import type { DevolucionCliente } from '../features/devolucion/types/devolucion'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
+import BulkPagoModal from '../features/solicitud/components/BulkPagoModal'
+import { marcarPagadoDevolucion } from '../features/devolucion/services/devolucionService'
 
 const ESTADOS_DEVOLUCION: Record<string, string[]> = {
   default:      ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado', 'Rechazado', 'Devuelto', 'Observado'],
@@ -48,15 +50,16 @@ function fmtDate(val: string | null) {
 
 export default function DevolucionPage() {
   const navigate = useNavigate()
-  const { userRole } = useAuthStore()
+  const { user, userRole } = useAuthStore()
   const {
     data, total, page, totalPages, loading,
     estadoFilter, proyectoFilter,
-    setPage, setEstadoFilter, setProyectoFilter,
+    setPage, setEstadoFilter, setProyectoFilter, refresh,
   } = useDevolucion()
 
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [bulkPagoOpen, setBulkPagoOpen] = useState(false)
 
   useEffect(() => {
     getProyectos({ page: 1, pageSize: 100 }).then(r => setProyectos(r.data)).catch(() => {})
@@ -72,6 +75,22 @@ export default function DevolucionPage() {
       else next.add(id)
       return next
     })
+  }
+
+  const selectedPorPagar = data.filter(d => selectedIds.has(d.id) && d.estado === 'Autorizado' && !d.fecha_pago)
+
+  async function handleBulkPagoConfirm(cuentaId: number, fechaPago: string) {
+    if (!user?.id) return
+    const results = await Promise.allSettled(
+      selectedPorPagar.map(d => marcarPagadoDevolucion(d.id, cuentaId, fechaPago, user.id))
+    )
+    const ok   = results.filter(r => r.status === 'fulfilled').length
+    const fail = results.filter(r => r.status === 'rejected').length
+    if (ok > 0)   toast.success(`${ok} devolución${ok > 1 ? 'es' : ''} marcada${ok > 1 ? 's' : ''} como pagada${ok > 1 ? 's' : ''}`)
+    if (fail > 0) toast.error(`${fail} no se pudo${fail > 1 ? 'n' : ''} marcar`)
+    setBulkPagoOpen(false)
+    setSelectedIds(new Set())
+    refresh()
   }
 
   async function handleExport() {
@@ -131,6 +150,12 @@ export default function DevolucionPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {canExport && selectedPorPagar.length > 0 && (
+            <button onClick={() => setBulkPagoOpen(true)}
+              className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition-colors">
+              <CreditCard size={13} /> Marcar pagado ({selectedPorPagar.length})
+            </button>
+          )}
           {canExport && selectedIds.size > 0 && (
             <button onClick={handleExport}
               className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors">
@@ -255,6 +280,14 @@ export default function DevolucionPage() {
           </button>
         </div>
       )}
+
+      <BulkPagoModal
+        open={bulkPagoOpen}
+        title="Marcar pagado (masivo)"
+        cantidad={selectedPorPagar.length}
+        onConfirm={handleBulkPagoConfirm}
+        onCancel={() => setBulkPagoOpen(false)}
+      />
     </div>
   )
 }

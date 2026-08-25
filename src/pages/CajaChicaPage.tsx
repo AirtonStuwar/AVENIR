@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Wallet, Plus, RefreshCw, X, Download,
+  Wallet, Plus, RefreshCw, X, Download, CreditCard,
   ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import ExcelJS from 'exceljs'
@@ -11,6 +11,8 @@ import { useAuthStore } from '../store/authStore'
 import { useCajaChica } from '../features/caja-chica/hooks/useCajaChica'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
+import BulkPagoModal from '../features/solicitud/components/BulkPagoModal'
+import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
 
 const ESTADOS = ['Pendiente', 'En Revision', 'Autorizado', 'Rechazado', 'Devuelto']
 const ESTADO_BADGE: Record<string, string> = {
@@ -34,7 +36,7 @@ const fmtDate = (s: string | null) => {
 
 export default function CajaChicaPage() {
   const navigate = useNavigate()
-  const { userRole } = useAuthStore()
+  const { user, userRole } = useAuthStore()
   const {
     data, total, page, pageSize, totalPages, loading,
     setPage, setEstadoFilter, setProyectoFilter, refresh,
@@ -45,6 +47,7 @@ export default function CajaChicaPage() {
   const [filtroEstado, setFiltroEstado] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [exporting, setExporting] = useState(false)
+  const [bulkPagoOpen, setBulkPagoOpen] = useState(false)
 
   useEffect(() => {
     supabase.from('proyecto').select('id, nombre').order('nombre')
@@ -71,6 +74,22 @@ export default function CajaChicaPage() {
   function toggleAll() {
     if (selectedIds.size === data.length) setSelectedIds(new Set())
     else setSelectedIds(new Set(data.map(d => d.id)))
+  }
+
+  const selectedPorPagar = data.filter(cc => selectedIds.has(cc.id) && cc.estado === 'Autorizado' && !cc.fecha_pago)
+
+  async function handleBulkPagoConfirm(cuentaId: number, fechaPago: string) {
+    if (!user?.id) return
+    const results = await Promise.allSettled(
+      selectedPorPagar.map(cc => marcarPagado('caja_chica', cc.id, cuentaId, fechaPago, user.id))
+    )
+    const ok   = results.filter(r => r.status === 'fulfilled').length
+    const fail = results.filter(r => r.status === 'rejected').length
+    if (ok > 0)   toast.success(`${ok} caja${ok > 1 ? 's' : ''} chica${ok > 1 ? 's' : ''} marcada${ok > 1 ? 's' : ''} como pagada${ok > 1 ? 's' : ''}`)
+    if (fail > 0) toast.error(`${fail} no se pudo${fail > 1 ? 'n' : ''} marcar`)
+    setBulkPagoOpen(false)
+    setSelectedIds(new Set())
+    refresh()
   }
 
   async function handleExport() {
@@ -161,6 +180,12 @@ export default function CajaChicaPage() {
                 className="h-9 w-9 flex items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-500 hover:bg-gray-100 disabled:opacity-50">
                 <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
               </button>
+              {isVisualizador && selectedPorPagar.length > 0 && (
+                <button onClick={() => setBulkPagoOpen(true)}
+                  className="h-9 px-4 rounded-xl bg-emerald-600 text-white text-sm font-medium flex items-center gap-1.5 hover:bg-emerald-700 transition-all shadow-sm">
+                  <CreditCard size={14} /> Marcar pagado ({selectedPorPagar.length})
+                </button>
+              )}
               {isVisualizador && selectedIds.size > 0 && (
                 <button onClick={handleExport} disabled={exporting}
                   className="h-9 px-4 rounded-xl bg-green-600 text-white text-sm font-medium flex items-center gap-1.5 hover:bg-green-700 disabled:opacity-50 transition-all shadow-sm">
@@ -268,6 +293,14 @@ export default function CajaChicaPage() {
           )}
         </div>
       </div>
+
+      <BulkPagoModal
+        open={bulkPagoOpen}
+        title="Marcar pagado (masivo)"
+        cantidad={selectedPorPagar.length}
+        onConfirm={handleBulkPagoConfirm}
+        onCancel={() => setBulkPagoOpen(false)}
+      />
     </div>
   )
 }
