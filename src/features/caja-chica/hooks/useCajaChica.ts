@@ -1,8 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getCajasChicas } from '../services/cajaChicaService'
 import type { CajaChica, CajaChicaPaginado } from '../types/cajaChica'
+import { useAuthStore } from '../../../store/authStore'
 
 export function useCajaChica() {
+  const { userRole } = useAuthStore()
   const [data, setData]               = useState<CajaChica[]>([])
   const [total, setTotal]             = useState(0)
   const [page, setPage]               = useState(1)
@@ -20,6 +22,7 @@ export function useCajaChica() {
         page, pageSize,
         estado: estadoFilter,
         proyectoId: proyectoFilter,
+        role: userRole,
       })
       setData(res.data)
       setTotal(res.total)
@@ -29,7 +32,7 @@ export function useCajaChica() {
     } finally {
       setLoading(false)
     }
-  }, [page, estadoFilter, proyectoFilter])
+  }, [page, estadoFilter, proyectoFilter, userRole])
 
   useEffect(() => { load() }, [load])
 

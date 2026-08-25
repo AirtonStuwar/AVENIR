@@ -1,4 +1,5 @@
 import { supabase } from '../../../api/supabase'
+import { ROLES } from '../../solicitud/types/solicitud'
 import type {
   CajaChica, CajaChicaDetalle, CajaChicaInsert, CajaChicaDetalleInsert,
   CajaChicaFiltros, CajaChicaPaginado,
@@ -41,7 +42,7 @@ async function enrichCajaChica(rows: CajaChica[]): Promise<CajaChica[]> {
 // ── CRUD ──────────────────────────────────────────────────────────
 
 export async function getCajasChicas(filtros: CajaChicaFiltros = {}): Promise<CajaChicaPaginado> {
-  const { page = 1, pageSize = 10, estado, proyectoId } = filtros
+  const { page = 1, pageSize = 10, estado, proyectoId, role } = filtros
   const from = (page - 1) * pageSize
   const to = from + pageSize - 1
 
@@ -49,7 +50,12 @@ export async function getCajasChicas(filtros: CajaChicaFiltros = {}): Promise<Ca
     .order('fecha_creacion', { ascending: false })
     .range(from, to)
 
-  if (estado) q = q.eq('estado', estado)
+  if (estado) {
+    q = q.eq('estado', estado)
+  } else if (role === ROLES.APROBADOR) {
+    // Sin filtro elegido: por defecto solo lo que le toca revisar (igual que en Solicitudes/A Rendir)
+    q = q.in('estado', ['Evaluado', 'Autorizado'])
+  }
   if (proyectoId) q = q.eq('proyecto_id', proyectoId)
 
   const { data, error, count } = await q
