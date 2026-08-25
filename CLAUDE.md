@@ -308,6 +308,8 @@ En Revision
   ↓ VISUALIZADOR/EVALUADOR/ADMIN → cerrarRendicion → Cerrado ✅ (estado terminal, sin plan contable)
 Observado
   ↓ USUARIO/ADMIN (dueño) → reenviarContabilidadARendir → Aprobado  (sin volver a pasar por aprobador)
+Pendiente
+  ↓ USUARIO (dueño)/ADMIN → cancelarARendir → Cancelado ✅ (estado terminal, se creó por error)
 ```
 El EVALUADOR aquí **no asigna plan contable** en ninguna de sus dos acciones (ni al marcar "Evaluado" ni al "Cerrar rendición") — a diferencia de Solicitud/Reembolso/Devolución, donde el paso de evaluación sí fija `plan_contable_id`. Por eso [[protección contra doble evaluación]] no aplica a A Rendir (no hay datos que se puedan pisar entre dos evaluadores, solo un cambio de estado).
 
@@ -328,6 +330,7 @@ El EVALUADOR aquí **no asigna plan contable** en ninguna de sus dos acciones (n
 - ADMIN/USUARIO (dueño) en Observado: "Reenviar a contabilidad" → Aprobado
 - Botón "Descargar PDF": visible desde **Pagado** en adelante (Pagado, En Revision, Cerrado) — no antes, porque recién en Pagado tiene sentido imprimir el comprobante de entrega de dinero
 - Botón "Agregar gasto" (líneas de `solicitud_arendir_detalle`): visible en **Aprobado, Pagado u Observado**, para el dueño o ADMIN
+- Botón "Cancelar" (dueño/ADMIN, solo en Pendiente): → `Cancelado`. Igual que en Solicitudes — no borra el registro, solo lo saca de la cola pendiente. Requiere que `'Cancelado'` esté en el CHECK constraint de `estado` (se agregó junto con Reembolso y Devolución; Caja Chica no tenía CHECK así que no hizo falta tocarlo ahí).
 - Badge "Pagado dd/mm/yyyy" en header cuando `fecha_pago` está presente
 
 **Orden estable de gastos:** `getCajaChicaById` ordena los `detalles` embebidos por `id` ascendente (`.order('id', { ascending: true, foreignTable: 'caja_chica_detalle' })`) — antes no tenía orden explícito, así que la lista podía mostrarse en distinto orden cada vez que se recargaba (por ejemplo al editar un gasto), dando la sensación de que los ítems "se movían". Ordenar por `id` (que nunca cambia) garantiza que cada gasto se quede siempre en la misma posición, sin importar qué campo se edite.
@@ -411,11 +414,11 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 - `id`, `codigo` (auto-generado), `beneficiario_id` (UUID FK), `proyecto_id` (FK, nullable), `proyecto_partida_id` (FK, nullable)
 - `moneda` ('PEN'|'USD'), `fecha_requerida` (date, nullable), `total_reembolso` (numeric)
 - `banco`, `numero_cuenta`, `documento_sustento_path` (nullable)
-- `estado`: `'Pendiente'` | `'En Revision'` | `'Evaluado'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'`
+- `estado`: `'Pendiente'` | `'En Revision'` | `'Evaluado'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'` | `'Observado'` | `'Cancelado'`
 - `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `plan_contable_id`, `usuario_evaluador`, `fecha_creacion`
 - `fecha_pago` (date, nullable), `cuenta_pago_id` (FK → `cuenta_bancaria`, nullable), `usuario_pago` (UUID FK, nullable)
 
-**Flujo de estados:** idéntico a A Rendir (Pendiente → En Revision → Evaluado → Autorizado/Rechazado/Devuelto).
+**Flujo de estados:** idéntico a A Rendir (Pendiente → En Revision → Evaluado → Autorizado/Rechazado/Devuelto). Además: dueño/ADMIN puede **Cancelar** desde Pendiente (`cancelarReembolso`) — mismo patrón que los demás módulos, no borra el registro, solo lo saca de la cola.
 
 **Protección contra doble clic al agregar gasto:** `handleDetSave` en `ReembolsoDetallePage.tsx` usa una bandera síncrona (`useRef`, no `useState`) además del `disabled={detSaving}` del botón — un doble clic muy rápido puede llegar antes de que React vuelva a pintar el botón deshabilitado (la actualización de `disabled` depende de un re-render), y sin la bandera síncrona ambos clics alcanzaban a disparar el guardado, duplicando el gasto. La bandera (`detSavingRef.current`) se revisa y activa de forma inmediata, sin esperar al re-render.
 
@@ -428,6 +431,8 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 
 **Filtro de moneda y marcado masivo de pago (`ReembolsoPage`):** mismo patrón que A Rendir — dropdown Moneda (Soles/Dólares/Todas, solo VISUALIZADOR/ADMIN, via `setMonedaFilter` en `useReembolso`) y botón "Marcar pagado" masivo sobre la selección en estado `Autorizado` sin `fecha_pago`, usando `BulkPagoModal` + `marcarPagado('solicitud_reembolso', ...)` (la función genérica de `cuentaBancariaService.ts`, no cambia de estado — a diferencia de A Rendir, Reembolso se queda en `Autorizado` y solo se llena `fecha_pago`).
 
+**Vista por defecto de APROBADOR:** si no elige ningún filtro de estado, `getReembolsos()` le muestra por defecto solo `Evaluado` + `Autorizado` (antes veía todos los estados sin filtrar) — mismo criterio que ya tenía VISUALIZADOR, y consistente con cómo APROBADOR ya se comportaba en Solicitudes/A Rendir.
+
 ---
 
 ---
@@ -435,6 +440,26 @@ Gestión de **reembolso de gastos** — un empleado registra gastos ya realizado
 ## Protección contra doble evaluación
 
 Con más de un usuario EVALUADOR, dos personas podían abrir la misma solicitud "En Revision" a la vez y ambas evaluarla — la segunda sobrescribía silenciosamente el plan contable/retención/detracción de la primera sin darse cuenta. `marcarEvaluado` (solicitud), `marcarEvaluadoReembolso` y `marcarEvaluadoCajaChica` ahora incluyen `.eq('estado_id'/'estado', 'En Revision')` en el UPDATE — si la fila ya no está en ese estado (alguien más la evaluó primero), la query devuelve 0 filas y se lanza `Error('... ya fue evaluada por otro evaluador ...')`, que el modal captura y muestra en un toast (antes de esto los `catch` genéricos de las páginas ocultaban el mensaje real). A Rendir no lo necesita: su paso de evaluador fue simplificado (`cerrarRendicion` es solo un cambio de estado, no asigna datos que puedan pisarse).
+
+---
+
+## Corrección controlada (ADMIN)
+
+Antes, si un ADMIN necesitaba corregir un dato mal ingresado (cuenta bancaria equivocada, nombre mal escrito, archivo equivocado) en un registro que ya no estaba en su estado editable normal, la única opción era editar directo en la base de datos — sin dejar ningún rastro de quién lo cambió, cuándo, ni por qué. Se agregó un botón **"Corregir"** (visible solo para ADMIN) en el detalle de los 5 módulos, que sí pasa por la app y queda registrado.
+
+**Tabla `correccion_log`:** `id`, `tabla`, `registro_id`, `campo`, `valor_anterior`, `valor_nuevo`, `categoria` (CHECK: `'Cuenta bancaria incorrecta'` | `'Nombre mal escrito'` | `'Archivo equivocado'` | `'Otro'`), `motivo` (texto libre opcional), `usuario_id`, `fecha_creacion`. RLS: solo ADMIN puede INSERT o SELECT (ni siquiera EVALUADOR/APROBADOR/VISUALIZADOR pueden ver el historial).
+
+**Componentes compartidos** (`src/features/solicitud/components/CorreccionModal.tsx` + `src/features/solicitud/services/correccionService.ts`): `registrarCorreccion(tabla, registroId, campo, valorAnterior, valorNuevo, categoria, motivo, usuarioId)` hace el `UPDATE` real sobre la tabla indicada **y** el `INSERT` en `correccion_log` en la misma llamada. `CorreccionModal` recibe una lista de `{ campo, label, valorActual }` — cada página define qué campos son corregibles para ese módulo, según qué columnas son texto libre real (no todo campo mostrado en pantalla es corregible así):
+
+- **Caja Chica** — Banco, Cuenta bancaria (`cuenta_bbva`). El responsable no tiene nombre propio editable (es un usuario real del sistema, no texto libre).
+- **A Rendir** — Beneficiario, DNI, Banco, Número de cuenta/CCI (los 4 son columnas propias gracias al beneficiario manual).
+- **Reembolso** — Banco, Número de cuenta/CCI (igual que Caja Chica: el beneficiario es un usuario real, sin nombre propio en la tabla).
+- **Devolución de Cliente** — Cliente, DNI, Banco, Número de cuenta/CCI (el cliente siempre es texto libre, nunca un usuario del sistema).
+- **Solicitudes** — Razón social, RUC/DNI, Dirección, Contacto, Teléfono, Correo, Banco, N° cuenta (el módulo con más datos de proveedor/cliente en texto libre).
+
+**Pendiente:** falta la pestaña dentro de **Reportes** para ver y exportar a Excel el historial completo de `correccion_log` — por ahora solo se puede consultar por SQL directo.
+
+**Reporte de auditoría hecho el 2026-08 detectó** (antes de este cambio) que ni siquiera hacía falta este botón para editar cualquier campo — las políticas UPDATE/DELETE de las tablas operativas eran `qual: true` (cualquier usuario autenticado, cualquier fila). Ver "Seguridad de visibilidad por rol (RLS)" abajo para el estado real de ese hallazgo y qué módulos ya se corrigieron.
 
 ---
 
@@ -452,7 +477,31 @@ Las policies SELECT de las 10 tablas de registros (`solicitud`, `solicitud_detal
 - `get_consumo_proyectos(pids bigint[])` → devuelve `(scope, ref_id, moneda, total)` con el consumo agregado de los 5 módulos por proyecto/partida. `getConsumoByProyectos` en `proyectoService.ts` es ahora un wrapper de este RPC. **Al cambiar los criterios de consumo, actualizar el SQL del RPC, no solo el TS.**
 - `get_saldo_anterior_caja(pid)` → saldo de la última caja chica pagada del proyecto (puede ser de otro responsable). Usada por `getSaldoAnterior` en `cajaChicaService.ts`.
 
-Los buckets de Storage siguen con policies por bucket completo (cualquier authenticated lee) — endurecerlos por dueño queda como mejora futura.
+Los buckets de Storage siguen con policies por bucket completo (cualquier authenticated lee/escribe/borra, sin distinguir dueño) — endurecerlos por dueño queda como mejora futura. Excepción: `firmas-usuario` sí está bien restringido, cada usuario solo puede tocar su propia carpeta (`storage.foldername(name)[1] = auth.uid()`).
+
+**⚠️ Hallazgo de auditoría de seguridad (2026-08) — UPDATE/DELETE sin restricción real, en corrección progresiva:**
+
+Una revisión de seguridad encontró que, a diferencia de las policies SELECT (bien restringidas, ver arriba), las policies **UPDATE/DELETE** de las tablas operativas venían con `qual: true` (o `auth.uid() IS NOT NULL`, equivalente) — es decir, **cualquier usuario autenticado, de cualquier rol, podía modificar o borrar cualquier fila de cualquier solicitud**, sin importar dueño ni estado. Toda la restricción real (dueño, estado Pendiente, rol correcto) vivía solo en el código de React — nunca se aplicaba a nivel de base de datos, así que era saltable llamando a Supabase directo desde la consola del navegador, sin pasar por la pantalla.
+
+**Patrón de la corrección** (aplicado tabla por tabla, para minimizar riesgo de romper algo en producción):
+```sql
+-- UPDATE/INSERT: solo el dueño en un estado editable, o un rol privilegiado
+USING ( (dueño_id = auth.uid() AND estado IN (<estados editables por el dueño>)) OR es_rol_privilegiado() )
+```
+No se replica la máquina de estados fina completa en SQL (ej. "solo el EVALUADOR puede tocar `plan_contable_id`, y solo si el estado es En Revisión") — eso lo siguen validando las funciones de servicio (`marcarEvaluado`, `aprobarSolicitud`, etc.). El objetivo de esta política es cerrar la puerta grande ("cualquiera, cualquier cosa"), confiando en que los roles internos (ADMIN/EVALUADOR/APROBADOR/VISUALIZADOR) son personal de la empresa — el mismo criterio que ya usan las policies SELECT.
+
+**Antes de tocar cada tabla se verificó:**
+- Los triggers que recalculan totales (`recalc_arendir_total`, `recalc_caja_chica_totales`, `recalc_reembolso_total`) **no corrían con privilegio elevado** (a diferencia de los generadores de código, que sí) — se convirtieron a `SECURITY DEFINER` + `search_path` fijo primero, para que el recálculo automático nunca dependa de qué tan estricta sea la policy de la tabla padre.
+- Las tablas de detalle (`caja_chica_detalle`, etc.) no tienen dueño propio — su policy va a buscar el dueño en la tabla padre vía `EXISTS (SELECT 1 FROM <padre> WHERE ...)`.
+- Cada cambio se probó con SQL simulando los 3 casos clave (ajeno bloqueado, dueño en estado editable permitido, dueño fuera de su ventana bloqueado) antes de aplicarlo, y se le pidió al usuario confirmar en la app real después.
+
+**Estado de la corrección por tabla:**
+- ✅ **Caja Chica** (`caja_chica` + `caja_chica_detalle`) — corregido. INSERT solo el propio `responsable_id` (o rol privilegiado); UPDATE/DELETE solo dueño en `Pendiente`/`Devuelto`/`Observado`, o rol privilegiado. `caja_chica_delete` ya estaba bien (ADMIN-only) desde antes.
+- ⏳ **Pendiente:** `solicitud`, `solicitud_detalle`, `solicitud_arendir(+detalle)`, `solicitud_reembolso(+detalle)`, `devolucion_cliente` — siguen con `qual: true`/`auth.uid() IS NOT NULL` hasta que se corrijan una por una siguiendo el mismo patrón.
+
+**Lo que ya estaba bien protegido desde antes** (no formaba parte del hallazgo): `usuario_rol`, `usuario`, `cuenta_bancaria`, `area_usuario` — nadie puede auto-asignarse ADMIN ni tocar cuentas bancarias de empresa sin serlo. El endpoint `api/admin-users.ts` también valida el rol del que llama contra la base de datos real, no confía en nada que mande el navegador.
+
+**Otros hallazgos menores de la misma auditoría, sin corregir aún:** validación de tipo de archivo solo en el navegador (no hay chequeo del lado del servidor); un `dangerouslySetInnerHTML` en `RechazoModal.tsx` (hoy no explotable porque ningún caller le pasa texto de usuario, pero es un patrón frágil); construcción de filtros `.or()` con el texto del buscador sin escapar (impacto acotado porque RLS sigue siendo la última barrera); protección de contraseña filtrada (HaveIBeenPwned) desactivada en Supabase Auth; algunas funciones SQL sin `search_path` fijo.
 
 ---
 
@@ -622,7 +671,7 @@ Registro de devoluciones de dinero a clientes (egreso). Sin líneas de detalle: 
 
 **Feature folder:** `src/features/devolucion/` — `types/devolucion.ts`, `services/devolucionService.ts`, `hooks/useDevolucion.ts`.
 
-**Tabla `devolucion_cliente`:** `id`, `codigo` (trigger `DVC-YY-0001`), `creador_id`, `proyecto_id`, `proyecto_partida_id`, `cliente_nombre`, `cliente_dni`, `concepto` (text, nullable en BD — obligatorio a nivel de formulario al crear; explica el motivo de la devolución, ej. "desistimiento de compra"), `monto`, `moneda` (PEN/USD), `banco`, `numero_cuenta`, 4 paths de archivos (`sustento_path`, `boucher_separacion_path`, `constancia_separacion_path`, `sustento_desistimiento_path`), `estado` CHECK (`Pendiente`/`En Revision`/`Evaluado`/`Autorizado`/`Rechazado`/`Devuelto`/`Observado`), `plan_contable_id` (FK → `plan_contable_brash`, nullable), `usuario_evaluador` (UUID, nullable), `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `fecha_pago`, `cuenta_pago_id`, `usuario_pago`.
+**Tabla `devolucion_cliente`:** `id`, `codigo` (trigger `DVC-YY-0001`), `creador_id`, `proyecto_id`, `proyecto_partida_id`, `cliente_nombre`, `cliente_dni`, `concepto` (text, nullable en BD — obligatorio a nivel de formulario al crear; explica el motivo de la devolución, ej. "desistimiento de compra"), `monto`, `moneda` (PEN/USD), `banco`, `numero_cuenta`, 4 paths de archivos (`sustento_path`, `boucher_separacion_path`, `constancia_separacion_path`, `sustento_desistimiento_path`), `estado` CHECK (`Pendiente`/`En Revision`/`Evaluado`/`Autorizado`/`Rechazado`/`Devuelto`/`Observado`/`Cancelado`), `plan_contable_id` (FK → `plan_contable_brash`, nullable), `usuario_evaluador` (UUID, nullable), `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `fecha_pago`, `cuenta_pago_id`, `usuario_pago`.
 
 **Edición desde el detalle (`DevolucionDetallePage`):** cuando `canEditDet` (dueño/ADMIN, estados Pendiente/Devuelto/Observado), se puede editar `concepto` inline (textarea + botón Guardar) y reemplazar cualquiera de los 4 documentos ya subidos (botón "Reemplazar archivo" por slot). A diferencia de `solicitud_archivo`, los paths de Devolución son columnas directas en la fila (no una tabla hija con una fila por archivo), así que reemplazar un documento es solo un `UPDATE` de la columna — no hay riesgo de filas duplicadas/huérfanas como el bug corregido en `solicitud_archivo` (ver más abajo). El archivo viejo queda huérfano en el bucket (no se borra), aceptable por ahora.
 
@@ -640,8 +689,12 @@ Evaluado
   └─ APROBADOR/ADMIN → rechazarDevolucion(comentario obligatorio) → Rechazado ❌
 Autorizado
   └─ VISUALIZADOR/ADMIN → marcarPagadoDevolucion (PagoModal) → `fecha_pago` (no es un estado)
+Pendiente
+  ↓ USUARIO (dueño)/ADMIN → cancelarDevolucion → Cancelado ✅ (se creó por error)
 ```
 `marcarEvaluadoDevolucion` incluye `.eq('estado', 'En Revision')` en el UPDATE — protección contra doble evaluación igual que en los demás módulos (ver [[protección contra doble evaluación]] más abajo): si otro evaluador ya la evaluó, lanza error y el toast lo muestra. A diferencia de Solicitud, **Autorizar no requiere firma** (solo comentario) — la Devolución nunca tuvo `FirmaModal` y no se agregó al implementar este flujo.
+
+**Marcado masivo de "pagado" (`DevolucionPage`):** mismo patrón que los demás módulos — botón "Marcar pagado" (VISUALIZADOR/ADMIN), `BulkPagoModal` + `marcarPagadoDevolucion(id, cuentaId, fechaPago, usuarioId)` aplicado con `Promise.allSettled` sobre la selección en `Autorizado` sin `fecha_pago`, en vez de entrar al detalle de cada una.
 
 **Storage:** bucket `devolucion-documentos`, path `{devolucionId}/{tipo}/{timestamp}.{ext}`. En el formulario de creación, Sustento es obligatorio; los otros 3 archivos son opcionales.
 
@@ -703,7 +756,7 @@ Fondo rotativo de efectivo por empresa para gastos menores (agua, luz, insumos, 
 - `total_gastos` — recalculado por trigger al insertar/editar/eliminar detalles
 - `saldo_actual` — `monto_asignado - total_gastos`
 - `cuenta_bbva` (text, nullable)
-- `estado`: `'Pendiente'` | `'En Revision'` | `'Evaluado'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'`
+- `estado`: `'Pendiente'` | `'En Revision'` | `'Evaluado'` | `'Autorizado'` | `'Rechazado'` | `'Devuelto'` | `'Cancelado'` (sin CHECK constraint en BD, es texto libre)
 - `usuario_aprobador`, `fecha_aprobacion`, `comentario`, `fecha_creacion`
 - `plan_contable_id` (FK → `plan_contable_brash`, nullable) — asignado por EVALUADOR
 - `usuario_evaluador` (UUID FK, nullable)
@@ -730,12 +783,17 @@ Evaluado
   └─ APROBADOR/ADMIN → devolver → Devuelto
 Autorizado
   └─ VISUALIZADOR → marcarPagado → badge Pagado
+Pendiente
+  ↓ USUARIO (dueño)/ADMIN → cancelarCajaChica → Cancelado ✅ (se creó por error)
 ```
 
 **Acciones en `CajaChicaDetallePage`:**
 - VISUALIZADOR en Autorizado (sin `fecha_pago`): "Marcar pagado" (abre `PagoModal`)
+- USUARIO (dueño)/ADMIN en Pendiente: "Cancelar" → `Cancelado` (mismo patrón que los demás módulos)
 - Badge "Pagado dd/mm/yyyy" en header cuando `fecha_pago` está presente
 - Botón PDF disponible desde En Revision en adelante
+
+**Marcado masivo de "pagado" y filtro de APROBADOR (`CajaChicaPage`):** mismo patrón que Solicitudes/A Rendir/Reembolso — botón "Marcar pagado" masivo (VISUALIZADOR/ADMIN, `BulkPagoModal` + `marcarPagado('caja_chica', ...)`) sobre la selección en `Autorizado` sin `fecha_pago`. A diferencia de los demás módulos, Caja Chica **no tenía ninguna lógica de filtrado por rol** en `getCajasChicas()` — se agregó: si el rol es APROBADOR y no elige filtro, ve por defecto solo `Evaluado` + `Autorizado` (antes veía todos los estados). También se agregó `'Evaluado'` al dropdown de estado (`ESTADOS` en `CajaChicaPage.tsx`), que antes no lo tenía para ningún rol. `useCajaChica()` ahora lee `userRole` de `useAuthStore()` internamente y se lo pasa a `getCajasChicas({ role })`.
 
 **Documento sustento general:** columna `documento_sustento_path` en `caja_chica` (patrón igual a A Rendir) — se sube desde el detalle (tarjeta "Documento sustento", visible cuando `canEdit`), no en el wizard de creación. `uploadSustentoCajaChica()` + `updateCajaChica()` guardan el path; `getArchivoCajaChicaUrl()` genera la URL firmada para verlo.
 
