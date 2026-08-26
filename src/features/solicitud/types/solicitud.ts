@@ -109,6 +109,8 @@ export interface Solicitud {
   creador_cargo?:  string | null
   area_nombre?:    string | null
   evaluador_nombre?: string | null
+  aprobador_nombre?: string | null
+  pago_usuario_nombre?: string | null
 }
 
 export interface SolicitudDetalle {

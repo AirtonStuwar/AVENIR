@@ -53,6 +53,8 @@ async function enrichSolicitudes(solicitudes: Solicitud[]): Promise<Solicitud[]>
   const userIds = [...new Set([
     ...solicitudes.map(s => s.usuario_creador),
     ...solicitudes.map(s => s.usuario_evaluador),
+    ...solicitudes.map(s => s.usuario_aprobador),
+    ...solicitudes.map(s => s.usuario_pago),
   ].filter(Boolean))] as string[]
   if (userIds.length === 0) return solicitudes
 
@@ -83,6 +85,8 @@ async function enrichSolicitudes(solicitudes: Solicitud[]): Promise<Solicitud[]>
   return solicitudes.map(s => {
     const u = s.usuario_creador ? (usuarioMap[s.usuario_creador] ?? null) : null
     const ev = s.usuario_evaluador ? (usuarioMap[s.usuario_evaluador] ?? null) : null
+    const ap = s.usuario_aprobador ? (usuarioMap[s.usuario_aprobador] ?? null) : null
+    const pg = s.usuario_pago ? (usuarioMap[s.usuario_pago] ?? null) : null
     return {
       ...s,
       area_nombre:      s.usuario_creador ? (areaMap[s.usuario_creador] ?? null) : null,
@@ -90,6 +94,8 @@ async function enrichSolicitudes(solicitudes: Solicitud[]): Promise<Solicitud[]>
       creador_nombre:   u?.nombre_completo ?? null,
       creador_cargo:    u?.cargo           ?? null,
       evaluador_nombre: ev?.nombre_completo ?? null,
+      aprobador_nombre: ap?.nombre_completo ?? null,
+      pago_usuario_nombre: pg?.nombre_completo ?? null,
     }
   })
 }

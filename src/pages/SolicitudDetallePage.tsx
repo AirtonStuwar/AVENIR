@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown, Search, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown, Search, ShieldAlert, History } from 'lucide-react'
 import { pdf } from '@react-pdf/renderer'
 import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
@@ -60,10 +60,48 @@ function InfoField({ label, value }: { label: string; value: string | number | n
   )
 }
 
+interface PasoBitacora {
+  titulo: string
+  fecha?: string | null
+  detalle?: string | null
+  estado: 'done' | 'current' | 'warn'
+}
+
+function BitacoraPaso({ paso, esUltimo }: { paso: PasoBitacora; esUltimo: boolean }) {
+  const dot = paso.estado === 'done'
+    ? 'bg-green-500'
+    : paso.estado === 'warn'
+      ? 'bg-amber-500'
+      : 'bg-blue-500'
+  return (
+    <div className="relative pl-7 pb-6 last:pb-0">
+      {!esUltimo && <span className="absolute left-[7px] top-4 bottom-0 w-px bg-gray-200" />}
+      <span className={`absolute left-0 top-1 w-3.5 h-3.5 rounded-full ring-4 ring-white ${dot}`} />
+      <p className="text-sm font-semibold text-gray-900">{paso.titulo}</p>
+      {paso.fecha && <p className="text-xs text-gray-400 mt-0.5">{paso.fecha}</p>}
+      {paso.detalle && <p className="text-sm text-gray-600 mt-1">{paso.detalle}</p>}
+    </div>
+  )
+}
+
 function fmtDate(d: string | null) {
   if (!d) return '—'
   try {
     return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium' }).format(new Date(d.includes('T') ? d : d + 'T00:00:00'))
+  } catch {
+    return 'Fecha inválida'
+  }
+}
+
+// fecha_creacion/fecha_aprobacion son `timestamp without time zone` en BD, llenadas con now()
+// en UTC — el string que llega (ej. "2026-08-26T19:36:20") no trae 'Z' ni offset, así que el
+// navegador lo interpretaría como su propia hora local (ambiguo). Se fuerza 'Z' para dejar claro
+// que ese reloj ya es UTC, y luego se muestra convertido a hora de Lima.
+function fmtDateHora(d: string | null | undefined) {
+  if (!d) return '—'
+  try {
+    const iso = /[zZ]|[+-]\d{2}:?\d{2}$/.test(d) ? d : `${d.replace(' ', 'T')}Z`
+    return new Intl.DateTimeFormat('es-PE', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'America/Lima' }).format(new Date(iso))
   } catch {
     return 'Fecha inválida'
   }
@@ -321,6 +359,66 @@ export default function SolicitudDetallePage() {
   const showFacturaCard = !isRxH && (canEdit || !!solicitud?.numero_factura || !!solicitud?.motivo_factura || !!solicitud?.fecha_emision_factura || archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF'))
 
   const estadoColor = ESTADO_COLOR[nombre] ?? 'bg-gray-100 text-gray-600'
+
+  // ── Bitácora (timeline de solo lectura, armado a partir de las columnas ya guardadas) ──
+  const bitacoraPasos: PasoBitacora[] = (() => {
+    if (!solicitud) return []
+    const pasos: PasoBitacora[] = [{
+      titulo: 'Solicitud creada',
+      fecha: fmtDateHora(solicitud.fecha_creacion),
+      detalle: solicitud.creador_nombre ? `Por ${solicitud.creador_nombre}` : null,
+      estado: 'done',
+    }]
+    // Se guardó explícitamente para este mismo estado más arriba en la página (isPendiente && comentario_gerencia)
+    if (isPendiente && solicitud.comentario_gerencia) {
+      pasos.push({
+        titulo: 'Devuelta por el evaluador',
+        detalle: `${solicitud.evaluador_nombre ? `${solicitud.evaluador_nombre} — ` : ''}${solicitud.comentario_gerencia}`,
+        estado: 'warn',
+      })
+    } else if (isEnRevision) {
+      pasos.push({ titulo: 'En revisión — pendiente de evaluación', estado: 'current' })
+    } else if (!isPendiente && !isCancelado) {
+      pasos.push({
+        titulo: 'Evaluada',
+        detalle: solicitud.evaluador_nombre ? `Por ${solicitud.evaluador_nombre}${solicitud.plan_contable?.nombre_cuenta_contable ? ` — Plan contable: ${solicitud.plan_contable.nombre_cuenta_contable}` : ''}` : null,
+        estado: 'done',
+      })
+    }
+    if (isEvaluado) {
+      pasos.push({ titulo: 'Evaluada — pendiente de aprobación', estado: 'current' })
+    }
+    if (isAprobado || isRechazado) {
+      pasos.push({
+        titulo: isAprobado ? 'Aprobada' : 'Rechazada',
+        fecha: fmtDateHora(solicitud.fecha_aprobacion),
+        detalle: [
+          solicitud.aprobador_nombre ? `Por ${solicitud.aprobador_nombre}` : null,
+          isRechazado ? solicitud.comentario_gerencia : null,
+        ].filter(Boolean).join(' — ') || null,
+        estado: isAprobado ? 'done' : 'warn',
+      })
+    }
+    if (isObservado) {
+      pasos.push({
+        titulo: 'Observada por Contabilidad',
+        detalle: solicitud.comentario_gerencia,
+        estado: 'warn',
+      })
+    }
+    if (isCancelado) {
+      pasos.push({ titulo: 'Cancelada por el creador', estado: 'warn' })
+    }
+    if (solicitud.fecha_pago) {
+      pasos.push({
+        titulo: 'Pagada',
+        fecha: fmtDate(solicitud.fecha_pago),
+        detalle: solicitud.pago_usuario_nombre ? `Marcado por ${solicitud.pago_usuario_nombre}` : null,
+        estado: 'done',
+      })
+    }
+    return pasos
+  })()
 
   // ── Abrir confirm ─────────────────────────────────────────────
   const openConfirm = (action: ActionKey, cfg: ConfirmCfg) => {
@@ -1375,6 +1473,19 @@ export default function SolicitudDetallePage() {
 
           </div>
         )}
+
+        {/* ── BITÁCORA ── */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
+            <History size={15} className="text-gray-500" />
+            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Bitácora</h2>
+          </div>
+          <div className="px-6 py-5">
+            {bitacoraPasos.map((paso, i) => (
+              <BitacoraPaso key={i} paso={paso} esUltimo={i === bitacoraPasos.length - 1} />
+            ))}
+          </div>
+        </div>
 
         {/* ── ENCUESTA PROVEEDOR ── */}
         {canEncuestar && (
