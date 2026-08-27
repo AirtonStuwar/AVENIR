@@ -107,6 +107,18 @@ function fmtDateHora(d: string | null | undefined) {
   }
 }
 
+// `fecha_aprobacion` de solicitudes aprobadas antes del fix de guardado (antes se recortaba
+// a solo la fecha con `.slice(0,10)`, sin hora) quedó guardada como "YYYY-MM-DD 00:00:00" —
+// convertir eso a hora Lima la corre al día anterior (00:00 UTC = 19:00 Lima del día previo).
+// Como ya no existe forma de saber la hora real de esas aprobaciones antiguas, se muestran
+// solo con la fecha (sin hora), igual que el resto de fechas del sistema, en vez de aplicar
+// la conversión UTC→Lima que las haría ver en un día equivocado.
+function fmtFechaAprobacion(d: string | null | undefined) {
+  if (!d) return '—'
+  const esMedianocheExacta = /(?:T| )00:00:00(\.0+)?$/.test(d)
+  return esMedianocheExacta ? fmtDate(d) : fmtDateHora(d)
+}
+
 function fmtMoney(n: number, moneda: 'PEN' | 'USD' = 'PEN') {
   const sym = moneda === 'USD' ? '$ ' : 'S/ '
   return sym + n.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -391,7 +403,7 @@ export default function SolicitudDetallePage() {
     if (isAprobado || isRechazado) {
       pasos.push({
         titulo: isAprobado ? 'Aprobada' : 'Rechazada',
-        fecha: fmtDateHora(solicitud.fecha_aprobacion),
+        fecha: fmtFechaAprobacion(solicitud.fecha_aprobacion),
         detalle: [
           solicitud.aprobador_nombre ? `Por ${solicitud.aprobador_nombre}` : null,
           isRechazado ? solicitud.comentario_gerencia : null,

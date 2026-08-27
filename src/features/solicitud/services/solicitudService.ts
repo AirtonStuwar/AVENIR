@@ -342,7 +342,7 @@ export async function aprobarSolicitud(id: number, userId: string): Promise<Soli
   if (!estadoId) throw new Error('Estado "Aprobado" no encontrado en BD')
   return updateSolicitud(id, {
     estado_id:         estadoId,
-    fecha_aprobacion:  new Date().toISOString().slice(0, 10),
+    fecha_aprobacion:  new Date().toISOString(),
     usuario_aprobador: userId,
   })
 }
