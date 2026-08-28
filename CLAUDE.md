@@ -575,6 +575,12 @@ El proyecto puede conectarse a Power BI usando la conexión directa a PostgreSQL
 
 Las tablas y vistas de Supabase son accesibles directamente. Power BI puede leer `solicitud`, `solicitud_arendir`, `solicitud_reembolso`, `caja_chica`, `proyecto`, etc. para generar reportes y dashboards externos.
 
+**`vista_gasto_consolidado`** — vista SQL (no una tabla) que unifica en un solo `UNION ALL` los 5 módulos (Solicitud → OC/RxH/Liberalidad, A Rendir, Reembolso, Caja Chica, Devolución), pensada específicamente para conectarse desde Power BI. Columnas: `ref_id` (prefijo por módulo + id), `tipo`, `codigo`, `estado`, `empresa`, `centro_costo`, `area`, `beneficiario`, `fecha_creacion`, `fecha_aprobacion`, `moneda`, `monto_pen`, `monto_usd`, `detraccion`, `retencion_pen`, `retencion_usd`, `cuenta_contable`, `partida_presupuestal`, `fecha_pago`. No filtra por `estado` — expone todos los registros de todos los estados y deja que Power BI filtre. Los montos son el **total bruto** (con IGV si aplica); detracción/retención van en columnas separadas, no vienen ya netadas — quien arme el reporte en Power BI debe restarlas si quiere el monto neto a girar.
+
+**Seguridad:** la vista solo tiene GRANT para `postgres`/`service_role` — ni `anon` ni `authenticated` pueden verla, así que no es alcanzable desde la app ni desde el cliente de Supabase normal, solo vía la conexión directa a PostgreSQL que usa Power BI.
+
+**Bug corregido (2026-08-27):** para A Rendir, la vista usaba siempre `importe` (el adelanto solicitado) como monto, sin importar el estado. Correcto solo mientras está en `Aprobado`; en `Pagado`/`En Revision`/`Cerrado`/`Observado` ya se rindieron los gastos reales y corresponde usar `total_reembolso` — mismo criterio que ya usa `montoARendirGasto()` en el Dashboard. Corregido para que la vista siga ese mismo criterio.
+
 ---
 
 **TypeScript config:** strict mode with `noUnusedLocals` and `noUnusedParameters` enabled — unused variables will cause build errors. Use `Omit<T, 'id' | 'fecha_creacion' | ...>` for insert/update types (see `SolicitudInsert` as the canonical example).
