@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { pdf } from '@react-pdf/renderer'
+import ExcelJS from 'exceljs'
 import {
   ChevronLeft, Loader2, CheckCircle2, Download, ExternalLink,
   Plus, Trash2, Pencil, Upload, Send, ShieldAlert,
@@ -444,6 +445,54 @@ export default function ARendirDetallePage() {
     URL.revokeObjectURL(url)
   }
 
+  async function handleDownloadExcel() {
+    if (!solicitud) return
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('A Rendir')
+    const sym = solicitud.moneda === 'USD' ? '$ ' : 'S/ '
+
+    ws.addRow(['Código', solicitud.codigo ?? ''])
+    ws.addRow(['Empresa', solicitud.proyecto?.nombre ?? ''])
+    ws.addRow(['Beneficiario', solicitud.beneficiario_nombre ?? ''])
+    ws.addRow(['DNI', solicitud.beneficiario_dni ?? ''])
+    ws.addRow(['Banco', solicitud.banco ?? ''])
+    ws.addRow(['Cuenta', solicitud.numero_cuenta ?? ''])
+    ws.addRow(['Importe adelanto', `${sym}${solicitud.importe.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`])
+    ws.addRow(['Fecha rendición', fmtDate(solicitud.fecha_rendicion)])
+    ws.addRow(['Total gastado', `${sym}${solicitud.total_reembolso.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`])
+    ws.getColumn(1).font = { bold: true }
+    ws.addRow([])
+
+    const headerRow = ws.addRow(['Fecha', 'Proveedor', 'Tipo Doc', 'N° Doc', 'Concepto', sym.trim()])
+    headerRow.font = { bold: true }
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F497D' } }
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    })
+
+    detalles.forEach(d => {
+      ws.addRow([
+        fmtDate(d.fecha_documento),
+        d.proveedor ?? '',
+        d.tipo_documento ?? '',
+        d.numero_documento ?? '',
+        d.concepto ?? '',
+        d.importe,
+      ])
+    })
+
+    ws.columns.forEach(col => { col.width = 22 })
+
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url    = URL.createObjectURL(blob)
+    const a      = document.createElement('a')
+    a.href       = url
+    a.download   = `${solicitud.codigo ?? `AR-${solicitud.id}`}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   async function handleVerSustento() {
     if (!solicitud?.documento_sustento_path) return
     try {
@@ -526,6 +575,14 @@ export default function ARendirDetallePage() {
               className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
             >
               <Download size={13} /> PDF
+            </button>
+          )}
+          {['Pagado', 'En Revision', 'Cerrado'].includes(solicitud.estado) && (
+            <button
+              onClick={handleDownloadExcel}
+              className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              <Download size={13} /> Excel
             </button>
           )}
 
