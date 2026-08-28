@@ -9,6 +9,7 @@ import CorreccionModal from '../features/solicitud/components/CorreccionModal'
 import { registrarCorreccion } from '../features/solicitud/services/correccionService'
 import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
 import { pdf } from '@react-pdf/renderer'
+import ExcelJS from 'exceljs'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import {
@@ -200,6 +201,56 @@ export default function CajaChicaDetallePage() {
     } catch {
       toast.error('Error al generar el PDF')
     }
+  }
+
+  const handleDownloadExcel = async () => {
+    if (!cc) return
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Caja Chica')
+
+    ws.addRow(['Código', cc.codigo ?? ''])
+    ws.addRow(['Empresa', cc.proyecto?.nombre ?? ''])
+    ws.addRow(['Responsable', cc.responsable_nombre ?? ''])
+    ws.addRow(['Período', `${fmtDate(cc.periodo_desde)} — ${fmtDate(cc.periodo_hasta)}`])
+    ws.addRow(['Banco', cc.banco ?? ''])
+    ws.addRow(['Cuenta', cc.cuenta_bbva ?? ''])
+    ws.addRow(['Saldo anterior', cc.saldo_anterior])
+    ws.addRow(['Transferencia', cc.transferencia])
+    ws.addRow(['Monto asignado', cc.monto_asignado])
+    ws.addRow(['Total gastos', totalGastos])
+    ws.addRow(['Saldo actual', cc.saldo_actual])
+    ws.getColumn(1).font = { bold: true }
+    ws.addRow([])
+
+    const headerRow = ws.addRow(['Fecha', 'Código de costos', 'Proveedor/Usuario', 'Tipo Doc', 'N° Doc', 'Detalle', 'S/.'])
+    headerRow.font = { bold: true }
+    headerRow.eachCell(cell => {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F497D' } }
+      cell.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    })
+
+    detalles.forEach(d => {
+      ws.addRow([
+        fmtDate(d.fecha),
+        d.area_nombre ?? '',
+        d.proveedor,
+        d.tipo_documento,
+        d.numero_documento ?? '',
+        d.detalle,
+        d.monto,
+      ])
+    })
+
+    ws.columns.forEach(col => { col.width = 22 })
+
+    const buffer = await wb.xlsx.writeBuffer()
+    const blob   = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const url    = URL.createObjectURL(blob)
+    const a      = document.createElement('a')
+    a.href       = url
+    a.download   = `${cc.codigo ?? `CC-${cc.id}`}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   // Form handlers
@@ -437,6 +488,12 @@ export default function CajaChicaDetallePage() {
               <button onClick={handleDownloadPDF}
                 className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
                 <Download size={13} /> PDF
+              </button>
+            )}
+            {canShowPDF && (
+              <button onClick={handleDownloadExcel}
+                className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                <Download size={13} /> Excel
               </button>
             )}
             {canMarcarPagado && (
