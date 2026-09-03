@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Briefcase, LogOut, X, AlertCircle, Receipt, RefreshCw, BarChart2, Building2, Wallet, PieChart, RotateCcw, UserCog, Landmark } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { LayoutDashboard, FileText, Users, Briefcase, LogOut, X, AlertCircle, Receipt, RefreshCw, BarChart2, Building2, Wallet, PieChart, RotateCcw, UserCog, Landmark, Banknote, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../../api/supabase';
 import { useAuthStore } from '../../store/authStore';
 
@@ -8,13 +8,18 @@ import { useAuthStore } from '../../store/authStore';
 // Roles: 1=Admin | 8=Evaluador | 9=Aprobador | 10=Visualizador | 11=Usuario
 const ALL_ROLES = [1, 8, 9, 10, 11]
 
+// Módulos de Egreso: agrupados bajo un solo ítem colapsable en el sidebar
+const egresoChildren = [
+  { name: 'Solicitudes', path: '/solicitudes', icon: FileText },
+  { name: 'A Rendir',    path: '/arendir',     icon: Receipt },
+  { name: 'Reembolso',   path: '/reembolso',   icon: RefreshCw },
+  { name: 'Caja Chica',  path: '/caja-chica',  icon: Wallet },
+  { name: 'Devolución Cliente', path: '/devolucion', icon: RotateCcw },
+]
+
 const menuItems = [
-  { name: 'Dashboard',   path: '/dashboard',   icon: LayoutDashboard, roles: [1, 8, 9, 10, 11] },
-  { name: 'Solicitudes', path: '/solicitudes', icon: FileText,   roles: ALL_ROLES },
-  { name: 'A Rendir',    path: '/arendir',     icon: Receipt,    roles: [1, 8, 9, 10, 11] },
-  { name: 'Reembolso',   path: '/reembolso',   icon: RefreshCw,  roles: [1, 8, 9, 10, 11] },
-  { name: 'Caja Chica',  path: '/caja-chica',  icon: Wallet,     roles: [1, 8, 9, 10, 11] },
-  { name: 'Devolución Cliente', path: '/devolucion', icon: RotateCcw, roles: [1, 8, 9, 10, 11] },
+  { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: [1, 8, 9, 10, 11] },
+  { name: 'Egreso',    icon: Banknote,     roles: ALL_ROLES, children: egresoChildren },
   { name: 'Usuarios',    path: '/usuarios',    icon: UserCog,    roles: [1] },
   { name: 'Proveedores', path: '/proveedores', icon: Users,      roles: [1, 11] },
   { name: 'Empresas',    path: '/proyectos',   icon: Briefcase,  roles: [1] },
@@ -39,7 +44,11 @@ interface SidebarProps {
 
 export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
   const { userRole, usuarioProfile } = useAuthStore()
+  const location = useLocation()
   const [logoutOpen, setLogoutOpen] = useState(false)
+  const [egresoOpen, setEgresoOpen] = useState(
+    () => egresoChildren.some(c => location.pathname.startsWith(c.path))
+  )
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -91,28 +100,77 @@ export const Sidebar = ({ isOpen, onClose }: SidebarProps) => {
 
         {/* ── Nav ── */}
         <nav className="flex-1 px-3 flex flex-col gap-1">
-          {filteredMenu.map(item => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={onClose}
-              className={({ isActive }) => `
-                flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium
-                transition-all group
-                ${isActive
-                  ? 'bg-white/15 text-white'
-                  : 'text-white/65 hover:bg-white/10 hover:text-white'}
-              `}
-            >
-              {({ isActive }) => (
-                <>
-                  <item.icon size={18} />
-                  <span className="flex-1">{item.name}</span>
-                  {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#F65740]" />}
-                </>
-              )}
-            </NavLink>
-          ))}
+          {filteredMenu.map(item => {
+            if (item.children) {
+              const isChildActive = item.children.some(c => location.pathname.startsWith(c.path))
+              return (
+                <div key={item.name}>
+                  <button
+                    onClick={() => setEgresoOpen(o => !o)}
+                    className={`
+                      w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium
+                      transition-all
+                      ${isChildActive && !egresoOpen
+                        ? 'bg-white/15 text-white'
+                        : 'text-white/65 hover:bg-white/10 hover:text-white'}
+                    `}
+                  >
+                    <item.icon size={18} />
+                    <span className="flex-1 text-left">{item.name}</span>
+                    {egresoOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+                  {egresoOpen && (
+                    <div className="mt-1 ml-3 pl-3 border-l border-white/10 flex flex-col gap-1">
+                      {item.children.map(child => (
+                        <NavLink
+                          key={child.path}
+                          to={child.path}
+                          onClick={onClose}
+                          className={({ isActive }) => `
+                            flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium
+                            transition-all group
+                            ${isActive
+                              ? 'bg-white/15 text-white'
+                              : 'text-white/55 hover:bg-white/10 hover:text-white'}
+                          `}
+                        >
+                          {({ isActive }) => (
+                            <>
+                              <child.icon size={16} />
+                              <span className="flex-1">{child.name}</span>
+                              {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#F65740]" />}
+                            </>
+                          )}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            }
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={onClose}
+                className={({ isActive }) => `
+                  flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium
+                  transition-all group
+                  ${isActive
+                    ? 'bg-white/15 text-white'
+                    : 'text-white/65 hover:bg-white/10 hover:text-white'}
+                `}
+              >
+                {({ isActive }) => (
+                  <>
+                    <item.icon size={18} />
+                    <span className="flex-1">{item.name}</span>
+                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#F65740]" />}
+                  </>
+                )}
+              </NavLink>
+            )
+          })}
         </nav>
 
         {/* ── Footer: perfil + cerrar sesión ── */}
