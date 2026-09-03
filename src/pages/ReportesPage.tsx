@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { FileDown, Filter, X, BarChart2, TrendingUp, Receipt, RefreshCw, FileText, Wallet, RotateCcw, Gift } from 'lucide-react'
+import { FileDown, Filter, X, BarChart2, TrendingUp, Receipt, RefreshCw, FileText, Wallet, RotateCcw, Gift, History } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { supabase } from '../api/supabase'
 import { getReporteData, exportarReporteExcel, exportarBBVAConsolidado, exportarDetraccionesConsolidado } from '../features/reportes/services/reportesService'
 import type { ReporteRow, ReporteFiltros } from '../features/reportes/services/reportesService'
+import { getCorreccionLogReporte, exportarCorreccionLogExcel, MODULO_LABEL } from '../features/solicitud/services/correccionService'
+import type { CorreccionReporteRow } from '../features/solicitud/services/correccionService'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 
@@ -37,6 +39,44 @@ export default function ReportesPage() {
   const { userRole } = useAuthStore()
   const isEvaluador = userRole === ROLES.EVALUADOR
   const isVisualizador = userRole === ROLES.VISUALIZADOR
+  const isAdmin = userRole === ROLES.ADMIN
+
+  const [tab, setTab] = useState<'consolidado' | 'correcciones'>('consolidado')
+
+  // ── Correcciones (solo ADMIN) ──
+  const [corrRows,     setCorrRows]     = useState<CorreccionReporteRow[]>([])
+  const [corrLoading,  setCorrLoading]  = useState(false)
+  const [corrExporting, setCorrExporting] = useState(false)
+  const [corrFechaDesde, setCorrFechaDesde] = useState(firstOfMonth)
+  const [corrFechaHasta, setCorrFechaHasta] = useState(todayStr)
+  const [corrModulo,   setCorrModulo]   = useState<string>('')
+
+  const handleBuscarCorrecciones = async () => {
+    if (!corrFechaDesde || !corrFechaHasta) { toast.error('Ingresa el rango de fechas'); return }
+    setCorrLoading(true)
+    try {
+      const data = await getCorreccionLogReporte({ fechaDesde: corrFechaDesde, fechaHasta: corrFechaHasta, tabla: corrModulo || null })
+      setCorrRows(data)
+      if (data.length === 0) toast('Sin correcciones para el período seleccionado.', { icon: 'ℹ️' })
+    } catch {
+      toast.error('Error al obtener el historial de correcciones')
+    } finally {
+      setCorrLoading(false)
+    }
+  }
+
+  const handleExportarCorrecciones = async () => {
+    if (corrRows.length === 0) { toast.error('Busca primero los datos antes de exportar'); return }
+    setCorrExporting(true)
+    try {
+      await exportarCorreccionLogExcel(corrRows)
+      toast.success('Excel generado correctamente')
+    } catch {
+      toast.error('Error al generar el Excel')
+    } finally {
+      setCorrExporting(false)
+    }
+  }
 
   const [rows,          setRows]          = useState<ReporteRow[]>([])
   const [loading,       setLoading]       = useState(false)
@@ -144,6 +184,114 @@ export default function ReportesPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+
+        {/* Tabs (solo ADMIN ve "Correcciones") */}
+        {isAdmin && (
+          <div className="flex items-center gap-2 border-b border-gray-200">
+            <button onClick={() => setTab('consolidado')}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                tab === 'consolidado' ? 'border-[#003D7D] text-[#003D7D]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              <BarChart2 size={14} /> Consolidado
+            </button>
+            <button onClick={() => setTab('correcciones')}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                tab === 'correcciones' ? 'border-[#003D7D] text-[#003D7D]' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+              <History size={14} /> Correcciones
+            </button>
+          </div>
+        )}
+
+        {tab === 'correcciones' && isAdmin && (
+          <>
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Filter size={14} className="text-[#003D7D]" />
+                <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Filtros</h2>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className={LABEL}>Fecha desde *</label>
+                  <input type="date" className={INPUT + ' w-full'} value={corrFechaDesde}
+                    onChange={e => setCorrFechaDesde(e.target.value)} />
+                </div>
+                <div>
+                  <label className={LABEL}>Fecha hasta *</label>
+                  <input type="date" className={INPUT + ' w-full'} value={corrFechaHasta}
+                    onChange={e => setCorrFechaHasta(e.target.value)} />
+                </div>
+                <div>
+                  <label className={LABEL}>Módulo (opcional)</label>
+                  <select className={INPUT + ' w-full'} value={corrModulo}
+                    onChange={e => setCorrModulo(e.target.value)}>
+                    <option value="">Todos los módulos</option>
+                    {Object.entries(MODULO_LABEL).map(([tabla, label]) => (
+                      <option key={tabla} value={tabla}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 mt-4">
+                <button onClick={handleBuscarCorrecciones} disabled={corrLoading}
+                  className="px-5 py-2.5 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2 hover:bg-[#002D5C] disabled:opacity-50 transition-all">
+                  {corrLoading
+                    ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Buscando…</>
+                    : <><Filter size={14} /> Buscar</>}
+                </button>
+                {corrRows.length > 0 && (
+                  <button onClick={handleExportarCorrecciones} disabled={corrExporting}
+                    className="ml-auto px-5 py-2.5 rounded-xl bg-green-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-green-700 disabled:opacity-50 transition-all">
+                    {corrExporting
+                      ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Generando…</>
+                      : <><FileDown size={14} /> Exportar Excel ({corrRows.length})</>}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {corrRows.length > 0 && (
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100">
+                  <h2 className="text-sm font-semibold text-gray-800">Vista previa — {corrRows.length} correcciones</h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-100">
+                        {['Fecha', 'Módulo', 'Código', 'Campo', 'Antes', 'Después', 'Categoría', 'Motivo', 'Corregido por'].map(h => (
+                          <th key={h} className="px-3 py-2.5 text-left font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {corrRows.map(row => (
+                        <tr key={row.id} className="hover:bg-gray-50/80 transition-colors">
+                          <td className="px-3 py-2 text-gray-500 whitespace-nowrap">{fmtDate(row.fecha_creacion)}</td>
+                          <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.modulo}</td>
+                          <td className="px-3 py-2 font-mono text-gray-600 whitespace-nowrap">{row.codigo ?? `#${row.registro_id}`}</td>
+                          <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.campo}</td>
+                          <td className="px-3 py-2 text-gray-500 max-w-[160px] truncate">{row.valor_anterior ?? '—'}</td>
+                          <td className="px-3 py-2 text-gray-800 max-w-[160px] truncate">{row.valor_nuevo ?? '—'}</td>
+                          <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.categoria}</td>
+                          <td className="px-3 py-2 text-gray-500 max-w-[200px] truncate">{row.motivo ?? '—'}</td>
+                          <td className="px-3 py-2 text-gray-600 whitespace-nowrap">{row.corregido_por ?? '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {!corrLoading && corrRows.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-48 gap-3 text-gray-400">
+                <History size={36} className="text-gray-200" />
+                <p className="text-sm">Selecciona el período y haz clic en <strong>Buscar</strong> para ver el historial de correcciones.</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {tab === 'consolidado' && <>
 
         {/* Filters */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-5">
@@ -318,6 +466,7 @@ export default function ReportesPage() {
             <p className="text-sm">Selecciona el período y haz clic en <strong>Buscar</strong> para generar el reporte.</p>
           </div>
         )}
+        </>}
       </div>
     </div>
   )
