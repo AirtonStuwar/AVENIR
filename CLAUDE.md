@@ -50,6 +50,8 @@ Role constants (defined in `src/features/solicitud/types/solicitud.ts`):
 
 **Filtro de moneda y marcado masivo de pago/detracción (`SolicitudesPage`):** dropdown Moneda (Soles/Dólares/Todas, solo VISUALIZADOR, persistido en `solicitudFiltrosStore`) junto a los demás filtros. Dos botones de acción masiva aparecen sobre la selección (VISUALIZADOR/ADMIN): "Marcar pagado" (solicitudes Aprobadas sin `fecha_pago`, usa `marcarPagado('solicitud', ...)`) y "Marcar detracción pagada" (solicitudes con `detraccion_id` y `!detraccion_pagada`, usa `marcarDetraccionPagada(...)`) — ambos abren `BulkPagoModal` y aplican a toda la selección con `Promise.allSettled`, igual que A Rendir/Reembolso.
 
+**Sidebar — grupo "Egreso" (`Sidebar.tsx`):** los 5 módulos de egreso (Solicitudes, A Rendir, Reembolso, Caja Chica, Devolución Cliente) están agrupados bajo un solo ítem colapsable "Egreso" (ícono `Banknote`), en vez de 5 ítems sueltos — es puramente una reorganización visual, no toca rutas ni permisos (los 5 ya eran visibles para los mismos roles). El array `menuItems` soporta un campo opcional `children`; el ítem "Egreso" no tiene `path` propio, solo expande/colapsa un `useState` local (`egresoOpen`) al hacer clic. Se auto-expande al cargar si la ruta actual (`location.pathname`) coincide con alguno de los 5 hijos, para no esconder en qué sección está el usuario — después de eso, el expand/collapse queda a mano del usuario (no se auto-colapsa al navegar a otra sección).
+
 **Routing** (`App.tsx`):
 - `/login` — public
 - `/dashboard`, `/solicitudes`, `/solicitudes/nueva`, `/solicitudes/:id`, `/proyectos`, `/proveedores` — all behind `ProtectedRoute`
