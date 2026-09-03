@@ -112,7 +112,7 @@ export default function ARendirPage() {
         s.banco === 'BBVA' ? 'P' : 'I',
         s.numero_cuenta ?? '',
         sanitizeBBVA(s.beneficiario_nombre),
-        s.total_reembolso ?? 0,
+        (s.estado === 'Aprobado' ? s.importe : s.total_reembolso) ?? 0,
         'B',
         String(idx + 1).padStart(3, '0'),
         'N',
