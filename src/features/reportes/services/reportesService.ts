@@ -129,7 +129,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     .select([
       'id, codigo, tipo_id, usuario_creador, razon_social, ruc, moneda, aplica_igv',
       'numero_factura, numero_rxh, porcentaje_retencion, monto_retencion',
-      'detraccion_id, monto_detraccion, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura, fecha_pago',
+      'detraccion_id, monto_detraccion, monto_fondo_garantia, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura, fecha_pago',
       'cuenta_pago_id, fecha_pago_detraccion, cuenta_pago_detraccion_id',
       'proyecto_id, proyecto_partida_id',
       'banco, numero_cuenta, cuenta_detracciones, contacto_correo',
@@ -153,7 +153,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     razon_social: string | null; ruc: string | null; moneda: string | null; aplica_igv: boolean
     numero_factura: string | null; numero_rxh: string | null
     porcentaje_retencion: number | null; monto_retencion: number | null
-    monto_detraccion: number | null; fecha_aprobacion: string | null
+    monto_detraccion: number | null; monto_fondo_garantia: number | null; fecha_aprobacion: string | null
     fecha_creacion: string | null; fecha_requerida: string | null; fecha_emision_factura: string | null; fecha_pago: string | null
     cuenta_pago_id: number | null; fecha_pago_detraccion: string | null; cuenta_pago_detraccion_id: number | null
     banco: string | null; numero_cuenta: string | null; cuenta_detracciones: string | null; contacto_correo: string | null
@@ -208,6 +208,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     const total    = subtotal + igv
     const detrac   = s.monto_detraccion ?? 0
     const reten    = s.monto_retencion ?? 0
+    const fondoGarantia = s.monto_fondo_garantia ?? 0
     const isPEN    = (s.moneda ?? 'PEN') === 'PEN'
     const detracPct = s.detraccion?.porcentaje ?? 0
     // Sin redondear: el redondeo solo aplica al depósito en soles a SUNAT (monto_detraccion),
@@ -243,8 +244,8 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       cuenta_detracciones: s.cuenta_detracciones,
       detraccion:   detrac,
       retencion:    isPEN ? reten : 0,
-      girar_usd:    isPEN ? 0 : Math.round((total - detracUSD) * 100) / 100,
-      girar_pen:    isPEN ? total - detrac - reten : 0,
+      girar_usd:    isPEN ? 0 : Math.round((total - detracUSD) * 100) / 100 - fondoGarantia,
+      girar_pen:    isPEN ? total - detrac - reten - fondoGarantia : 0,
       banco:        s.banco,
       cuenta:       s.numero_cuenta,
       correo:       u?.correo ?? null,

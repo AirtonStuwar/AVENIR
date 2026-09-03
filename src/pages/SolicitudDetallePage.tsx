@@ -177,6 +177,7 @@ export default function SolicitudDetallePage() {
   const [motivoFactura,        setMotivoFactura]        = useState('')
   const [fechaEmisionFactura,  setFechaEmisionFactura]  = useState('')
   const [fechaVencimientoFactura, setFechaVencimientoFactura] = useState('')
+  const [montoFondoGarantia,   setMontoFondoGarantia]   = useState('')
   const [savingFactura,        setSavingFactura]        = useState(false)
   const [facturaDuplicada,     setFacturaDuplicada]     = useState<string[]>([])
 
@@ -252,7 +253,8 @@ export default function SolicitudDetallePage() {
     setMotivoFactura(solicitud?.motivo_factura ?? '')
     setFechaEmisionFactura(solicitud?.fecha_emision_factura ?? '')
     setFechaVencimientoFactura(solicitud?.fecha_vencimiento_factura ?? '')
-  }, [solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura])
+    setMontoFondoGarantia(solicitud?.monto_fondo_garantia != null ? String(solicitud.monto_fondo_garantia) : '')
+  }, [solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura, solicitud?.monto_fondo_garantia])
 
   // Alerta de N° de factura duplicado
   useEffect(() => {
@@ -328,6 +330,7 @@ export default function SolicitudDetallePage() {
 
   const isRxH        = solicitud?.solicitud_tipo?.nombre === 'Recibo por Honorarios'
   const isLiberalidad = solicitud?.solicitud_tipo?.nombre === 'Liberalidad'
+  const isValorizacion = solicitud?.solicitud_tipo?.nombre === 'Factura con Valorización'
   // OC marcada "Sin IGV" al crearla: no suma 18% y los documentos dejan de ser obligatorios
   const sinIgv       = !isRxH && !isLiberalidad && solicitud?.aplica_igv === false
   // Observado (devuelto por contabilidad): editable como Pendiente, pero SIN abrir el modal
@@ -700,6 +703,7 @@ export default function SolicitudDetallePage() {
         motivo_factura:           motivoFactura.trim() || null,
         fecha_emision_factura:    fechaEmisionFactura || null,
         fecha_vencimiento_factura: fechaVencimientoFactura || null,
+        ...(isValorizacion && { monto_fondo_garantia: montoFondoGarantia.trim() ? Number(montoFondoGarantia) : null }),
       })
       toast.success('Datos de factura guardados')
       await reload(id)
@@ -714,7 +718,8 @@ export default function SolicitudDetallePage() {
     numeroFactura !== (solicitud?.numero_factura ?? '') ||
     motivoFactura !== (solicitud?.motivo_factura ?? '') ||
     fechaEmisionFactura !== (solicitud?.fecha_emision_factura ?? '') ||
-    fechaVencimientoFactura !== (solicitud?.fecha_vencimiento_factura ?? '')
+    fechaVencimientoFactura !== (solicitud?.fecha_vencimiento_factura ?? '') ||
+    (isValorizacion && montoFondoGarantia !== (solicitud?.monto_fondo_garantia != null ? String(solicitud.monto_fondo_garantia) : ''))
 
   // ── Edit info general ────────────────────────────────────────────
   const handleUpdateInfo = async (payload: SolicitudUpdate) => {
@@ -1262,6 +1267,19 @@ export default function SolicitudDetallePage() {
                         className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
                       />
                     </div>
+                    {isValorizacion && (
+                      <div>
+                        <label className={LABEL}>Fondo de Garantía (S/)</label>
+                        <input
+                          type="number" step="0.01"
+                          value={montoFondoGarantia}
+                          onChange={e => setMontoFondoGarantia(e.target.value)}
+                          placeholder="Monto retenido como fondo de garantía"
+                          className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
+                        />
+                        <p className="mt-1 text-xs text-gray-400">Se descuenta del monto a pagar — no es para SUNAT, lo retiene la empresa hasta liberarlo.</p>
+                      </div>
+                    )}
                   </div>
                   <div className="flex justify-end pt-1">
                     <button
@@ -1281,6 +1299,9 @@ export default function SolicitudDetallePage() {
                   <InfoField label="Motivo de la factura" value={solicitud.motivo_factura} />
                   <InfoField label="Fecha de emisión"     value={fmtDate(solicitud.fecha_emision_factura)} />
                   <InfoField label="Fecha de vencimiento" value={fmtDate(solicitud.fecha_vencimiento_factura)} />
+                  {isValorizacion && (
+                    <InfoField label="Fondo de Garantía" value={solicitud.monto_fondo_garantia != null ? fmtMoney(solicitud.monto_fondo_garantia, (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN') : null} />
+                  )}
                 </div>
               )}
             </div>
@@ -1516,6 +1537,7 @@ export default function SolicitudDetallePage() {
         open={modalOpen}
         detalle={editingDet}
         moneda={(solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN'}
+        allowNegativo={isValorizacion}
         onClose={() => setModalOpen(false)}
         onSubmit={handleModalSubmit}
       />

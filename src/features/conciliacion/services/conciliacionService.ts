@@ -33,6 +33,7 @@ export function rangoDesdeMovimientos(movimientos: MovimientoBanco[]): { desde: 
 interface SolicitudPagableRow {
   id: number; codigo: string | null; razon_social: string | null
   monto_total: number | null; monto_detraccion: number | null; monto_retencion: number | null
+  monto_fondo_garantia: number | null
   detraccion_id: number | null; moneda: string | null; banco: string | null
   solicitud_tipo: { nombre: string } | null
   detraccion: { porcentaje: number } | null
@@ -41,7 +42,7 @@ interface SolicitudPagableRow {
 async function fetchSolicitudesPagables(cuentaId: number, fechaDesde: string, fechaHasta: string): Promise<RegistroPagable[]> {
   const { data, error } = await supabase
     .from('solicitud')
-    .select('id, codigo, razon_social, monto_total, monto_detraccion, monto_retencion, detraccion_id, moneda, banco, fecha_pago, solicitud_tipo:tipo_id(nombre), detraccion:detraccion_id(porcentaje)')
+    .select('id, codigo, razon_social, monto_total, monto_detraccion, monto_retencion, monto_fondo_garantia, detraccion_id, moneda, banco, fecha_pago, solicitud_tipo:tipo_id(nombre), detraccion:detraccion_id(porcentaje)')
     .eq('cuenta_pago_id', cuentaId)
     .gte('fecha_pago', fechaDesde)
     .lte('fecha_pago', fechaHasta)
@@ -51,14 +52,15 @@ async function fetchSolicitudesPagables(cuentaId: number, fechaDesde: string, fe
     const total = s.monto_total ?? 0
     const tipo = s.solicitud_tipo?.nombre
     const isPEN = (s.moneda ?? 'PEN') === 'PEN'
-    let monto = total
+    const fondoGarantia = s.monto_fondo_garantia ?? 0
+    let monto = total - fondoGarantia
     if (tipo === 'Recibo por Honorarios') {
       monto = total - (s.monto_retencion ?? 0)
     } else if (tipo !== 'Liberalidad' && s.detraccion_id) {
-      if (isPEN) monto = total - (s.monto_detraccion ?? 0)
+      if (isPEN) monto = total - (s.monto_detraccion ?? 0) - fondoGarantia
       else {
         const pct = s.detraccion?.porcentaje ?? 0
-        monto = Math.round((total - total * pct / 100) * 100) / 100
+        monto = Math.round((total - total * pct / 100) * 100) / 100 - fondoGarantia
       }
     }
     return {

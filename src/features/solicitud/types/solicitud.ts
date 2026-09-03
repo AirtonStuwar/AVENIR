@@ -87,6 +87,7 @@ export interface Solicitud {
   aplica_suspension: boolean | null
   detraccion_id:    number | null
   monto_detraccion: number | null
+  monto_fondo_garantia: number | null
   proyecto_partida_id: number | null
   fecha_pago: string | null
   cuenta_pago_id: number | null
@@ -147,6 +148,7 @@ export type SolicitudInsert = Omit<
   | 'aplica_suspension'      // se guarda al finalizar Step 3 en RxH
   | 'detraccion_id'          // lo asigna el evaluador al marcar Evaluado
   | 'monto_detraccion'       // calculado al marcar Evaluado
+  | 'monto_fondo_garantia'   // solo Factura con Valorización, se ingresa manualmente en Step 4 o desde el detalle
   | 'proyecto_partida_id'    // opcional según si el proyecto tiene partidas
   | 'proyecto_partida'       // join, no se inserta
   | 'fecha_pago'             // lo marca contabilidad

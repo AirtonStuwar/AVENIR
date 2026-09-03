@@ -8,12 +8,14 @@ interface Props {
   moneda?: 'PEN' | 'USD'
   onClose: () => void
   onSubmit: (data: { cantidad: number; descripcion: string; valor_unitario: number }) => Promise<void>
+  // Factura con Valorización: permite líneas negativas (anticipos que se restan del subtotal)
+  allowNegativo?: boolean
 }
 
 const INPUT = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all'
 const LABEL = 'block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5'
 
-export default function SolicitudDetalleModal({ open, detalle, moneda = 'PEN', onClose, onSubmit }: Props) {
+export default function SolicitudDetalleModal({ open, detalle, moneda = 'PEN', onClose, onSubmit, allowNegativo = false }: Props) {
   const [cantidad,       setCantidad]      = useState(1)
   const [descripcion,    setDescripcion]   = useState('')
   const [valor_unitario, setValorUnitario] = useState(0)
@@ -40,7 +42,7 @@ export default function SolicitudDetalleModal({ open, detalle, moneda = 'PEN', o
     const e: Record<string, string> = {}
     if (!descripcion.trim()) e.descripcion = 'La descripción es requerida'
     if (cantidad <= 0)       e.cantidad    = 'Debe ser mayor a 0'
-    if (valor_unitario < 0)  e.valor       = 'No puede ser negativo'
+    if (valor_unitario < 0 && !allowNegativo) e.valor = 'No puede ser negativo'
     if (Object.keys(e).length > 0) { setErrors(e); return }
 
     setSaving(true)
@@ -102,7 +104,7 @@ export default function SolicitudDetalleModal({ open, detalle, moneda = 'PEN', o
               <label className={LABEL}>Valor unitario ({moneda === 'USD' ? '$' : 'S/'}) *</label>
               <input
                 className={INPUT + (errors.valor ? ' border-red-300 bg-red-50' : '')}
-                type="number" min="0" step="0.001"
+                type="number" {...(allowNegativo ? {} : { min: '0' })} step="0.001"
                 value={valor_unitario}
                 onChange={(e) => { setValorUnitario(Number(e.target.value)); setErrors((x) => ({ ...x, valor: '' })) }}
               />

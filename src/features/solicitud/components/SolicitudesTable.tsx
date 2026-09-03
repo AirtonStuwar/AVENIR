@@ -17,11 +17,12 @@ function montoAGirar(s: Solicitud): number {
   const tipo  = s.solicitud_tipo?.nombre
   if (tipo === 'Liberalidad') return total
   if (tipo === 'Recibo por Honorarios') return total - (s.monto_retencion ?? 0)
-  if (!s.detraccion_id) return total
+  const fondoGarantia = s.monto_fondo_garantia ?? 0
+  if (!s.detraccion_id) return total - fondoGarantia
   const isPEN = (s.moneda ?? 'PEN') === 'PEN'
-  if (isPEN) return total - (s.monto_detraccion ?? 0)
+  if (isPEN) return total - (s.monto_detraccion ?? 0) - fondoGarantia
   const pct = s.detraccion?.porcentaje ?? 0
-  return Math.round((total - total * pct / 100) * 100) / 100
+  return Math.round((total - total * pct / 100) * 100) / 100 - fondoGarantia
 }
 
 // Monto de detracción/retención aplicado, con su moneda de referencia.

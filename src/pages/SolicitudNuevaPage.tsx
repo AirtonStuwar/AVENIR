@@ -59,6 +59,7 @@ export default function SolicitudNuevaPage() {
   const [motivoFacturaStep,     setMotivoFacturaStep]     = useState('')
   const [fechaEmisionFactura,   setFechaEmisionFactura]   = useState('')
   const [fechaVencimFactura,    setFechaVencimFactura]    = useState('')
+  const [montoFondoGarantia,    setMontoFondoGarantia]    = useState('')
   const [savingFactura,         setSavingFactura]         = useState(false)
   const [facturaDuplicada,      setFacturaDuplicada]      = useState<string[]>([])
 
@@ -117,6 +118,7 @@ export default function SolicitudNuevaPage() {
   const tipoNombreSeleccionado = tipos.find(t => t.id === tipo_id)?.nombre ?? ''
   const isRxH = tipoNombreSeleccionado === 'Recibo por Honorarios'
   const isLiberalidad = tipoNombreSeleccionado === 'Liberalidad'
+  const isValorizacion = tipoNombreSeleccionado === 'Factura con Valorización'
   const LIBERALIDAD_PCT = 5
 
   // Detalles state
@@ -1209,6 +1211,14 @@ export default function SolicitudNuevaPage() {
                       <label className={LABEL}>Fecha de vencimiento</label>
                       <input type="date" value={fechaVencimFactura} onChange={e => setFechaVencimFactura(e.target.value)} className={INPUT} />
                     </div>
+                    {isValorizacion && (
+                      <div>
+                        <label className={LABEL}>Fondo de Garantía (S/)</label>
+                        <input type="number" step="0.01" value={montoFondoGarantia} onChange={e => setMontoFondoGarantia(e.target.value)}
+                          placeholder="Monto retenido como fondo de garantía" className={INPUT} />
+                        <p className="mt-1 text-xs text-gray-400">Se descuenta del monto a pagar — no es para SUNAT, lo retiene la empresa hasta liberarlo.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </>
@@ -1233,6 +1243,9 @@ export default function SolicitudNuevaPage() {
                       upd.fecha_emision_factura     = fechaEmisionFactura      || null
                       upd.fecha_vencimiento_factura = fechaVencimFactura       || null
                     }
+                    if (isValorizacion) {
+                      upd.monto_fondo_garantia = montoFondoGarantia.trim() ? Number(montoFondoGarantia) : null
+                    }
                     await updateSolicitud(solicitudId, upd)
                   } catch { /* silencioso */ }
                   finally { setSavingFactura(false) }
@@ -1256,6 +1269,7 @@ export default function SolicitudNuevaPage() {
         open={modalOpen}
         detalle={editingDet}
         moneda={moneda}
+        allowNegativo={isValorizacion}
         onClose={() => setModalOpen(false)}
         onSubmit={handleModalSubmit}
       />
