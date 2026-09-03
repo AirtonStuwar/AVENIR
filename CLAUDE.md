@@ -352,7 +352,7 @@ El EVALUADOR aquí **no asigna plan contable** en ninguna de sus dos acciones (n
 | Tipo abono | `'P'` si `banco === 'BBVA'`, `'I'` (interbancario) para el resto |
 | Cuenta | `numero_cuenta` registrado en Step 1 |
 | Nombre del beneficiario | `beneficiario_nombre` |
-| Importe abonar | `total_reembolso` |
+| Importe abonar | `importe` si `estado === 'Aprobado'`, sino `total_reembolso` |
 | Tipo recibo | Siempre `'B'` (boleta/rendición) |
 | Numero documento | Correlativo `001`, `002`… según posición en la exportación (reinicia en cada descarga) |
 | Abono Agrupado | `'N'` |
@@ -361,6 +361,8 @@ El EVALUADOR aquí **no asigna plan contable** en ninguna de sus dos acciones (n
 | Medio de aviso | `beneficiario_email` |
 | Persona Contacto | vacío |
 | Validacion | vacío |
+
+**Bug corregido (2026-09):** "Importe abonar" usaba siempre `total_reembolso` sin importar el estado. Como `total_reembolso` recién se calcula cuando el usuario sube sus comprobantes (después de recibir el dinero), un A Rendir recién **Aprobado** —el caso normal de uso de este botón, para pagar el adelanto— exportaba **S/ 0** en vez del monto real a transferir. Mismo bug y mismo fix en `fetchARendir()` de `reportesService.ts` (columna GIRAR de Reportes). Corregido para usar `importe` mientras está en `Aprobado`, y `total_reembolso` en los demás estados — mismo criterio que ya usa `montoARendirGasto()` en el Dashboard.
 
 **Excel BBVA — solicitudes OC (`SolicitudesPage`):**
 - `Tipo abono`: `'P'` si `banco === 'BBVA'`, `'I'` para el resto (antes usaba la longitud del número)
