@@ -15,6 +15,7 @@ export interface DevolucionCliente {
   boucher_separacion_path: string | null
   constancia_separacion_path: string | null
   sustento_desistimiento_path: string | null
+  comprobante_pago_path: string | null
   estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto' | 'Observado' | 'Cancelado'
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
@@ -44,6 +45,7 @@ export type DevolucionClienteInsert = Omit<
   | 'usuario_aprobador' | 'fecha_aprobacion' | 'comentario'
   | 'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago'
   | 'plan_contable_id' | 'usuario_evaluador'
+  | 'comprobante_pago_path'
   | 'proyecto' | 'proyecto_partida' | 'plan_contable'
   | 'creador_nombre' | 'creador_email' | 'aprobador_nombre' | 'evaluador_nombre'
 >

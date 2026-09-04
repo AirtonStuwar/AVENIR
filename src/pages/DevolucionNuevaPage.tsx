@@ -30,6 +30,7 @@ const PATH_FIELD: Record<TipoArchivoDevolucion, string> = {
   boucher_separacion:     'boucher_separacion_path',
   constancia_separacion:  'constancia_separacion_path',
   sustento_desistimiento: 'sustento_desistimiento_path',
+  comprobante_pago:       'comprobante_pago_path',
 }
 
 export default function DevolucionNuevaPage() {

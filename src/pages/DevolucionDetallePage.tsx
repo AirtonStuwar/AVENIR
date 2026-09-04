@@ -152,6 +152,7 @@ const ARCHIVO_LABELS: { field: keyof DevolucionCliente; tipo: TipoArchivoDevoluc
   { field: 'boucher_separacion_path',     tipo: 'boucher_separacion',     label: 'Boucher de Separación' },
   { field: 'constancia_separacion_path',  tipo: 'constancia_separacion',  label: 'Constancia de Separación' },
   { field: 'sustento_desistimiento_path', tipo: 'sustento_desistimiento', label: 'Sustento Desistimiento' },
+  { field: 'comprobante_pago_path',       tipo: 'comprobante_pago',       label: 'Comprobante de Pago' },
 ]
 
 export default function DevolucionDetallePage() {
@@ -428,6 +429,8 @@ export default function DevolucionDetallePage() {
   const canMarcarPagado  = dev?.estado === 'Autorizado' && !dev?.fecha_pago && (isVisualizador || isAdmin)
   const canReenviarConta = dev?.estado === 'Observado' && (isAdmin || (userRole === ROLES.USUARIO && isOwner))
   const canEditDet       = ['Pendiente', 'Devuelto', 'Observado'].includes(dev?.estado ?? '') && (isAdmin || (userRole === ROLES.USUARIO && isOwner))
+  // Comprobante de pago: solo se puede subir después de que Contabilidad ya marcó el pago
+  const canSubirComprobante = dev?.estado === 'Autorizado' && !!dev?.fecha_pago && (isAdmin || (userRole === ROLES.USUARIO && isOwner))
 
   if (loading) {
     return (
@@ -685,6 +688,7 @@ export default function DevolucionDetallePage() {
           {ARCHIVO_LABELS.map(({ field, tipo, label }) => {
             const path = dev[field] as string | null
             const isUploading = uploadingTipo === tipo
+            const puedeSubir = field === 'comprobante_pago_path' ? canSubirComprobante : canEditDet
             return (
               <div key={field} className={`rounded-xl border-2 p-4 flex flex-col gap-2 ${
                 path ? 'border-green-200 bg-green-50' : 'border-dashed border-gray-200 bg-gray-50'
@@ -700,7 +704,7 @@ export default function DevolucionDetallePage() {
                     <span className="text-xs text-gray-400 italic">No adjuntado</span>
                   )}
                 </div>
-                {canEditDet && (
+                {puedeSubir && (
                   <label className="w-full flex items-center justify-center gap-2 py-1.5 text-xs text-gray-500 hover:text-[#003D7D] hover:bg-white rounded-lg border border-gray-200 transition-all cursor-pointer">
                     {isUploading
                       ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#003D7D] border-t-transparent" />

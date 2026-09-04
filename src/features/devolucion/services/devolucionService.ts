@@ -159,7 +159,7 @@ export async function marcarPagadoDevolucion(
 }
 
 // ── Storage ────────────────────────────────────────────────────
-export type TipoArchivoDevolucion = 'sustento' | 'boucher_separacion' | 'constancia_separacion' | 'sustento_desistimiento'
+export type TipoArchivoDevolucion = 'sustento' | 'boucher_separacion' | 'constancia_separacion' | 'sustento_desistimiento' | 'comprobante_pago'
 
 export async function uploadArchivoDevolucion(
   file: File,
