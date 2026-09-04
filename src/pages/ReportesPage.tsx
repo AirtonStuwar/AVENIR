@@ -78,7 +78,7 @@ export default function ReportesPage() {
     }
   }
 
-  const [rows,          setRows]          = useState<ReporteRow[]>([])
+  const [allRows,       setAllRows]       = useState<ReporteRow[]>([])
   const [loading,       setLoading]       = useState(false)
   const [exporting,     setExporting]     = useState(false)
   const [exportingBBVA, setExportingBBVA] = useState(false)
@@ -88,6 +88,9 @@ export default function ReportesPage() {
   const [fechaDesde,    setFechaDesde]    = useState(firstOfMonth)
   const [fechaHasta,    setFechaHasta]    = useState(todayStr)
   const [proyectoId,    setProyectoId]    = useState<number | null>(null)
+  // Solo VISUALIZADOR: filtra lo ya exportado/visible entre todo (Aprobado+Pagado) o solo lo que falta pagar
+  const [pagoFilter,    setPagoFilter]    = useState<'todos' | 'pendiente'>('todos')
+  const rows = isVisualizador && pagoFilter === 'pendiente' ? allRows.filter(r => !r.fecha_pago) : allRows
 
   // Load projects
   useEffect(() => {
@@ -101,7 +104,7 @@ export default function ReportesPage() {
     try {
       const filtros: ReporteFiltros = { fechaDesde, fechaHasta, proyectoId, todosEstados: isEvaluador }
       const data = await getReporteData(filtros)
-      setRows(data)
+      setAllRows(data)
       if (data.length === 0) toast('Sin registros para el período seleccionado.', { icon: 'ℹ️' })
     } catch {
       toast.error('Error al obtener datos del reporte')
@@ -156,7 +159,8 @@ export default function ReportesPage() {
     setFechaDesde(firstOfMonth)
     setFechaHasta(todayStr)
     setProyectoId(null)
-    setRows([])
+    setPagoFilter('todos')
+    setAllRows([])
   }
 
   // Stats
@@ -299,7 +303,7 @@ export default function ReportesPage() {
             <Filter size={14} className="text-[#003D7D]" />
             <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Filtros</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 sm:grid-cols-3 ${isVisualizador ? 'lg:grid-cols-4' : ''} gap-4`}>
             <div>
               <label className={LABEL}>Fecha desde{isEvaluador ? ' (creación)' : ''} *</label>
               <input type="date" className={INPUT + ' w-full'} value={fechaDesde}
@@ -318,6 +322,16 @@ export default function ReportesPage() {
                 {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
             </div>
+            {isVisualizador && (
+              <div>
+                <label className={LABEL}>Estado de pago</label>
+                <select className={INPUT + ' w-full'} value={pagoFilter}
+                  onChange={e => setPagoFilter(e.target.value as 'todos' | 'pendiente')}>
+                  <option value="todos">Aprobado y Pagado</option>
+                  <option value="pendiente">Solo por pagar</option>
+                </select>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3 mt-4">
             <button onClick={handleBuscar} disabled={loading}
