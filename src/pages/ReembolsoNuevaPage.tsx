@@ -118,17 +118,29 @@ export default function ReembolsoNuevaPage() {
         await supabase.from('usuario').update({ dni: dniEdit || null }).eq('id', user.id)
       }
 
-      const sol = await createReembolso({
-        beneficiario_id: user.id,
+      const payload = {
         proyecto_id: proyectoId ? Number(proyectoId) : null,
         proyecto_partida_id: partidaId ? Number(partidaId) : null,
         moneda,
         fecha_requerida: fechaRequerida || null,
-        estado: 'Pendiente',
         banco: banco || null,
         numero_cuenta: numeroCuenta || null,
-        documento_sustento_path: null,
-      })
+      }
+
+      let sol: SolicitudReembolso
+
+      if (solicitudCreada) {
+        // Ya existe — solo actualizar, no duplicar
+        await updateReembolso(solicitudCreada.id, payload)
+        sol = { ...solicitudCreada, ...payload }
+      } else {
+        sol = await createReembolso({
+          ...payload,
+          beneficiario_id: user.id,
+          estado: 'Pendiente',
+          documento_sustento_path: null,
+        })
+      }
 
       if (sustentoFile) {
         const path = await uploadSustentoReembolso(sustentoFile, sol.id)
