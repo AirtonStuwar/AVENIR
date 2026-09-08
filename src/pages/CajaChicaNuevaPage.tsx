@@ -5,6 +5,8 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { supabase } from '../api/supabase'
 import { createCajaChica, getSaldoAnterior } from '../features/caja-chica/services/cajaChicaService'
+import { getPartidasByProyecto } from '../features/proyecto/services/proyectoService'
+import type { ProyectoPartida } from '../features/proyecto/types/proyecto'
 import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta, esCuentaRecaudadora } from '../features/solicitud/constants/bancos'
 
 const INPUT = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white transition-all'
@@ -19,6 +21,8 @@ export default function CajaChicaNuevaPage() {
 
   const [proyectos, setProyectos] = useState<ProyectoCC[]>([])
   const [proyectoId, setProyectoId] = useState<number | null>(null)
+  const [partidas, setPartidas] = useState<ProyectoPartida[]>([])
+  const [partidaId, setPartidaId] = useState<number | null>(null)
   const [periodoDesde, setPeriodoDesde] = useState('')
   const [periodoHasta, setPeriodoHasta] = useState('')
   const [banco, setBanco] = useState(BANCOS[0])
@@ -26,6 +30,9 @@ export default function CajaChicaNuevaPage() {
   const [montoAsignado, setMontoAsignado] = useState(0)
   const [saldoAnterior, setSaldoAnterior] = useState(0)
   const [transferencia, setTransferencia] = useState(0)
+
+  // Centros de costo con fondo de caja chica propio (ej. Legal dentro de COPISAC) — no todos, solo los que tienen monto_caja_chica configurado
+  const partidasConFondo = partidas.filter(p => (p.monto_caja_chica ?? 0) > 0)
 
   useEffect(() => {
     supabase.from('proyecto').select('id, nombre, monto_caja_chica').eq('estado', 'Activo').order('nombre')
@@ -36,15 +43,22 @@ export default function CajaChicaNuevaPage() {
   }, [])
 
   useEffect(() => {
+    setPartidaId(null)
+    if (!proyectoId) { setPartidas([]); return }
+    getPartidasByProyecto(proyectoId).then(setPartidas).catch(() => setPartidas([]))
+  }, [proyectoId])
+
+  useEffect(() => {
     if (!proyectoId) { setMontoAsignado(0); setSaldoAnterior(0); setTransferencia(0); return }
     const proy = proyectos.find(p => p.id === proyectoId)
-    const monto = proy?.monto_caja_chica ?? 0
+    const partida = partidaId ? partidas.find(p => p.id === partidaId) : null
+    const monto = partida ? (partida.monto_caja_chica ?? 0) : (proy?.monto_caja_chica ?? 0)
     setMontoAsignado(monto)
-    getSaldoAnterior(proyectoId).then(saldo => {
+    getSaldoAnterior(proyectoId, partidaId).then(saldo => {
       setSaldoAnterior(saldo)
       setTransferencia(monto - saldo)
     })
-  }, [proyectoId, proyectos])
+  }, [proyectoId, partidaId, proyectos, partidas])
 
   const handleGuardar = async () => {
     if (!user?.id) return
@@ -56,6 +70,7 @@ export default function CajaChicaNuevaPage() {
     try {
       const cc = await createCajaChica({
         proyecto_id: proyectoId,
+        proyecto_partida_id: partidaId,
         responsable_id: user.id,
         periodo_desde: periodoDesde,
         periodo_hasta: periodoHasta,
@@ -118,6 +133,21 @@ export default function CajaChicaNuevaPage() {
               <p className="mt-1 text-xs text-amber-600">No hay empresas con monto de caja chica configurado. El ADMIN debe asignar el monto desde Empresas.</p>
             )}
           </div>
+
+          {/* Centro de costo (solo si la empresa tiene alguno con fondo propio) */}
+          {partidasConFondo.length > 0 && (
+            <div>
+              <label className={LABEL}>Centro de costo</label>
+              <select className={INPUT} value={partidaId ?? ''}
+                onChange={e => setPartidaId(e.target.value ? Number(e.target.value) : null)}>
+                <option value="">— Fondo general de la empresa —</option>
+                {partidasConFondo.map(p => (
+                  <option key={p.id} value={p.id}>{p.nombre} — Fondo: S/ {(p.monto_caja_chica ?? 0).toLocaleString('es-PE')}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">Si esta caja chica es de un área con fondo propio (ej. Legal), selecciónala aquí — su saldo se lleva por separado del fondo general.</p>
+            </div>
+          )}
 
           {/* Período */}
           <div className="grid grid-cols-2 gap-4">

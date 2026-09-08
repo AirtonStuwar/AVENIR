@@ -5,7 +5,7 @@ import type {
   CajaChicaFiltros, CajaChicaPaginado,
 } from '../types/cajaChica'
 
-const SEL = '*, proyecto:proyecto_id(id,nombre), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)'
+const SEL = '*, proyecto:proyecto_id(id,nombre), proyecto_partida:proyecto_partida_id(id,nombre,monto_caja_chica), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)'
 const BUCKET = 'caja-chica-documentos'
 
 // ── Enrich ────────────────────────────────────────────────────────
@@ -233,10 +233,12 @@ export async function reenviarContabilidadCajaChica(id: number): Promise<void> {
 
 // ── Helpers ──────────────────────────────────────────────────────
 
-export async function getSaldoAnterior(proyectoId: number): Promise<number> {
-  // RPC SECURITY DEFINER: la última caja pagada del proyecto puede ser de otro
-  // responsable, cuya fila queda oculta por RLS para el rol USUARIO.
-  const { data, error } = await supabase.rpc('get_saldo_anterior_caja', { pid: proyectoId })
+export async function getSaldoAnterior(proyectoId: number, partidaId?: number | null): Promise<number> {
+  // RPC SECURITY DEFINER: la última caja pagada del proyecto (o del centro de costo,
+  // si se pasa partidaId) puede ser de otro responsable, cuya fila queda oculta por
+  // RLS para el rol USUARIO. Un centro de costo con fondo propio (ej. Legal) acumula
+  // su saldo por separado del fondo general de la empresa.
+  const { data, error } = await supabase.rpc('get_saldo_anterior_caja', { pid: proyectoId, ppid: partidaId ?? null })
   if (error) throw error
   return Number(data ?? 0)
 }

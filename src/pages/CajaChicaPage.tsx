@@ -243,7 +243,10 @@ export default function CajaChicaPage() {
                     <td className="px-4 py-3">
                       <span className="font-mono text-xs bg-[#003D7D]/8 text-[#003D7D] px-2 py-0.5 rounded-md font-semibold">{cc.codigo}</span>
                     </td>
-                    <td className="px-4 py-3 text-gray-800 font-medium max-w-[160px] truncate">{cc.proyecto?.nombre ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-800 font-medium max-w-[160px] truncate">
+                      {cc.proyecto?.nombre ?? '—'}
+                      {cc.proyecto_partida && <span className="block text-[11px] text-gray-400 font-normal">{cc.proyecto_partida.nombre}</span>}
+                    </td>
                     <td className="px-4 py-3 text-gray-600 max-w-[140px] truncate">{cc.responsable_nombre ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{fmtDate(cc.periodo_desde)} — {fmtDate(cc.periodo_hasta)}</td>
                     <td className="px-4 py-3 font-mono text-gray-700">{fmt(cc.monto_asignado)}</td>

@@ -22,7 +22,7 @@ const fmtPEN = (n: number) =>
 const fmtUSD = (n: number) =>
   n > 0 ? `$ ${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
 
-const EMPTY = { nombre: '', presupuesto_pen: '', presupuesto_usd: '' }
+const EMPTY = { nombre: '', presupuesto_pen: '', presupuesto_usd: '', monto_caja_chica: '' }
 
 export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false, onClose }: Props) {
   const [partidas,  setPartidas]  = useState<ProyectoPartida[]>([])
@@ -57,6 +57,7 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
       nombre: p.nombre,
       presupuesto_pen: p.presupuesto_pen > 0 ? String(p.presupuesto_pen) : '',
       presupuesto_usd: p.presupuesto_usd > 0 ? String(p.presupuesto_usd) : '',
+      monto_caja_chica: p.monto_caja_chica && p.monto_caja_chica > 0 ? String(p.monto_caja_chica) : '',
     })
     setEditId(p.id)
   }
@@ -67,11 +68,12 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
     setSaving(true)
     try {
       const payload = {
-        proyecto_id:     proyecto.id,
-        nombre:          form.nombre.trim(),
-        presupuesto_pen: parseFloat(form.presupuesto_pen) || 0,
-        presupuesto_usd: parseFloat(form.presupuesto_usd) || 0,
-        estado:          'Activo',
+        proyecto_id:      proyecto.id,
+        nombre:           form.nombre.trim(),
+        presupuesto_pen:  parseFloat(form.presupuesto_pen) || 0,
+        presupuesto_usd:  parseFloat(form.presupuesto_usd) || 0,
+        monto_caja_chica: form.monto_caja_chica ? parseFloat(form.monto_caja_chica) : null,
+        estado:           'Activo',
       }
       if (editId === 'new') {
         const nueva = await createPartida(payload)
@@ -164,6 +166,14 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
                     onChange={e => setForm(f => ({ ...f, presupuesto_usd: e.target.value }))} />
                 </div>
               </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Monto Caja Chica (S/.)</label>
+                <input type="number" min="0" step="0.01" className={INPUT}
+                  placeholder="Déjalo vacío si este centro de costo no maneja caja chica propia"
+                  value={form.monto_caja_chica}
+                  onChange={e => setForm(f => ({ ...f, monto_caja_chica: e.target.value }))} />
+                <p className="text-[11px] text-gray-400 mt-1">Si se llena, este centro de costo aparecerá como opción de fondo propio al crear una Caja Chica para esta empresa.</p>
+              </div>
               <div className="flex items-center gap-2 pt-1">
                 <button onClick={handleSave} disabled={saving}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#003D7D] text-white text-sm font-medium disabled:opacity-50 transition-all">
@@ -255,6 +265,13 @@ export default function ProyectoPartidasPanel({ proyecto, mostrarConsumo = false
                       )}
                       {p.presupuesto_pen === 0 && p.presupuesto_usd === 0 && (
                         <span className="text-xs text-gray-400 italic">Sin presupuesto asignado</span>
+                      )}
+                      {!!p.monto_caja_chica && p.monto_caja_chica > 0 && (
+                        <div>
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">
+                            Caja Chica propia: {fmtPEN(p.monto_caja_chica)}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>

@@ -210,6 +210,7 @@ export default function CajaChicaDetallePage() {
 
     ws.addRow(['Código', cc.codigo ?? ''])
     ws.addRow(['Empresa', cc.proyecto?.nombre ?? ''])
+    if (cc.proyecto_partida) ws.addRow(['Centro de Costo', cc.proyecto_partida.nombre])
     ws.addRow(['Responsable', cc.responsable_nombre ?? ''])
     ws.addRow(['Período', `${fmtDate(cc.periodo_desde)} — ${fmtDate(cc.periodo_hasta)}`])
     ws.addRow(['Banco', cc.banco ?? ''])
@@ -604,6 +605,7 @@ export default function CajaChicaDetallePage() {
           <div className="px-6 py-5 grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
             <InfoField label="Código" value={cc.codigo} />
             <InfoField label="Empresa" value={cc.proyecto?.nombre} />
+            {cc.proyecto_partida && <InfoField label="Centro de Costo" value={cc.proyecto_partida.nombre} />}
             <InfoField label="Responsable" value={cc.responsable_nombre} />
             <InfoField label="Período" value={`${fmtDate(cc.periodo_desde)} — ${fmtDate(cc.periodo_hasta)}`} />
             <InfoField label="Banco" value={cc.banco} />

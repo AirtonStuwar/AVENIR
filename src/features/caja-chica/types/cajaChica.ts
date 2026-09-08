@@ -2,6 +2,7 @@ export interface CajaChica {
   id: number
   codigo: string | null
   proyecto_id: number | null
+  proyecto_partida_id: number | null
   responsable_id: string | null
   periodo_desde: string
   periodo_hasta: string
@@ -25,6 +26,7 @@ export interface CajaChica {
   fecha_creacion: string | null
   // joins
   proyecto?: { id: number; nombre: string } | null
+  proyecto_partida?: { id: number; nombre: string; monto_caja_chica: number | null } | null
   plan_contable?: {
     id: number
     tipo_gasto_costo: string | null
@@ -62,7 +64,7 @@ export type CajaChicaInsert = Omit<CajaChica,
   'usuario_aprobador' | 'fecha_aprobacion' | 'comentario' | 'detalles' |
   'plan_contable_id' | 'usuario_evaluador' | 'plan_contable' |
   'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago' |
-  'proyecto' | 'responsable_nombre' | 'responsable_email' | 'responsable_dni' | 'aprobador_nombre' | 'evaluador_nombre'
+  'proyecto' | 'proyecto_partida' | 'responsable_nombre' | 'responsable_email' | 'responsable_dni' | 'aprobador_nombre' | 'evaluador_nombre'
 >
 
 export type CajaChicaDetalleInsert = Omit<CajaChicaDetalle, 'id' | 'fecha_creacion' | 'area_nombre'>
