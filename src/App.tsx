@@ -33,6 +33,7 @@ import CajaChicaNuevaPage from './pages/CajaChicaNuevaPage';
 import CajaChicaDetallePage from './pages/CajaChicaDetallePage';
 import UsuariosPage from './pages/UsuariosPage';
 import ConciliacionBancariaPage from './pages/ConciliacionBancariaPage';
+import IngresoPage from './pages/IngresoPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 
@@ -100,6 +101,7 @@ function App() {
             <Route path="/reembolso/:id"   element={<ReembolsoDetallePage />} />
             <Route path="/reportes"        element={<ReportesPage />} />
             <Route path="/conciliacion"    element={<ConciliacionBancariaPage />} />
+            <Route path="/ingreso"         element={<IngresoPage />} />
             <Route path="/plan-contable"   element={<PlanContableGastoPage />} />
             <Route path="/areas"           element={<AreasConsumoPage />} />
             <Route path="/devolucion"        element={<DevolucionPage />} />
