@@ -328,7 +328,7 @@ export default function IngresoPage() {
                   <Pie data={composicionData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={75} paddingAngle={2}>
                     {composicionData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip formatter={(v: number) => fmt(v)} />
+                  <Tooltip formatter={(v) => fmt(Number(v))} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                 </PieChart>
               </ResponsiveContainer>
