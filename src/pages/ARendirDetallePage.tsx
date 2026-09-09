@@ -34,6 +34,8 @@ import {
   updateDetalle,
   deleteDetalle,
   uploadDetalleArchivo,
+  uploadSustento,
+  updateARendir,
 } from '../features/arendir/services/arendirService'
 import type { SolicitudARendir, ARendirDetalle } from '../features/arendir/types/arendir'
 import { ARendirPDF } from '../features/arendir/components/ARendirPDF'
@@ -97,6 +99,7 @@ export default function ARendirDetallePage() {
   const [detImporte,  setDetImporte]  = useState('')
   const [detArchivo,  setDetArchivo]  = useState<File | null>(null)
   const [detSaving,   setDetSaving]   = useState(false)
+  const [uploadingSustento, setUploadingSustento] = useState(false)
 
   const TIPOS_DOC = ['FACTURA', 'RECIBO', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
 
@@ -503,6 +506,22 @@ export default function ARendirDetallePage() {
     }
   }
 
+  async function handleUploadSustento(file: File) {
+    if (!solicitud) return
+    setUploadingSustento(true)
+    try {
+      const path = await uploadSustento(file, solicitud.id)
+      await updateARendir(solicitud.id, { documento_sustento_path: path })
+      toast.success('Documento sustento actualizado')
+      const sol = await getARendirById(Number(id))
+      setSolicitud(sol); setDetalles(sol.detalles ?? [])
+    } catch {
+      toast.error('Error al subir el documento sustento')
+    } finally {
+      setUploadingSustento(false)
+    }
+  }
+
   // ── Role flags ─────────────────────────────────────────────────
   const isAdmin        = userRole === ROLES.ADMIN
   const isAprobador    = userRole === ROLES.APROBADOR
@@ -518,6 +537,8 @@ export default function ARendirDetallePage() {
   const canRechazar       = solicitud?.estado === 'Evaluado' && (isAprobador || isAdmin)
   const canEditDet        = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
     ['Aprobado', 'Pagado', 'Observado'].includes(solicitud?.estado ?? '')
+  const canEditSustento   = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
+    ['Pendiente', 'Aprobado', 'Pagado', 'Observado'].includes(solicitud?.estado ?? '')
   const canReenviarConta  = solicitud?.estado === 'Observado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
   const canMarcarPagado   = solicitud?.estado === 'Aprobado' && (isVisualizador || isAdmin)
   const canEnviarRendicion = solicitud?.estado === 'Pagado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
@@ -788,15 +809,29 @@ export default function ARendirDetallePage() {
         </div>
 
         {/* Sustento */}
-        {solicitud.documento_sustento_path && (
+        {(solicitud.documento_sustento_path || canEditSustento) && (
           <div className="mt-4 pt-4 border-t border-gray-100">
             <p className="text-xs text-gray-400 uppercase font-semibold mb-1">Documento sustento</p>
-            <button
-              onClick={handleVerSustento}
-              className="flex items-center gap-1.5 text-sm text-[#003D7D] font-semibold hover:underline"
-            >
-              <ExternalLink size={13} /> Ver sustento
-            </button>
+            <div className="flex items-center gap-3">
+              {solicitud.documento_sustento_path && (
+                <button
+                  onClick={handleVerSustento}
+                  className="flex items-center gap-1.5 text-sm text-[#003D7D] font-semibold hover:underline"
+                >
+                  <ExternalLink size={13} /> Ver sustento
+                </button>
+              )}
+              {canEditSustento && (
+                <label className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#003D7D] cursor-pointer">
+                  {uploadingSustento
+                    ? <Loader2 size={13} className="animate-spin" />
+                    : <Upload size={13} />}
+                  {solicitud.documento_sustento_path ? 'Reemplazar' : 'Subir documento sustento'}
+                  <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadSustento(f); e.target.value = '' }} />
+                </label>
+              )}
+            </div>
           </div>
         )}
       </div>
