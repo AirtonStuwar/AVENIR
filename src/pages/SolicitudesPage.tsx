@@ -58,7 +58,7 @@ export default function SolicitudesPage() {
 
   const isVisualizador = userRole === ROLES.VISUALIZADOR
   const isEvaluador    = userRole === ROLES.EVALUADOR
-  const isAdmin         = userRole === ROLES.ADMIN
+  const canFiltrarPago  = userRole !== null && userRole !== ROLES.APROBADOR
 
   const handleEstadoChange = (v: string | null) => {
     setEstadoStore(v)
@@ -433,8 +433,8 @@ export default function SolicitudesPage() {
         onProyectoFilterChange={handleProyectoChange}
         mesAprobacion={isVisualizador ? mesAprobacion : undefined}
         onMesAprobacionChange={isVisualizador ? handleMesChange : undefined}
-        pagoFilter={(isVisualizador || isAdmin) ? pagoLocal : undefined}
-        onPagoFilterChange={(isVisualizador || isAdmin) ? handlePagoChange : undefined}
+        pagoFilter={canFiltrarPago ? pagoLocal : undefined}
+        onPagoFilterChange={canFiltrarPago ? handlePagoChange : undefined}
         monedaFilter={isVisualizador ? monedaLocal : undefined}
         onMonedaFilterChange={isVisualizador ? handleMonedaChange : undefined}
         showMontoPago={canMarcarPago}
