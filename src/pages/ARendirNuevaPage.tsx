@@ -13,13 +13,14 @@ import type { Proyecto } from '../features/proyecto/types/proyecto'
 import {
   createARendir,
   addDetalle,
+  updateDetalle,
+  deleteDetalle,
   uploadSustento,
   uploadDetalleArchivo,
   recalcTotal,
   updateARendir,
 } from '../features/arendir/services/arendirService'
 import type { SolicitudARendir } from '../features/arendir/types/arendir'
-import { supabase } from '../api/supabase'
 
 // ── Tipos locales ─────────────────────────────────────────────
 interface DetalleRow {
@@ -79,8 +80,10 @@ export default function ARendirNuevaPage() {
   const [numeroCuenta, setNumeroCuenta] = useState('')
   const [sustentoFile, setSustentoFile] = useState<File | null>(null)
 
-  // Step 2
-  const [rows, setRows] = useState<DetalleRow[]>([newRow()])
+  // Step 2 — cada fila se guarda de inmediato en la BD al crearla (ver addRow),
+  // para que nada se pierda si el usuario sale de esta pantalla sin terminar.
+  const [rows, setRows] = useState<DetalleRow[]>([])
+  const [addingRow, setAddingRow] = useState(false)
 
   // Load proyectos
   useEffect(() => {
@@ -169,43 +172,82 @@ export default function ARendirNuevaPage() {
     }
   }
 
-  // ── Step 2: Modificar filas ──────────────────────────────────
+  // ── Step 2: cada fila se guarda de inmediato en la BD — nada vive solo en memoria ──
   function updateRow(tempId: number, field: keyof DetalleRow, value: string | File | null) {
     setRows(prev => prev.map(r => r.tempId === tempId ? { ...r, [field]: value } : r))
   }
 
-  function addRow() {
-    setRows(prev => [...prev, newRow()])
+  async function addRow() {
+    if (!solicitudCreada) return
+    setAddingRow(true)
+    try {
+      const det = await addDetalle({
+        solicitud_arendir_id: solicitudCreada.id,
+        fecha_documento: null, proveedor: null, tipo_documento: null,
+        numero_documento: null, concepto: null, importe: 0, archivo_path: null,
+      })
+      setRows(prev => [...prev, { ...newRow(), savedId: det.id }])
+    } catch {
+      toast.error('Error al agregar la fila')
+    } finally {
+      setAddingRow(false)
+    }
   }
 
-  function removeRow(tempId: number) {
-    setRows(prev => prev.length > 1 ? prev.filter(r => r.tempId !== tempId) : prev)
+  // Se guarda al salir de cualquier campo de la fila (onBlur en el <tr>) — así no depende
+  // de que el usuario recuerde presionar "Finalizar" para que quede persistido.
+  async function saveRow(row: DetalleRow) {
+    if (!row.savedId) return
+    try {
+      await updateDetalle(row.savedId, {
+        fecha_documento: row.fecha_documento || null,
+        proveedor: row.proveedor || null,
+        tipo_documento: row.tipo_documento || null,
+        numero_documento: row.numero_documento || null,
+        concepto: row.concepto || null,
+        importe: parseFloat(row.importe) || 0,
+      })
+    } catch {
+      toast.error('No se pudo guardar la fila — revisa tu conexión')
+    }
+  }
+
+  async function handleFileSelect(row: DetalleRow, file: File | null) {
+    updateRow(row.tempId, 'file', file)
+    if (!file || !row.savedId || !solicitudCreada) return
+    try {
+      const path = await uploadDetalleArchivo(file, solicitudCreada.id, row.savedId)
+      await updateDetalle(row.savedId, { archivo_path: path })
+      updateRow(row.tempId, 'archivo_path', path)
+    } catch {
+      toast.error('Error al subir el archivo')
+    }
+  }
+
+  async function removeRow(tempId: number) {
+    const row = rows.find(r => r.tempId === tempId)
+    if (!row) return
+    if (row.savedId) {
+      try {
+        await deleteDetalle(row.savedId, row.archivo_path)
+      } catch {
+        toast.error('Error al eliminar la fila')
+        return
+      }
+    }
+    setRows(prev => prev.filter(r => r.tempId !== tempId))
   }
 
   const totalDetalle = rows.reduce((acc, r) => acc + (parseFloat(r.importe) || 0), 0)
 
-  // ── Step 2: Guardar detalles y finalizar ─────────────────────
+  // ── Step 2: Finalizar — los detalles ya están guardados; solo limpia filas vacías y recalcula el total ──
   async function handleFinalizar() {
     if (!solicitudCreada || !user?.id) return
     setSaving(true)
     try {
-      // Guardar detalles (omitir filas vacías)
-      for (const row of rows) {
-        if (!row.concepto && !row.importe) continue
-        const det = await addDetalle({
-          solicitud_arendir_id: solicitudCreada.id,
-          fecha_documento: row.fecha_documento || null,
-          proveedor: row.proveedor || null,
-          tipo_documento: row.tipo_documento || null,
-          numero_documento: row.numero_documento || null,
-          concepto: row.concepto || null,
-          importe: parseFloat(row.importe) || 0,
-          archivo_path: null,
-        })
-        if (row.file) {
-          const path = await uploadDetalleArchivo(row.file, solicitudCreada.id, det.id)
-          await supabase.from('solicitud_arendir_detalle').update({ archivo_path: path }).eq('id', det.id)
-        }
+      const vacias = rows.filter(r => r.savedId && !r.concepto.trim() && (!r.importe || parseFloat(r.importe) === 0))
+      for (const row of vacias) {
+        await deleteDetalle(row.savedId!, row.archivo_path)
       }
 
       await recalcTotal(solicitudCreada.id)
@@ -474,9 +516,10 @@ export default function ARendirNuevaPage() {
               <h2 className="text-base font-semibold text-gray-900">Detalle de gastos</h2>
               <button
                 onClick={addRow}
-                className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-[#003D7D]/30 text-xs font-semibold text-[#003D7D] hover:bg-[#003D7D]/[0.04] transition-colors"
+                disabled={addingRow}
+                className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-[#003D7D]/30 text-xs font-semibold text-[#003D7D] hover:bg-[#003D7D]/[0.04] disabled:opacity-50 transition-colors"
               >
-                <Plus size={13} /> Agregar fila
+                {addingRow ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Agregar fila
               </button>
             </div>
 
@@ -495,8 +538,15 @@ export default function ARendirNuevaPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
+                  {rows.length === 0 && (
+                    <tr>
+                      <td colSpan={8} className="px-3 py-6 text-center text-xs text-gray-400">
+                        Sin líneas de gasto todavía — "Agregar fila" es opcional, puedes hacerlo después desde el detalle.
+                      </td>
+                    </tr>
+                  )}
                   {rows.map(row => (
-                    <tr key={row.tempId} className="hover:bg-gray-50">
+                    <tr key={row.tempId} className="hover:bg-gray-50" onBlur={() => saveRow(row)}>
                       <td className="px-2 py-1.5">
                         <input
                           type="date"
@@ -565,15 +615,14 @@ export default function ARendirNuevaPage() {
                             type="file"
                             accept="application/pdf,image/*"
                             className="hidden"
-                            onChange={e => updateRow(row.tempId, 'file', e.target.files?.[0] ?? null)}
+                            onChange={e => handleFileSelect(row, e.target.files?.[0] ?? null)}
                           />
                         </label>
                       </td>
                       <td className="px-2 py-1.5">
                         <button
                           onClick={() => removeRow(row.tempId)}
-                          disabled={rows.length <= 1}
-                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 transition-colors"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                         >
                           <Trash2 size={13} />
                         </button>
