@@ -3,12 +3,19 @@ import toast from 'react-hot-toast'
 import {
   TrendingUp, Users2, Wallet, PiggyBank, AlertTriangle, Info, Target, Coins,
   CalendarClock, UserX, Clock, ShieldAlert, Home, CreditCard,
+  Plus, Download, Ban, Loader2,
 } from 'lucide-react'
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
 } from 'recharts'
+import ExcelJS from 'exceljs'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
+import { useAuthStore } from '../store/authStore'
+import { ROLES } from '../features/solicitud/types/solicitud'
+import { getCobranzas, anularCobranza } from '../features/cobranza/services/cobranzaService'
+import type { CobranzaCliente } from '../features/cobranza/types/cobranza'
+import CobranzaModal from '../features/cobranza/components/CobranzaModal'
 
 // ── Mock de datos (temporal, mientras se conecta la API de Mobysuite) ──
 // Genera valores deterministas por proyecto (mismo id → mismos números siempre),
@@ -218,9 +225,13 @@ function ProductoCard({ nombre, clientes, pctValue, icon }: {
 }
 
 export default function IngresoPage() {
+  const { user, userRole } = useAuthStore()
   const [proyectos, setProyectos] = useState<Proyecto[]>([])
   const [proyectoId, setProyectoId] = useState<string>('')
   const [loading, setLoading] = useState(true)
+
+  const canRegistrarCobranza = userRole === ROLES.USUARIO || userRole === ROLES.ADMIN
+  const canVerReportes       = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
 
   useEffect(() => {
     getProyectos({ pageSize: 100 })
@@ -228,6 +239,102 @@ export default function IngresoPage() {
       .catch(() => toast.error('No se pudieron cargar las empresas'))
       .finally(() => setLoading(false))
   }, [])
+
+  // ── Registro de Cobranza (real, no mock) ────────────────────────
+  const [cobranzas, setCobranzas] = useState<CobranzaCliente[]>([])
+  const [cobLoading, setCobLoading] = useState(true)
+  const [cobModalOpen, setCobModalOpen] = useState(false)
+  const [cobFechaDesde, setCobFechaDesde] = useState('')
+  const [cobFechaHasta, setCobFechaHasta] = useState('')
+  const [anulandoId, setAnulandoId] = useState<number | null>(null)
+
+  const loadCobranzas = () => {
+    if (!user?.id) return
+    setCobLoading(true)
+    getCobranzas({
+      role: userRole,
+      userId: user.id,
+      proyectoId: proyectoId ? Number(proyectoId) : null,
+      fechaDesde: cobFechaDesde || null,
+      fechaHasta: cobFechaHasta || null,
+      pageSize: 100,
+    })
+      .then(r => setCobranzas(r.data))
+      .catch(() => toast.error('No se pudieron cargar los registros de cobranza'))
+      .finally(() => setCobLoading(false))
+  }
+
+  useEffect(() => {
+    loadCobranzas()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, userRole, proyectoId, cobFechaDesde, cobFechaHasta])
+
+  const handleAnular = async (c: CobranzaCliente) => {
+    if (!confirm(`¿Anular la cobranza ${c.codigo}? Esta acción no se puede deshacer.`)) return
+    setAnulandoId(c.id)
+    try {
+      await anularCobranza(c.id, 'Anulado por el usuario')
+      toast.success('Cobranza anulada')
+      loadCobranzas()
+    } catch {
+      toast.error('Error al anular')
+    } finally {
+      setAnulandoId(null)
+    }
+  }
+
+  const handleExportarCobranzas = async () => {
+    const wb = new ExcelJS.Workbook()
+    const ws = wb.addWorksheet('Cobranza')
+    ws.columns = [
+      { header: 'Código', key: 'codigo', width: 14 },
+      { header: 'Empresa', key: 'empresa', width: 22 },
+      { header: 'Cliente', key: 'cliente', width: 28 },
+      { header: 'DNI', key: 'dni', width: 12 },
+      { header: 'Edad', key: 'edad', width: 8 },
+      { header: 'Profesión', key: 'profesion', width: 18 },
+      { header: 'Correo', key: 'correo', width: 24 },
+      { header: 'Banco Cliente', key: 'banco_cliente', width: 16 },
+      { header: 'Método de Pago', key: 'metodo', width: 16 },
+      { header: 'Cuenta Receptora', key: 'cuenta', width: 24 },
+      { header: 'Importe', key: 'importe', width: 14 },
+      { header: 'Fecha de Pago', key: 'fecha', width: 14 },
+      { header: 'Estado', key: 'estado', width: 12 },
+      { header: 'Registrado por', key: 'creador', width: 22 },
+    ]
+    ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF003D7D' } }
+    for (const c of cobranzas) {
+      ws.addRow({
+        codigo: c.codigo,
+        empresa: c.proyecto?.nombre ?? '',
+        cliente: c.cliente_nombre,
+        dni: c.cliente_dni ?? '',
+        edad: c.cliente_edad ?? '',
+        profesion: c.cliente_profesion ?? '',
+        correo: c.cliente_correo ?? '',
+        banco_cliente: c.banco_cliente ?? '',
+        metodo: c.metodo_pago,
+        cuenta: c.cuenta_pago ? `${c.cuenta_pago.banco} — ${c.cuenta_pago.numero_cuenta} (${c.cuenta_pago.moneda})` : '',
+        importe: c.importe,
+        fecha: c.fecha_pago,
+        estado: c.estado,
+        creador: c.creador_nombre ?? '',
+      })
+    }
+    const buf = await wb.xlsx.writeBuffer()
+    const blob = new Blob([buf], { type: 'application/octet-stream' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Cobranzas_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const totalCobranzasRegistradas = cobranzas
+    .filter(c => c.estado === 'Registrado')
+    .reduce((s, c) => s + c.importe, 0)
 
   const data: CarteraMock = proyectoId
     ? mockParaProyecto(Number(proyectoId))
@@ -398,6 +505,106 @@ export default function IngresoPage() {
           </span>
         ))}
       </div>
+
+      {/* ── Registro de Cobranza (datos reales, no mock) ── */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Registro de Cobranza</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {cobranzas.filter(c => c.estado === 'Registrado').length} registros — Total: {fmt(totalCobranzasRegistradas)}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <input type="date" value={cobFechaDesde} onChange={e => setCobFechaDesde(e.target.value)}
+              className="h-9 px-3 rounded-xl border border-gray-200 bg-gray-50 text-xs focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20" />
+            <span className="text-xs text-gray-400">a</span>
+            <input type="date" value={cobFechaHasta} onChange={e => setCobFechaHasta(e.target.value)}
+              className="h-9 px-3 rounded-xl border border-gray-200 bg-gray-50 text-xs focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20" />
+            {canVerReportes && cobranzas.length > 0 && (
+              <button onClick={handleExportarCobranzas}
+                className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+                <Download size={13} /> Exportar Excel
+              </button>
+            )}
+            {canRegistrarCobranza && (
+              <button onClick={() => setCobModalOpen(true)}
+                className="flex items-center gap-1.5 h-9 px-3.5 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] transition-colors">
+                <Plus size={13} /> Registrar Cobranza
+              </button>
+            )}
+          </div>
+        </div>
+
+        {cobLoading ? (
+          <div className="flex justify-center py-10 text-gray-400">
+            <Loader2 size={20} className="animate-spin" />
+          </div>
+        ) : cobranzas.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12 text-gray-400">
+            <Wallet size={28} className="text-gray-200" />
+            <p className="text-sm">Aún no hay cobranzas registradas.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Código</th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Cliente</th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Empresa</th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Método</th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Cuenta receptora</th>
+                  <th className="text-right px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Importe</th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Fecha pago</th>
+                  <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Estado</th>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {cobranzas.map(c => (
+                  <tr key={c.id} className={`hover:bg-gray-50 ${c.estado === 'Anulado' ? 'opacity-50' : ''}`}>
+                    <td className="px-3 py-2.5 font-mono text-[#003D7D] font-semibold whitespace-nowrap">{c.codigo}</td>
+                    <td className="px-3 py-2.5 text-gray-800">{c.cliente_nombre}</td>
+                    <td className="px-3 py-2.5 text-gray-600">{c.proyecto?.nombre ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-600">{c.metodo_pago}</td>
+                    <td className="px-3 py-2.5 text-gray-600 whitespace-nowrap">
+                      {c.cuenta_pago ? `${c.cuenta_pago.banco} — ${c.cuenta_pago.numero_cuenta}` : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-semibold text-gray-800 whitespace-nowrap">
+                      {c.cuenta_pago?.moneda === 'USD' ? '$' : 'S/'} {c.importe.toLocaleString(c.cuenta_pago?.moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-500 whitespace-nowrap">{new Date(c.fecha_pago + 'T00:00:00').toLocaleDateString('es-PE')}</td>
+                    <td className="px-3 py-2.5">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${c.estado === 'Registrado' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        {c.estado}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {c.estado === 'Registrado' && (user?.id === c.creador_id || userRole === ROLES.ADMIN) && (
+                        <button onClick={() => handleAnular(c)} disabled={anulandoId === c.id}
+                          title="Anular"
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 disabled:opacity-30 transition-colors">
+                          {anulandoId === c.id ? <Loader2 size={13} className="animate-spin" /> : <Ban size={13} />}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {cobModalOpen && user?.id && (
+        <CobranzaModal
+          proyectos={proyectos}
+          userId={user.id}
+          onClose={() => setCobModalOpen(false)}
+          onCreated={loadCobranzas}
+        />
+      )}
     </div>
   )
 }
