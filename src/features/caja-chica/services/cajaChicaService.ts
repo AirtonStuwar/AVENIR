@@ -66,6 +66,32 @@ export async function getCajasChicas(filtros: CajaChicaFiltros = {}): Promise<Ca
   return { data: enriched, total, page, pageSize, totalPages: Math.ceil(total / pageSize) }
 }
 
+export interface GastoBuscado extends CajaChicaDetalle {
+  caja_chica: {
+    id: number
+    codigo: string | null
+    estado: string
+    responsable_id: string
+    proyecto: { id: number; nombre: string } | null
+  }
+}
+
+/** Busca gastos (líneas de caja_chica_detalle) por proveedor o N° de documento, entre todas las cajas chicas visibles para el rol actual. */
+export async function buscarGastosCajaChica(query: string): Promise<GastoBuscado[]> {
+  const q = query.trim()
+  if (!q) return []
+
+  const { data, error } = await supabase
+    .from('caja_chica_detalle')
+    .select('*, caja_chica:caja_chica_id(id, codigo, estado, responsable_id, proyecto:proyecto_id(id,nombre))')
+    .or(`proveedor.ilike.%${q}%,numero_documento.ilike.%${q}%`)
+    .order('fecha', { ascending: false })
+    .limit(100)
+
+  if (error) throw error
+  return (data ?? []) as unknown as GastoBuscado[]
+}
+
 export async function getCajaChicaById(id: number): Promise<CajaChica> {
   const { data, error } = await supabase
     .from('caja_chica')
