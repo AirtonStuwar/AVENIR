@@ -441,9 +441,7 @@ export default function IngresoPage() {
         <div className="flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-sm text-green-800">
           <Info size={16} className="shrink-0 mt-0.5" />
           <p>
-            <strong>Datos reales de Mobysuite</strong> ({proyectoSeleccionado?.nombre}), consultados en vivo — no se guarda nada en AVENIR.
-            La clasificación por producto (Cuota Inicial / Plan de Ahorro / Desembolso Hipotecario / Crédito Directo) es una propuesta
-            preliminar, pendiente de confirmar con Comercial y Finanzas.
+            <strong>Datos reales de Mobysuite</strong>
           </p>
         </div>
       ) : carteraRealLoading ? (
