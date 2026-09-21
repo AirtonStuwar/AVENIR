@@ -16,6 +16,7 @@ import { ROLES } from '../features/solicitud/types/solicitud'
 import { getCobranzas, anularCobranza } from '../features/cobranza/services/cobranzaService'
 import type { CobranzaCliente } from '../features/cobranza/types/cobranza'
 import CobranzaModal from '../features/cobranza/components/CobranzaModal'
+import CronogramaMobysuiteView from '../features/cobranza/components/CronogramaMobysuiteView'
 
 // ── Mock de datos (temporal, mientras se conecta la API de Mobysuite) ──
 // Genera valores deterministas por proyecto (mismo id → mismos números siempre),
@@ -596,6 +597,8 @@ export default function IngresoPage() {
           </div>
         )}
       </div>
+
+      {canVerReportes && <CronogramaMobysuiteView />}
 
       {cobModalOpen && user?.id && (
         <CobranzaModal

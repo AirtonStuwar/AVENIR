@@ -30,6 +30,17 @@ export async function getProyectos(filtros: ProyectoFiltros = {}): Promise<Proye
   return { data: (data ?? []) as Proyecto[], total, page, pageSize, totalPages }
 }
 
+/** Empresas con integración Mobysuite activa (moby_project_id configurado) — para selects de cronograma real. */
+export async function getProyectosConMobysuite(): Promise<Proyecto[]> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('*')
+    .not('moby_project_id', 'is', null)
+    .order('nombre', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as Proyecto[]
+}
+
 export async function getProyectoById(id: number): Promise<Proyecto> {
   const { data, error } = await supabase.from(TABLE).select('*').eq('id', id).maybeSingle()
   if (error) throw error

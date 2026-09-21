@@ -26,9 +26,10 @@ export interface Proyecto {
   direccion: string | null
   fecha_creacion: string | null
   usuario_creador: string | null
+  moby_project_id: number | null
 }
 
-export type ProyectoInsert = Omit<Proyecto, 'id' | 'fecha_creacion'>
+export type ProyectoInsert = Omit<Proyecto, 'id' | 'fecha_creacion' | 'moby_project_id'>
 export type ProyectoUpdate = Partial<ProyectoInsert>
 
 export interface ProyectoFiltros {
