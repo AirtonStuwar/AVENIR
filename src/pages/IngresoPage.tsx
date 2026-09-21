@@ -17,6 +17,7 @@ import { getCobranzas, anularCobranza } from '../features/cobranza/services/cobr
 import type { CobranzaCliente } from '../features/cobranza/types/cobranza'
 import CobranzaModal from '../features/cobranza/components/CobranzaModal'
 import CronogramaMobysuiteView from '../features/cobranza/components/CronogramaMobysuiteView'
+import { construirCartera } from '../features/cobranza/utils/carteraMobysuite'
 
 // ── Mock de datos (temporal, mientras se conecta la API de Mobysuite) ──
 // Genera valores deterministas por proyecto (mismo id → mismos números siempre),
@@ -337,9 +338,40 @@ export default function IngresoPage() {
     .filter(c => c.estado === 'Registrado')
     .reduce((s, c) => s + c.importe, 0)
 
-  const data: CarteraMock = proyectoId
+  // ── Cartera real desde Mobysuite (cuando la empresa seleccionada tiene integración) ──
+  // Meta mensual: S/8.5MM repartidos en partes iguales entre las 5 empresas ya integradas.
+  const META_MENSUAL_TOTAL = 8_500_000
+  const META_MENSUAL_POR_EMPRESA = META_MENSUAL_TOTAL / 5
+
+  const proyectoSeleccionado = proyectos.find(p => String(p.id) === proyectoId)
+  const [carteraReal, setCarteraReal] = useState<CarteraMock | null>(null)
+  const [carteraRealLoading, setCarteraRealLoading] = useState(false)
+  const [carteraRealError, setCarteraRealError] = useState(false)
+
+  useEffect(() => {
+    if (!proyectoSeleccionado?.moby_project_id) {
+      setCarteraReal(null)
+      setCarteraRealError(false)
+      return
+    }
+    setCarteraRealLoading(true)
+    setCarteraRealError(false)
+    fetch(`/api/mobysuite-cronograma?mobyProjectId=${proyectoSeleccionado.moby_project_id}`)
+      .then(async r => {
+        const json = await r.json()
+        if (!r.ok) throw new Error(json.error ?? 'Error al consultar Mobysuite')
+        setCarteraReal(construirCartera(json, META_MENSUAL_POR_EMPRESA))
+      })
+      .catch(() => { setCarteraReal(null); setCarteraRealError(true) })
+      .finally(() => setCarteraRealLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proyectoSeleccionado?.moby_project_id])
+
+  const usandoDatosReales = !!carteraReal
+
+  const data: CarteraMock = carteraReal ?? (proyectoId
     ? mockParaProyecto(Number(proyectoId))
-    : sumarMocks(proyectos.length > 0 ? proyectos.map(p => mockParaProyecto(p.id)) : [mockParaProyecto(1)])
+    : sumarMocks(proyectos.length > 0 ? proyectos.map(p => mockParaProyecto(p.id)) : [mockParaProyecto(1)]))
 
   const saldoPorCobrar = data.ventasAcumuladas - data.cobradoAcumulado
   const pctCobrado = data.ventasAcumuladas > 0 ? (data.cobradoAcumulado / data.ventasAcumuladas) * 100 : 0
@@ -359,7 +391,15 @@ export default function IngresoPage() {
 
   const metaPct = data.metaMensual > 0 ? (data.cobradoDelMes / data.metaMensual) * 100 : 0
   const brecha = Math.max(0, data.metaMensual - data.cobradoDelMes)
-  const proyeccionCierre = Math.min(99, Math.round(metaPct + 15))
+
+  // Proyección de cierre: si se mantiene el ritmo diario de cobranza del mes hasta el último día,
+  // ¿qué % de la meta se alcanzaría? (proyección simple, no considera estacionalidad ni pagos futuros ya pactados)
+  const hoyDate = new Date()
+  const diaActual = hoyDate.getDate()
+  const diasDelMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth() + 1, 0).getDate()
+  const ritmoDiario = diaActual > 0 ? data.cobradoDelMes / diaActual : 0
+  const proyeccionMonto = ritmoDiario * diasDelMes
+  const proyeccionCierre = data.metaMensual > 0 ? Math.round((proyeccionMonto / data.metaMensual) * 100) : 0
 
   const pctPlanAhorro = data.cumplimiento.planAhorro.clientes > 0
     ? (data.cumplimiento.planAhorro.cumplidos / data.cumplimiento.planAhorro.clientes) * 100 : 0
@@ -396,14 +436,36 @@ export default function IngresoPage() {
         </div>
       </div>
 
-      {/* Aviso de datos de ejemplo */}
-      <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800">
-        <Info size={16} className="shrink-0 mt-0.5" />
-        <p>
-          <strong>Vista previa con datos de ejemplo.</strong> Este módulo aún no está conectado a la API de Mobysuite —
-          los montos y gráficos que ves aquí son ilustrativos, para validar el diseño y los indicadores antes de integrar los datos reales.
-        </p>
-      </div>
+      {/* Aviso de origen de datos */}
+      {usandoDatosReales ? (
+        <div className="flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-sm text-green-800">
+          <Info size={16} className="shrink-0 mt-0.5" />
+          <p>
+            <strong>Datos reales de Mobysuite</strong> ({proyectoSeleccionado?.nombre}), consultados en vivo — no se guarda nada en AVENIR.
+            La clasificación por producto (Cuota Inicial / Plan de Ahorro / Desembolso Hipotecario / Crédito Directo) es una propuesta
+            preliminar, pendiente de confirmar con Comercial y Finanzas.
+          </p>
+        </div>
+      ) : carteraRealLoading ? (
+        <div className="flex items-center gap-2.5 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-sm text-blue-800">
+          <Loader2 size={16} className="shrink-0 animate-spin" />
+          Consultando datos reales de Mobysuite...
+        </div>
+      ) : carteraRealError ? (
+        <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-800">
+          <Info size={16} className="shrink-0 mt-0.5" />
+          No se pudo consultar Mobysuite para esta empresa — mostrando datos de ejemplo mientras tanto.
+        </div>
+      ) : (
+        <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800">
+          <Info size={16} className="shrink-0 mt-0.5" />
+          <p>
+            <strong>Vista previa con datos de ejemplo.</strong> {proyectoId
+              ? 'Esta empresa aún no tiene integración con Mobysuite configurada.'
+              : 'Selecciona una empresa con integración Mobysuite para ver datos reales, o revisa cada empresa una por una.'}
+          </p>
+        </div>
+      )}
 
       {/* Filtro */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">

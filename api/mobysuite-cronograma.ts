@@ -36,6 +36,7 @@ interface MobyCliente {
 interface MobyContrato {
   id: number
   estadoContrato: string
+  precioTotal?: number
   pagos?: MobyPago[]
   bienes?: MobyBien[]
   cliente?: MobyCliente
@@ -92,8 +93,10 @@ export default async function handler(req: Request): Promise<Response> {
 
     const hoy = new Date().toISOString().slice(0, 10)
     const cuotas = []
+    let ventasAcumuladas = 0
 
     for (const c of contratos) {
+      ventasAcumuladas += c.precioTotal ?? 0
       const cliente = c.cliente ?? {}
       const bien = c.bienes?.find(b => b.isPrimary) ?? c.bienes?.[0]
       const clienteNombre = cliente.razonSocial
@@ -103,7 +106,8 @@ export default async function handler(req: Request): Promise<Response> {
       for (const pago of c.pagos ?? []) {
         if (!pago.montoPago || pago.montoPago === 0) continue // excluye "Cuota de ajuste" sin monto real
 
-        const pagado = Array.isArray(pago.reciboPago) && pago.reciboPago.some(r => r.estadoPago === 'Documentado')
+        const reciboPagado = pago.reciboPago?.find(r => r.estadoPago === 'Documentado')
+        const pagado = !!reciboPagado
         const fechaVenc = toDate(pago.fechaVencimientoPago)
         const estado = pagado ? 'Pagado' : (fechaVenc && fechaVenc < hoy ? 'Vencido' : 'Pendiente')
 
@@ -119,6 +123,7 @@ export default async function handler(req: Request): Promise<Response> {
           descripcion: pago.descripcionPago,
           categoria: categoria(pago.descripcionPago ?? ''),
           fechaVencimiento: fechaVenc,
+          fechaPago: toDate(reciboPagado?.fechaTipoPago),
           monto: pago.montoPago,
           estado,
         })
@@ -128,6 +133,7 @@ export default async function handler(req: Request): Promise<Response> {
     return Response.json({
       totalContratos: contratos.length,
       totalCuotas: cuotas.length,
+      ventasAcumuladas,
       cuotas,
     })
   } catch (err) {
