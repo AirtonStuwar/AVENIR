@@ -477,7 +477,9 @@ export default function IngresoPage() {
           disabled={loading}
         >
           <option value="">Todas las empresas</option>
-          {proyectos.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+          {proyectos
+            .filter(p => !p.nombre.toLowerCase().includes('concyssa'))
+            .map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
         </select>
       </div>
 
