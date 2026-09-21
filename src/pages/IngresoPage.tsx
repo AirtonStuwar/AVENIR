@@ -17,6 +17,7 @@ import { getCobranzas, anularCobranza } from '../features/cobranza/services/cobr
 import type { CobranzaCliente } from '../features/cobranza/types/cobranza'
 import CobranzaModal from '../features/cobranza/components/CobranzaModal'
 import CronogramaMobysuiteView from '../features/cobranza/components/CronogramaMobysuiteView'
+import CarteraVencidaTable from '../features/cobranza/components/CarteraVencidaTable'
 import { construirCartera } from '../features/cobranza/utils/carteraMobysuite'
 
 // ── Mock de datos (temporal, mientras se conecta la API de Mobysuite) ──
@@ -661,6 +662,7 @@ export default function IngresoPage() {
       </div>
 
       {canVerReportes && <CronogramaMobysuiteView />}
+      {canVerReportes && <CarteraVencidaTable />}
 
       {cobModalOpen && user?.id && (
         <CobranzaModal
