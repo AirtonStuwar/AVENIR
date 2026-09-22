@@ -838,6 +838,8 @@ Pendiente
 
 **Botón "Descargar PDF":** antes solo aparecía después de "Enviar a revisión" (`!isPendiente`); ahora está disponible desde Pendiente en adelante (`canShowPDF = detalles.length > 0`), igual que en los demás módulos.
 
+**Buscador de gastos por proveedor / N° de factura (setiembre 2026):** campo de búsqueda en `CajaChicaPage.tsx` (debajo de los filtros de Estado/Empresa) que consulta directo `caja_chica_detalle` (`buscarGastosCajaChica()` en `cajaChicaService.ts`, `.or('proveedor.ilike.%q%,numero_documento.ilike.%q%')`, con debounce de 400ms) **entre todas las cajas chicas**, no solo la que se está viendo — pensado para cuando hay muchos proveedores/facturas repartidos en distintas cajas chicas y no se sabe en cuál buscar. Mientras hay texto en el buscador, la tabla normal se reemplaza por los gastos que coinciden, cada uno con su caja chica de origen (código, empresa, estado); click en una fila navega a `/caja-chica/:id`. No se agregó ningún filtro de rol adicional — la visibilidad ya la resuelve la RLS existente de `caja_chica_detalle` (USUARIO solo ve gastos de sus propias cajas chicas).
+
 **Lógica de saldo acumulable:** Al crear nueva caja chica, `getSaldoAnterior(proyectoId)` busca la última caja chica del mismo proyecto que tenga `fecha_pago IS NOT NULL` (pagada) y toma su `saldo_actual`. La transferencia = fondo - saldo anterior (solo se repone lo gastado). Solo cajas pagadas aportan saldo — una autorizada sin pagar no cuenta.
 
 **CajaChicaPDF** (`@react-pdf/renderer`, landscape A4): título, header (código, responsable, empresa, período, cuenta), resumen financiero (saldo anterior, transferencia, monto asignado, saldo actual, pendiente a reembolsar), tabla de gastos con columna de código de costos (área), total + saldo, dos firmas (responsable + aprobador).
@@ -961,5 +963,47 @@ Cruza el estado de cuenta bancario (Excel descargado del banco) contra los pagos
 **Resultado (`ResultadoConciliacion`):** `conciliados` (match individual o grupo), `sinMatchBanco` (movimientos del banco sin ningún match — posible pago no registrado en AVENIR, o algo que no es un pago del sistema como comisiones/traspasos internos), `sinMatchSistema` (registros pagados en AVENIR que no aparecen en el banco — posible `fecha_pago` mal registrada, o el banco aún no procesa la salida).
 
 **Página:** filtros (cuenta bancaria — `getAllCuentasBancarias()`, todas las empresas; fecha desde/hasta; archivo), 3 tarjetas KPI (Conciliados / Solo en el banco / Solo en AVENIR), tabs con detalle de cada grupo, botón "Descargar" (Excel de 3 hojas, `exportarConciliacionExcel`) y "Guardar" (`guardarConciliacion`, persiste en las 3 tablas nuevas).
+
+---
+
+## Módulo Cobranza / Ingreso
+
+Página `/ingreso` (`IngresoPage.tsx`) — visible para ADMIN (1), VISUALIZADOR (10) y USUARIO (11). Combina tres cosas: un dashboard "Cartera y Cobranza" (mock o real, ver abajo), el registro manual de cobranza (`cobranza_cliente`, ver más abajo), y — desde setiembre 2026 — dos vistas conectadas en vivo a Mobysuite.
+
+**`canRegistrarCobranza` (USUARIO/ADMIN) y `canVerReportes` (VISUALIZADOR/ADMIN)** gatean qué se muestra: el dashboard, el cronograma Mobysuite y la cuenta por cobrar vencida solo se renderizan para `canVerReportes`; el botón "Registrar Cobranza" solo para `canRegistrarCobranza`.
+
+### Registro de Cobranza (manual, tabla `cobranza_cliente`)
+
+Registro directo (sin flujo de aprobación) de cobros ya recibidos de clientes, pensado como solución transitoria mientras no todos los proyectos tienen integración con Mobysuite. Campos: datos del cliente (nombre, edad, profesión, DNI, correo), banco del cliente (`BANCOS`, informativo), método de pago (Transferencia/Depósito/Efectivo), cuenta bancaria receptora (`cuenta_bancaria` de la empresa, vía `getCuentasByProyecto`), importe, fecha de pago. `codigo` autogenerado (`COB-YY-NNNN`). Estado `Registrado`/`Anulado` (no se borra, se anula). Servicio: `src/features/cobranza/services/cobranzaService.ts`. Exportable a Excel (`handleExportarCobranzas`).
+
+### Integración con Mobysuite (CRM inmobiliario del grupo) — consulta en vivo, sin persistencia
+
+**Decisión de diseño clave:** a diferencia de otras integraciones externas del sistema (SUNAT, Power BI), esta **no guarda ninguna copia** de los datos de Mobysuite en la base de datos de AVENIR — cada vez que se abre una vista, se consulta la API de Mobysuite en ese momento y se descarta al salir. Se decidió así explícitamente (el usuario no quería mantener una tabla espejo sincronizada). Antes de esta decisión se probó un piloto que sí guardaba una copia (tabla `mobysuite_cuota`, quedó en la base de datos sin usarse en producción — solo se usó para validar el mapeo de campos contra 5 empresas reales vía `scripts/mobysuite-sync-test.mjs`, que no forma parte de la app).
+
+**`proyecto.moby_project_id`** (columna nueva, integer nullable) — mapea cada empresa de AVENIR a su proyecto correspondiente en Mobysuite. Los IDs no coinciden entre sistemas (ej. Mixxo es `id=5` en AVENIR pero `moby_project_id=4` en Mobysuite). Mapeadas hasta ahora: Mixxo→4, Avenir Costazul→5, Astete Park View→6, Parque Fátima→7, Tinto Magdalena→9. Concyssa Promotora Inmobiliaria (`id=8`) **no tiene mapeo** — es la empresa matriz/holding, no un proyecto de venta propio en Mobysuite (los 5 proyectos de arriba son sus desarrollos inmobiliarios). `getProyectosConMobysuite()` en `proyectoService.ts` filtra solo los proyectos con `moby_project_id` no nulo, para los selects de estas vistas.
+
+**`api/mobysuite-cronograma.ts`** (Vercel Edge Function) — único punto de contacto con Mobysuite. `GET ?mobyProjectId=<id>`:
+1. Login OAuth2 `client_credentials` contra `MOBY_HOST/oauth/token` (variables de entorno `MOBY_HOST`, `MOBY_CLIENT_ID`, `MOBY_CLIENT_SECRET`, configuradas en Vercel → Environment Variables, nunca en el código).
+2. `GET {MOBY_HOST}/v1/api/integrations/contracts?project={mobyProjectId}` — devuelve, por cada contrato (venta), el cliente, el bien, y el array `pagos[]` (cronograma de cuotas: fecha de vencimiento, monto, descripción, y `reciboPago[]` si ya se pagó).
+3. Aplana todo a una lista de "cuotas" (una fila por cada pago de cada contrato), **excluyendo las que tienen `montoPago = 0`** ("Cuota de ajuste" — un registro contable de Mobysuite sin deuda real asociada).
+4. Cada cuota se marca `estado`: `Pagado` (tiene un `reciboPago` con `estadoPago === 'Documentado'`), `Vencido` (fecha de vencimiento ya pasó y no está pagada), o `Pendiente`.
+5. Cada cuota se clasifica también `categoria`: `BANCO` si la descripción contiene "HIPOTECARIO" o "CREDITO", si no `CLIENTE` — usado para no mezclar cuotas que paga el banco directamente (crédito hipotecario) con las que debe pagar el cliente.
+6. Devuelve también `ventasAcumuladas` (suma de `precioTotal` de todos los contratos) y `totalContratos`.
+
+Como es una Edge Function real (no un simple proxy), **no funciona con `npm run dev`/Vite local** — hay que probarla ya desplegada en Vercel, o con `vercel dev`.
+
+**Vista "Cronograma real de clientes (Mobysuite)"** (`CronogramaMobysuiteView.tsx`) — selector de empresa (solo las mapeadas) + botón "Consultar" que llama al endpoint de arriba. Tabla con filtros de categoría (Cliente/Banco/Todos) y estado (Pagado/Pendiente/Vencido/Todos), con totales.
+
+**Vista "Cuenta por Cobrar Vencida"** (`CarteraVencidaTable.tsx`) — mismo endpoint, pero agrupado por cliente en formato de reporte de antigüedad de deuda (como un aging report contable estándar): columnas "A la fecha" (no vencida), 1-30, 31-60, 61-90, 91-120, Antiguos (+120 días) y Total, calculadas por cliente a partir de los días de atraso de cada cuota (`hoy − fechaVencimiento`). Cada fila de cliente es expandible (click) y muestra el detalle de cada cuota individual ("descripción — plazo #N", fecha de vencimiento, monto). Solo incluye cuotas no pagadas (`estado !== 'Pagado'`).
+
+**Dashboard "Cartera y Cobranza"** (dentro de `IngresoPage.tsx`) — el más elaborado de los tres. Reutiliza los mismos componentes visuales (`KpiCard`, `GaugeCard`, `ChartCard`, `ProductoCard`, `PieChart` de Recharts) tanto para datos mock como reales, gracias a que ambos caminos producen la misma forma `CarteraMock` (interfaz definida en `IngresoPage.tsx`, ver también `carteraMobysuite.ts`).
+
+- **Con empresa seleccionada y mapeada:** `construirCartera()` (`src/features/cobranza/utils/carteraMobysuite.ts`) transforma la respuesta cruda de `/api/mobysuite-cronograma` en un `CarteraMock`, calculando: `ventasAcumuladas`/`cobradoAcumulado` (todas las cuotas Pagadas), `saldoPorCobrar` (ventas − cobrado), `clientesActivos`/`clientesMorosos` (RUT distintos), `moraPromedioDias` (promedio de días de atraso de cuotas vencidas), `cobradoDelMes` (pagadas con `fechaPago` dentro del mes actual — requiere que la Edge Function devuelva `fechaPago` por cuota, tomado del primer `reciboPago` con `estadoPago='Documentado'`), antigüedad de la deuda (4 rangos), y **composición por producto** (ver clasificación abajo).
+- **Sin empresa seleccionada, o empresa sin mapeo Mobysuite:** cae a `mockParaProyecto()`/`sumarMocks()` (datos de ejemplo deterministas por `id`, sin cambios respecto a como se implementó originalmente). El aviso superior (verde "Datos reales de Mobysuite" / azul "Consultando..." / rojo error / ámbar "Vista previa con datos de ejemplo") deja claro cuál de los dos está viendo el usuario.
+- **Meta Mensual de Cobranza:** constante `META_MENSUAL_TOTAL = 8_500_000` repartida en partes iguales entre las 5 empresas mapeadas (`META_MENSUAL_POR_EMPRESA = 1_700_000`) — no viene de Mobysuite, es una meta de negocio fija por ahora (no configurable desde la UI todavía).
+- **Proyección de Cierre:** *no* es un valor inventado (el mock original sí lo era, `metaPct + 15`) — el cálculo real toma el "ritmo diario" del mes (`cobradoDelMes ÷ día actual del mes`), lo proyecta a los días totales del mes, y lo compara contra la meta mensual.
+- **Clasificación de cuotas por producto** (`clasificarProducto()` en `carteraMobysuite.ts`, usada para la torta "Composición de la Cobranza" y las 3 tarjetas de cumplimiento) — **es una propuesta preliminar basada en patrones de texto, pendiente de confirmar con Comercial y Finanzas**: descripción con "HIPOTECARIO" → Desembolso Hipotecario; con "ABONO" → Plan de Ahorro; con "CONSTRUCCION"/"FINANCIAMIENTO PROPIO" → Crédito Directo; con "INICIAL"/"SEPARACION" → Cuota Inicial; cualquier otra → `'otros'` (se excluye silenciosamente de la torta y de las tarjetas de cumplimiento — no aparece en ningún lado). Las preguntas exactas pendientes de validar están documentadas como comentario al final de `carteraMobysuite.ts`.
+
+**Filtro de empresa:** excluye explícitamente a Concyssa (`!p.nombre.toLowerCase().includes('concyssa')`) del dropdown de "Empresa" en Cartera y Cobranza, por la misma razón que no tiene `moby_project_id` (es la matriz, no un proyecto de venta).
 
 ---
