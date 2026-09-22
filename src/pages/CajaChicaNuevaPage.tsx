@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
 import { supabase } from '../api/supabase'
-import { createCajaChica, getSaldoAnterior } from '../features/caja-chica/services/cajaChicaService'
+import { createCajaChica, getSaldoAnterior, getUltimaCuentaBancariaUsuario } from '../features/caja-chica/services/cajaChicaService'
 import { getPartidasByProyecto } from '../features/proyecto/services/proyectoService'
 import type { ProyectoPartida } from '../features/proyecto/types/proyecto'
 import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta, esCuentaRecaudadora } from '../features/solicitud/constants/bancos'
@@ -27,6 +27,7 @@ export default function CajaChicaNuevaPage() {
   const [periodoHasta, setPeriodoHasta] = useState('')
   const [banco, setBanco] = useState(BANCOS[0])
   const [cuentaBbva, setCuentaBbva] = useState('')
+  const [cuentaAutocompletada, setCuentaAutocompletada] = useState(false)
   const [montoAsignado, setMontoAsignado] = useState(0)
   const [saldoAnterior, setSaldoAnterior] = useState(0)
   const [transferencia, setTransferencia] = useState(0)
@@ -41,6 +42,20 @@ export default function CajaChicaNuevaPage() {
         setProyectos(rows.filter(p => p.monto_caja_chica > 0))
       })
   }, [])
+
+  // Autocompleta banco/cuenta con lo usado en la última caja chica de este mismo responsable (sigue siendo editable)
+  useEffect(() => {
+    if (!user?.id) return
+    getUltimaCuentaBancariaUsuario(user.id)
+      .then(cuenta => {
+        if (cuenta) {
+          setBanco(cuenta.banco)
+          setCuentaBbva(cuenta.cuenta_bbva)
+          setCuentaAutocompletada(true)
+        }
+      })
+      .catch(() => {})
+  }, [user?.id])
 
   useEffect(() => {
     setPartidaId(null)
@@ -168,7 +183,7 @@ export default function CajaChicaNuevaPage() {
             <div>
               <label className={LABEL}>Banco</label>
               <select className={INPUT} value={banco}
-                onChange={e => { setBanco(e.target.value); setCuentaBbva('') }}>
+                onChange={e => { setBanco(e.target.value); setCuentaBbva(''); setCuentaAutocompletada(false) }}>
                 {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
               </select>
             </div>
@@ -176,7 +191,14 @@ export default function CajaChicaNuevaPage() {
               <label className={LABEL}>{labelNumeroCuenta(banco)}</label>
               <input className={INPUT} placeholder={placeholderNumeroCuenta(banco)}
                 maxLength={maxLengthNumeroCuenta(banco)}
-                value={cuentaBbva} onChange={e => setCuentaBbva(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))} />
+                value={cuentaBbva}
+                onChange={e => {
+                  setCuentaBbva(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))
+                  setCuentaAutocompletada(false)
+                }} />
+              {cuentaAutocompletada && (
+                <p className="text-xs text-gray-400 mt-1">Autocompletado de tu última caja chica — puedes cambiarlo</p>
+              )}
             </div>
           </div>
 

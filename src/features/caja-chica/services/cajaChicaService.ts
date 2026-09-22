@@ -39,6 +39,21 @@ async function enrichCajaChica(rows: CajaChica[]): Promise<CajaChica[]> {
   }))
 }
 
+/** Banco/cuenta usados en la última caja chica que este responsable creó — para autocompletar el formulario de "Nueva Caja Chica". */
+export async function getUltimaCuentaBancariaUsuario(responsableId: string): Promise<{ banco: string; cuenta_bbva: string } | null> {
+  const { data, error } = await supabase
+    .from('caja_chica')
+    .select('banco, cuenta_bbva')
+    .eq('responsable_id', responsableId)
+    .not('cuenta_bbva', 'is', null)
+    .order('fecha_creacion', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  if (!data || !data.banco || !data.cuenta_bbva) return null
+  return { banco: data.banco, cuenta_bbva: data.cuenta_bbva }
+}
+
 // ── CRUD ──────────────────────────────────────────────────────────
 
 export async function getCajasChicas(filtros: CajaChicaFiltros = {}): Promise<CajaChicaPaginado> {
