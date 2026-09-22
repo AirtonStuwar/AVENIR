@@ -156,7 +156,7 @@ export default function CajaChicaDetallePage() {
   const canReenviarConta = isObservado && (isOwner || userRole === ROLES.ADMIN)
   const canEvaluar = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canAprobar = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
-  const canMarcarPagado = isAutorizado && !cc.fecha_pago && userRole === ROLES.VISUALIZADOR
+  const canMarcarPagado = isAutorizado && !cc.fecha_pago && (userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN)
   const canShowPDF = detalles.length > 0
 
   const totalGastos = detalles.reduce((s, d) => s + d.monto, 0)
