@@ -637,6 +637,8 @@ Las tablas y vistas de Supabase son accesibles directamente. Power BI puede leer
 
 **Campos RxH — `fecha_emision_factura` y `fecha_vencimiento_factura`:** Se capturan en Step 1 del wizard para RxH. El `createSolicitud` en Step 1 NO debe sobrescribir estos campos con null — se pasan desde el payload directamente. En `SolicitudDetallePage` se muestran con `InfoField` solo cuando `isRxH`.
 
+**Bug corregido (setiembre 2026) — `numero_rxh` se guardaba con espacios:** el input "N° de Recibo (RxH)" en `SolicitudNuevaPage.tsx` no recortaba espacios (ej. `"E001- 165"` en vez de `"E001-165"`), y esos espacios se veían tal cual en el reporte de Excel y en el detalle — no era un bug del reporte, el dato ya venía así guardado. Corregido: el `onChange` del input y el payload al guardar ahora aplican `.replace(/\s+/g, '')` (quita todos los espacios, no solo al inicio/fin — mismo patrón que ya usan los campos de cuenta bancaria con `.replace(/\D/g, '')`). Se limpiaron también los 13 registros existentes que ya tenían el espacio guardado.
+
 **Env vars** (`.env.local`):
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` — Supabase client (`src/api/supabase.ts`)
 - `DECOLECTA_API_KEY` — RUC lookup y tipo de cambio SUNAT (server-side: dev proxy + Vercel Edge Functions)

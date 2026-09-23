@@ -247,7 +247,7 @@ export default function SolicitudNuevaPage() {
         condiciones: isRxH || isLiberalidad ? null : (condiciones || null),
         fecha_pedido, fecha_requerida,
         moneda,
-        numero_rxh: isRxH ? (numero_rxh || null) : null,
+        numero_rxh: isRxH ? (numero_rxh.replace(/\s+/g, '') || null) : null,
         periodo_servicio: isRxH && periodo_servicio ? periodo_servicio + '-01' : null,
         fecha_emision_factura: isRxH ? (fecha_emision_rxh || null) : null,
         fecha_vencimiento_factura: isRxH ? (fecha_vencimiento_rxh || null) : null,
@@ -677,7 +677,7 @@ export default function SolicitudNuevaPage() {
                       <label className={LABEL}>N° de Recibo (RxH) *</label>
                       <input className={inp(errors.numero_rxh)} placeholder="Ej: E001-00123"
                         value={numero_rxh}
-                        onChange={(e) => { setNumeroRxh(e.target.value); setErrors((x) => ({ ...x, numero_rxh: '' })) }} />
+                        onChange={(e) => { setNumeroRxh(e.target.value.replace(/\s+/g, '')); setErrors((x) => ({ ...x, numero_rxh: '' })) }} />
                       {errors.numero_rxh && <p className="mt-1 text-xs text-red-500">{errors.numero_rxh}</p>}
                     </div>
                     <div>
