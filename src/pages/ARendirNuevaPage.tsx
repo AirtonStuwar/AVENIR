@@ -20,6 +20,7 @@ import {
   recalcTotal,
   updateARendir,
 } from '../features/arendir/services/arendirService'
+import { getUltimaCuentaBancariaPersonal } from '../features/solicitud/services/cuentaBancariaService'
 import type { SolicitudARendir } from '../features/arendir/types/arendir'
 
 // ── Tipos locales ─────────────────────────────────────────────
@@ -83,6 +84,7 @@ export default function ARendirNuevaPage() {
   const [fechaRendicion, setFechaRendicion] = useState(localToday())
   const [banco, setBanco] = useState('')
   const [numeroCuenta, setNumeroCuenta] = useState('')
+  const [cuentaAutocompletada, setCuentaAutocompletada] = useState(false)
   const [sustentoFile, setSustentoFile] = useState<File | null>(null)
 
   // Step 2 — cada fila se guarda de inmediato en la BD al crearla (ver addRow),
@@ -96,6 +98,22 @@ export default function ARendirNuevaPage() {
       .then(r => setProyectos(r.data))
       .catch(() => toast.error('No se pudieron cargar los proyectos'))
   }, [])
+
+  // Autocompleta banco/cuenta con la última usada en A Rendir o Reembolso de este mismo usuario —
+  // solo si la solicitud sigue siendo a nombre de sí mismo (no se creó a nombre de otra persona)
+  useEffect(() => {
+    if (!user?.id) return
+    getUltimaCuentaBancariaPersonal(user.id)
+      .then(cuenta => {
+        if (cuenta && beneficiarioNombre === (usuarioProfile?.nombre_completo ?? '')) {
+          setBanco(cuenta.banco)
+          setNumeroCuenta(cuenta.numero_cuenta)
+          setCuentaAutocompletada(true)
+        }
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   // Load partidas and consumo when proyecto changes
   const [consumoPartidas, setConsumoPartidas] = useState<Record<number, Consumo>>({})
@@ -316,7 +334,16 @@ export default function ARendirNuevaPage() {
               <input
                 type="text"
                 value={beneficiarioNombre}
-                onChange={e => setBeneficiarioNombre(e.target.value)}
+                onChange={e => {
+                  const nuevo = e.target.value
+                  setBeneficiarioNombre(nuevo)
+                  // Si se cambia a otra persona, la cuenta autocompletada (la del usuario que crea) ya no aplica
+                  if (cuentaAutocompletada && nuevo !== (usuarioProfile?.nombre_completo ?? '')) {
+                    setBanco('')
+                    setNumeroCuenta('')
+                    setCuentaAutocompletada(false)
+                  }
+                }}
                 placeholder="Nombre del beneficiario"
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D]"
               />
@@ -451,7 +478,7 @@ export default function ARendirNuevaPage() {
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Banco</label>
               <select
                 value={banco}
-                onChange={e => { setBanco(e.target.value); setNumeroCuenta('') }}
+                onChange={e => { setBanco(e.target.value); setNumeroCuenta(''); setCuentaAutocompletada(false) }}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] bg-white"
               >
                 <option value="">— Seleccionar banco —</option>
@@ -467,12 +494,18 @@ export default function ARendirNuevaPage() {
               <input
                 type="text"
                 value={numeroCuenta}
-                onChange={e => setNumeroCuenta(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))}
+                onChange={e => {
+                  setNumeroCuenta(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))
+                  setCuentaAutocompletada(false)
+                }}
                 maxLength={banco ? maxLengthNumeroCuenta(banco) : 20}
                 placeholder={banco ? placeholderNumeroCuenta(banco) : '—'}
                 disabled={!banco}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] disabled:bg-gray-50 disabled:text-gray-400"
               />
+              {cuentaAutocompletada && (
+                <p className="text-xs text-gray-400">Autocompletado de tu última solicitud — puedes cambiarlo</p>
+              )}
             </div>
 
             {/* Sustento */}

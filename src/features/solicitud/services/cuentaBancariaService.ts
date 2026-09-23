@@ -37,6 +37,31 @@ export async function getAllCuentasBancarias(): Promise<CuentaBancaria[]> {
   return (data ?? []) as unknown as CuentaBancaria[]
 }
 
+/**
+ * Banco/cuenta personal más reciente que este usuario usó como beneficiario en A Rendir o Reembolso
+ * (busca en ambos módulos y devuelve el más reciente de los dos) — para autocompletar el formulario
+ * de creación y evitar que el usuario la escriba mal a mano cada vez.
+ */
+export async function getUltimaCuentaBancariaPersonal(userId: string): Promise<{ banco: string; numero_cuenta: string } | null> {
+  const [ar, re] = await Promise.all([
+    supabase.from('solicitud_arendir')
+      .select('banco, numero_cuenta, fecha_creacion')
+      .eq('beneficiario_id', userId)
+      .not('banco', 'is', null).not('numero_cuenta', 'is', null)
+      .order('fecha_creacion', { ascending: false }).limit(1).maybeSingle(),
+    supabase.from('solicitud_reembolso')
+      .select('banco, numero_cuenta, fecha_creacion')
+      .eq('beneficiario_id', userId)
+      .not('banco', 'is', null).not('numero_cuenta', 'is', null)
+      .order('fecha_creacion', { ascending: false }).limit(1).maybeSingle(),
+  ])
+
+  const candidatos = [ar.data, re.data].filter(Boolean) as { banco: string; numero_cuenta: string; fecha_creacion: string }[]
+  if (candidatos.length === 0) return null
+  candidatos.sort((a, b) => b.fecha_creacion.localeCompare(a.fecha_creacion))
+  return { banco: candidatos[0].banco, numero_cuenta: candidatos[0].numero_cuenta }
+}
+
 export async function marcarPagado(
   tabla: 'solicitud' | 'solicitud_arendir' | 'solicitud_reembolso' | 'caja_chica',
   id: number,

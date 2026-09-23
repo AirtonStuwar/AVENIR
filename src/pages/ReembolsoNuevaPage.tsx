@@ -22,6 +22,7 @@ import {
   updateReembolso,
 } from '../features/reembolso/services/reembolsoService'
 import type { SolicitudReembolso, ReembolsoDetalle } from '../features/reembolso/types/reembolso'
+import { getUltimaCuentaBancariaPersonal } from '../features/solicitud/services/cuentaBancariaService'
 import { ReembolsoPDF } from '../features/reembolso/components/ReembolsoPDF'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
 import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
@@ -76,6 +77,7 @@ export default function ReembolsoNuevaPage() {
   const [fechaRequerida, setFechaRequerida] = useState(localToday())
   const [banco,         setBanco]         = useState('')
   const [numeroCuenta,  setNumeroCuenta]  = useState('')
+  const [cuentaAutocompletada, setCuentaAutocompletada] = useState(false)
   const [sustentoFile,  setSustentoFile]  = useState<File | null>(null)
 
   // Step 2
@@ -90,6 +92,21 @@ export default function ReembolsoNuevaPage() {
       .then(r => setProyectos(r.data))
       .catch(() => toast.error('No se pudieron cargar los proyectos'))
   }, [])
+
+  // Autocompleta banco/cuenta con la última usada en A Rendir o Reembolso de este mismo usuario
+  useEffect(() => {
+    if (!user?.id) return
+    getUltimaCuentaBancariaPersonal(user.id)
+      .then(cuenta => {
+        if (cuenta) {
+          setBanco(cuenta.banco)
+          setNumeroCuenta(cuenta.numero_cuenta)
+          setCuentaAutocompletada(true)
+        }
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   const [consumoPartidas, setConsumoPartidas] = useState<Record<number, Consumo>>({})
 
@@ -399,7 +416,7 @@ export default function ReembolsoNuevaPage() {
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Banco</label>
               <select
                 value={banco}
-                onChange={e => { setBanco(e.target.value); setNumeroCuenta('') }}
+                onChange={e => { setBanco(e.target.value); setNumeroCuenta(''); setCuentaAutocompletada(false) }}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] bg-white"
               >
                 <option value="">— Seleccionar banco —</option>
@@ -415,12 +432,18 @@ export default function ReembolsoNuevaPage() {
               <input
                 type="text"
                 value={numeroCuenta}
-                onChange={e => setNumeroCuenta(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))}
+                onChange={e => {
+                  setNumeroCuenta(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))
+                  setCuentaAutocompletada(false)
+                }}
                 maxLength={banco ? maxLengthNumeroCuenta(banco) : 20}
                 placeholder={banco ? placeholderNumeroCuenta(banco) : '—'}
                 disabled={!banco}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D] disabled:bg-gray-50 disabled:text-gray-400"
               />
+              {cuentaAutocompletada && (
+                <p className="text-xs text-gray-400">Autocompletado de tu última solicitud — puedes cambiarlo</p>
+              )}
             </div>
 
             {/* Sustento */}
