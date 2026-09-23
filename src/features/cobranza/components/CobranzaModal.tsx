@@ -12,6 +12,11 @@ const LABEL = 'block text-xs font-semibold text-gray-500 uppercase tracking-wide
 
 const METODOS_PAGO = ['Transferencia', 'Depósito', 'Efectivo'] as const
 
+function localToday() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 interface Props {
   proyectos: Proyecto[]
   userId: string
@@ -33,7 +38,7 @@ export default function CobranzaModal({ proyectos, userId, onClose, onCreated }:
   const [metodoPago, setMetodoPago] = useState<typeof METODOS_PAGO[number]>('Transferencia')
   const [cuentaPagoId, setCuentaPagoId] = useState('')
   const [importe, setImporte] = useState('')
-  const [fechaPago, setFechaPago] = useState(new Date().toISOString().slice(0, 10))
+  const [fechaPago, setFechaPago] = useState(localToday())
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {

@@ -34,6 +34,11 @@ const INPUT_ERR =
   'w-full rounded-xl border border-red-300 bg-red-50 px-3.5 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-red-200 transition-all'
 const LABEL = 'block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide'
 
+function localToday() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 mb-4">
@@ -103,8 +108,8 @@ export default function SolicitudNuevaPage() {
   const [condiciones,                  setCondiciones]                 = useState(
     'Se penalizará el retraso o incumplimiento de algún acuerdo en la fecha de entrega acordada'
   )
-  const [fecha_pedido,    setFechaPedido]    = useState('')
-  const [fecha_requerida, setFechaRequerida] = useState('')
+  const [fecha_pedido,    setFechaPedido]    = useState(localToday())
+  const [fecha_requerida, setFechaRequerida] = useState(localToday())
   const [numero_rxh,              setNumeroRxh]              = useState('')
   const [periodo_servicio,        setPeriodoServicio]         = useState('')
   const [fecha_emision_rxh,       setFechaEmisionRxh]        = useState('')

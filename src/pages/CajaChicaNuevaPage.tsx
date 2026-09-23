@@ -14,6 +14,11 @@ const LABEL = 'block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracki
 
 interface ProyectoCC { id: number; nombre: string; monto_caja_chica: number }
 
+function localToday() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 export default function CajaChicaNuevaPage() {
   const navigate = useNavigate()
   const { user, usuarioProfile } = useAuthStore()
@@ -23,8 +28,8 @@ export default function CajaChicaNuevaPage() {
   const [proyectoId, setProyectoId] = useState<number | null>(null)
   const [partidas, setPartidas] = useState<ProyectoPartida[]>([])
   const [partidaId, setPartidaId] = useState<number | null>(null)
-  const [periodoDesde, setPeriodoDesde] = useState('')
-  const [periodoHasta, setPeriodoHasta] = useState('')
+  const [periodoDesde, setPeriodoDesde] = useState(localToday())
+  const [periodoHasta, setPeriodoHasta] = useState(localToday())
   const [banco, setBanco] = useState(BANCOS[0])
   const [cuentaBbva, setCuentaBbva] = useState('')
   const [cuentaAutocompletada, setCuentaAutocompletada] = useState(false)

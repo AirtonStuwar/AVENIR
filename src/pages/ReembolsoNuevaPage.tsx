@@ -43,10 +43,15 @@ interface DetalleRow {
 const TIPOS_DOC = ['RECIBO', 'FACTURA', 'BOLETA', 'RXH', 'PLLA-MOV', 'TICKET', 'OTRO']
 let nextTempId = 1
 
+function localToday() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function newRow(): DetalleRow {
   return {
     tempId: nextTempId++,
-    fecha_documento: '', proveedor: '', tipo_documento: '',
+    fecha_documento: localToday(), proveedor: '', tipo_documento: '',
     numero_documento: '', concepto: '', importe: '',
     savedId: null, archivo_path: null,
   }
@@ -68,7 +73,7 @@ export default function ReembolsoNuevaPage() {
   const [partidaId,     setPartidaId]     = useState<string>('')
   const [partidas,      setPartidas]      = useState<ProyectoPartida[]>([])
   const [moneda,        setMoneda]        = useState<'PEN' | 'USD'>('PEN')
-  const [fechaRequerida, setFechaRequerida] = useState('')
+  const [fechaRequerida, setFechaRequerida] = useState(localToday())
   const [banco,         setBanco]         = useState('')
   const [numeroCuenta,  setNumeroCuenta]  = useState('')
   const [sustentoFile,  setSustentoFile]  = useState<File | null>(null)

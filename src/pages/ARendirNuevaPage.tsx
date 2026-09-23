@@ -40,10 +40,15 @@ const TIPOS_DOC = ['RECIBO', 'FACTURA', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
 
 let nextTempId = 1
 
+function localToday() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function newRow(): DetalleRow {
   return {
     tempId: nextTempId++,
-    fecha_documento: '',
+    fecha_documento: localToday(),
     proveedor: '',
     tipo_documento: '',
     numero_documento: '',
@@ -75,7 +80,7 @@ export default function ARendirNuevaPage() {
   const [moneda, setMoneda] = useState<'PEN' | 'USD'>('PEN')
   const [importe, setImporte] = useState('')
   const [motivo, setMotivo] = useState('')
-  const [fechaRendicion, setFechaRendicion] = useState('')
+  const [fechaRendicion, setFechaRendicion] = useState(localToday())
   const [banco, setBanco] = useState('')
   const [numeroCuenta, setNumeroCuenta] = useState('')
   const [sustentoFile, setSustentoFile] = useState<File | null>(null)
