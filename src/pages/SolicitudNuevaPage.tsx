@@ -1246,7 +1246,7 @@ export default function SolicitudNuevaPage() {
                   <div className="px-6 py-5 grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div>
                       <label className={LABEL}>N° de Factura</label>
-                      <input type="text" value={numeroFactura} onChange={e => setNumeroFactura(e.target.value)}
+                      <input type="text" value={numeroFactura} onChange={e => setNumeroFactura(e.target.value.replace(/\s+/g, ''))}
                         placeholder="Ej: F001-00123" className={INPUT} />
                       {facturaDuplicada.length > 0 && (
                         <p className="mt-1 text-xs text-amber-600 font-medium">

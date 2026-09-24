@@ -1239,7 +1239,7 @@ export default function SolicitudDetallePage() {
                       <input
                         type="text"
                         value={numeroFactura}
-                        onChange={e => setNumeroFactura(e.target.value)}
+                        onChange={e => setNumeroFactura(e.target.value.replace(/\s+/g, ''))}
                         placeholder="Ej: F001-00123"
                         className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
                       />
