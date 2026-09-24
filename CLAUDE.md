@@ -764,6 +764,8 @@ Pendiente
 
 **RLS:** `es_rol_privilegiado()` ya cubre EVALUADOR (rol 8), así que no fue necesario tocar policies SELECT/UPDATE al agregar el paso de evaluación — solo se amplió el CHECK constraint de `estado` y se agregaron las 2 columnas nuevas.
 
+**Bug corregido (setiembre 2026) — APROBADOR veía "Devuelto" (y todos los demás estados) por defecto:** a diferencia de Reembolso y A Rendir, `getDevoluciones()` solo tenía el filtro por defecto (`.in('estado', ['Evaluado','Autorizado'])` cuando no se elige ningún filtro) para VISUALIZADOR — para APROBADOR no había ninguna rama, así que sin filtro veía la lista completa sin restringir, incluyendo "Devuelto" (un estado que solo le compete al EVALUADOR/creador para corregir, no al aprobador). Corregido agregando `role === ROLES.APROBADOR` a la misma condición que ya usaba VISUALIZADOR — mismo patrón que ya tenía `reembolsoService.ts`.
+
 ---
 
 ## Módulo Gasto por Plan Contable
