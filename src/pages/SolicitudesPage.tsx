@@ -263,6 +263,7 @@ export default function SolicitudesPage() {
 
   // ── Marcar pagado / detracción pagada (masivo) ─────────────────
   const canMarcarPago = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
+  const canVerMontoTotal = userRole === ROLES.USUARIO
   const selectedPorPagar = data.filter(s =>
     selectedIds.has(s.id) && s.estado_soli?.nombre === 'Aprobado' && !s.fecha_pago)
   const selectedDetraccionPendiente = data.filter(s =>
@@ -438,6 +439,7 @@ export default function SolicitudesPage() {
         monedaFilter={isVisualizador ? monedaLocal : undefined}
         onMonedaFilterChange={isVisualizador ? handleMonedaChange : undefined}
         showMontoPago={canMarcarPago}
+        showMontoTotal={canVerMontoTotal}
         areaFilter={areaFilter}
         onAreaFilterChange={handleAreaChange}
         estadoFilter={isEvaluador ? estadoNombre : undefined}
