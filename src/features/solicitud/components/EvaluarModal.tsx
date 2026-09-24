@@ -9,6 +9,7 @@ interface Props {
   open: boolean
   codigoSolicitud: string
   isRxH?: boolean
+  isOtros?: boolean
   isOC?: boolean
   totalSolicitud?: number
   moneda?: 'PEN' | 'USD'
@@ -23,7 +24,9 @@ const OPCIONES_RETENCION = [
   { label: '8%', value: 8 },
 ]
 
-export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, totalSolicitud = 0, moneda = 'PEN', planContableActual, onConfirm, onCancel }: Props) {
+const RETENCION_FIJA_OTROS = 8
+
+export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOtros, isOC, totalSolicitud = 0, moneda = 'PEN', planContableActual, onConfirm, onCancel }: Props) {
   const [opciones,      setOpciones]      = useState<PlanContable[]>([])
   const [detracciones,  setDetracciones]  = useState<Detraccion[]>([])
   const [loading,       setLoading]       = useState(false)
@@ -48,7 +51,7 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
     setSelected(planContableActual ?? null)
     setSearch(planContableActual?.tipo_gasto_costo ?? '')
     setDropOpen(false)
-    setRetencion(null)
+    setRetencion(isOtros ? RETENCION_FIJA_OTROS : null)
     setDetraccionSel(null)
     setTcManual('')
     setLoading(true)
@@ -62,7 +65,7 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
         : Promise.resolve(),
     ]
     Promise.all(loads).finally(() => setLoading(false))
-  }, [open, isOC, isUSD, planContableActual])
+  }, [open, isOC, isOtros, isUSD, planContableActual])
 
   // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
@@ -105,12 +108,12 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
 
   const handleConfirm = async () => {
     if (!selected) return
-    if (isRxH && retencion === null) return
+    if ((isRxH || isOtros) && retencion === null) return
     setSaving(true)
     try {
       await onConfirm(
         selected.id,
-        isRxH ? (retencion ?? 0) : undefined,
+        (isRxH || isOtros) ? (retencion ?? 0) : undefined,
         detraccionSel?.id,
         detraccionSel ? montoDetraccionCalc : undefined,
       )
@@ -206,6 +209,21 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
               </div>
             )}
           </div>
+
+          {/* Retención fija — solo para "Otros" */}
+          {isOtros && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Retención IR (Renta 4ta Cat.)
+              </label>
+              <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-[#003D7D]/30 bg-[#003D7D]/[0.04]">
+                <span className="text-sm font-semibold text-[#003D7D]">{RETENCION_FIJA_OTROS}% fija</span>
+              </div>
+              <p className="mt-1.5 text-xs text-gray-500">
+                Se retendrá el {RETENCION_FIJA_OTROS}% del monto bruto (Renta 4ta categoría) — tasa fija para este tipo de solicitud.
+              </p>
+            </div>
+          )}
 
           {/* Retención — solo para Recibo por Honorarios */}
           {isRxH && (
@@ -321,7 +339,7 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOC, total
           </button>
           <button
             onClick={handleConfirm}
-            disabled={!selected || saving || (isRxH && retencion === null)}
+            disabled={!selected || saving || ((isRxH || isOtros) && retencion === null)}
             className="px-4 py-2 rounded-xl bg-[#003D7D] text-white text-sm font-medium flex items-center gap-2
               hover:bg-[#002D5C] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
           >

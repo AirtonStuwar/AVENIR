@@ -119,10 +119,13 @@ export default function SolicitudNuevaPage() {
   const [tipoCambio,        setTipoCambio]       = useState<number | null>(null)
   const [motivoLiberalidad, setMotivoLiberalidad] = useState('')
   const [montoBrutoLiberalidad, setMontoBrutoLiberalidad] = useState('')
+  const [conceptoOtros, setConceptoOtros] = useState('')
+  const [montoBrutoOtros, setMontoBrutoOtros] = useState('')
 
   const tipoNombreSeleccionado = tipos.find(t => t.id === tipo_id)?.nombre ?? ''
   const isRxH = tipoNombreSeleccionado === 'Recibo por Honorarios'
   const isLiberalidad = tipoNombreSeleccionado === 'Liberalidad'
+  const isOtros = tipoNombreSeleccionado === 'Otros'
   const isValorizacion = tipoNombreSeleccionado === 'Factura con Valorización'
   const LIBERALIDAD_PCT = 5
 
@@ -215,7 +218,7 @@ export default function SolicitudNuevaPage() {
     if (!forma_pago_id)          e.forma_pago_id  = 'Obligatorio'
     if (!fecha_pedido)           e.fecha_pedido   = 'Obligatorio'
     if (!fecha_requerida)        e.fecha_requerida= 'Obligatorio'
-    if (!isRxH && !isLiberalidad) {
+    if (!isRxH && !isLiberalidad && !isOtros) {
       if (porcentaje_contrato === null) e.porcentaje_contrato = 'Obligatorio'
       if (porcentaje_acumulado_contrato === null) e.porcentaje_acumulado = 'Obligatorio'
       if (porcentaje_pendiente_contrato === null) e.porcentaje_pendiente = 'Obligatorio'
@@ -227,6 +230,10 @@ export default function SolicitudNuevaPage() {
       if (!montoBrutoLiberalidad || Number(montoBrutoLiberalidad) <= 0) e.montoBrutoLiberalidad = 'Obligatorio'
       if (!banco)                  e.banco          = 'Obligatorio'
       if (!numero_cuenta.trim())   e.numero_cuenta  = 'Obligatorio'
+    }
+    if (isOtros) {
+      if (!conceptoOtros.trim()) e.conceptoOtros = 'Obligatorio'
+      if (!montoBrutoOtros || Number(montoBrutoOtros) <= 0) e.montoBrutoOtros = 'Obligatorio'
     }
 
     if (Object.keys(e).length > 0) { setErrors(e); return }
@@ -246,17 +253,17 @@ export default function SolicitudNuevaPage() {
         cuenta_detracciones: cuenta_detracciones || null,
         forma_pago: formasPago.find(f => f.id === forma_pago_id)?.nombre ?? null,
         forma_pago_id,
-        porcentaje_contrato: isRxH || isLiberalidad ? null : porcentaje_contrato,
-        porcentaje_acumulado_contrato: isRxH || isLiberalidad ? null : porcentaje_acumulado_contrato,
-        porcentaje_pendiente_contrato: isRxH || isLiberalidad ? null : porcentaje_pendiente_contrato,
-        condiciones: isRxH || isLiberalidad ? null : (condiciones || null),
+        porcentaje_contrato: isRxH || isLiberalidad || isOtros ? null : porcentaje_contrato,
+        porcentaje_acumulado_contrato: isRxH || isLiberalidad || isOtros ? null : porcentaje_acumulado_contrato,
+        porcentaje_pendiente_contrato: isRxH || isLiberalidad || isOtros ? null : porcentaje_pendiente_contrato,
+        condiciones: isRxH || isLiberalidad || isOtros ? null : (condiciones || null),
         fecha_pedido, fecha_requerida,
         moneda,
         numero_rxh: isRxH ? (numero_rxh.replace(/\s+/g, '') || null) : null,
         periodo_servicio: isRxH && periodo_servicio ? periodo_servicio + '-01' : null,
         fecha_emision_factura: isRxH ? (fecha_emision_rxh || null) : null,
         fecha_vencimiento_factura: isRxH ? (fecha_vencimiento_rxh || null) : null,
-        aplica_igv: isRxH || isLiberalidad ? true : aplica_igv,
+        aplica_igv: isRxH || isLiberalidad || isOtros ? true : aplica_igv,
       }
 
       if (solicitudId) {
@@ -273,6 +280,16 @@ export default function SolicitudNuevaPage() {
             await createDetalle({ solicitud_id: solicitudId, cantidad: 1, descripcion: motivoLiberalidad, valor_unitario: montoBruto })
           }
         }
+        if (isOtros) {
+          // La retención (fija 8%) la asigna el EVALUADOR al marcar Evaluado, no se calcula aquí.
+          const montoBruto = Number(montoBrutoOtros)
+          const [existente] = await getDetallesBySolicitud(solicitudId)
+          if (existente) {
+            await updateDetalle(existente.id, { cantidad: 1, descripcion: conceptoOtros, valor_unitario: montoBruto })
+          } else {
+            await createDetalle({ solicitud_id: solicitudId, cantidad: 1, descripcion: conceptoOtros, valor_unitario: montoBruto })
+          }
+        }
         toast.success('Datos actualizados')
       } else {
         const nueva = await createSolicitud({
@@ -287,9 +304,13 @@ export default function SolicitudNuevaPage() {
           await updateSolicitud(nueva.id, { porcentaje_retencion: LIBERALIDAD_PCT, monto_retencion: montoRet })
           await createDetalle({ solicitud_id: nueva.id, cantidad: 1, descripcion: motivoLiberalidad, valor_unitario: montoBruto })
         }
-        toast.success('Solicitud creada' + (isLiberalidad ? '' : ' — ahora agrega los bienes o servicios'))
+        if (isOtros) {
+          const montoBruto = Number(montoBrutoOtros)
+          await createDetalle({ solicitud_id: nueva.id, cantidad: 1, descripcion: conceptoOtros, valor_unitario: montoBruto })
+        }
+        toast.success('Solicitud creada' + (isLiberalidad || isOtros ? '' : ' — ahora agrega los bienes o servicios'))
       }
-      setStep(isLiberalidad ? 'archivos' : 'detalles')
+      setStep(isLiberalidad || isOtros ? 'archivos' : 'detalles')
     } catch (err: any) {
       toast.error(err?.message ?? 'Error al guardar la solicitud')
     } finally {
@@ -487,6 +508,28 @@ export default function SolicitudNuevaPage() {
                           </p>
                         )
                       })()}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Concepto y monto (solo Otros) */}
+              {isOtros && (
+                <div>
+                  <SectionTitle>Concepto y monto</SectionTitle>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={LABEL}>Concepto de pago *</label>
+                      <input className={inp(errors.conceptoOtros)} placeholder="Ej: DIETA"
+                        value={conceptoOtros} onChange={(e) => { setConceptoOtros(e.target.value); setErrors((x) => ({ ...x, conceptoOtros: '' })) }} />
+                      {errors.conceptoOtros && <p className="mt-1 text-xs text-red-500">{errors.conceptoOtros}</p>}
+                    </div>
+                    <div>
+                      <label className={LABEL}>Monto bruto (S/) *</label>
+                      <input className={inp(errors.montoBrutoOtros)} type="number" step="0.01" min="0" placeholder="0.00"
+                        value={montoBrutoOtros} onChange={(e) => { setMontoBrutoOtros(e.target.value); setErrors((x) => ({ ...x, montoBrutoOtros: '' })) }} />
+                      {errors.montoBrutoOtros && <p className="mt-1 text-xs text-red-500">{errors.montoBrutoOtros}</p>}
+                      <p className="mt-1 text-xs text-gray-500">La retención de 4ta categoría (8%) la asignará el evaluador.</p>
                     </div>
                   </div>
                 </div>
@@ -708,8 +751,8 @@ export default function SolicitudNuevaPage() {
                 </div>
               )}
 
-              {/* Porcentajes (solo OC, no RxH ni Liberalidad) */}
-              {!isRxH && !isLiberalidad && <div>
+              {/* Porcentajes (solo OC, no RxH, Liberalidad ni Otros) */}
+              {!isRxH && !isLiberalidad && !isOtros && <div>
                 <SectionTitle>Porcentajes del contrato</SectionTitle>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
@@ -750,8 +793,8 @@ export default function SolicitudNuevaPage() {
                 </div>
               </div>}
 
-              {/* Aplica IGV (solo OC, no RxH ni Liberalidad) */}
-              {!isRxH && !isLiberalidad && (
+              {/* Aplica IGV (solo OC, no RxH, Liberalidad ni Otros) */}
+              {!isRxH && !isLiberalidad && !isOtros && (
                 <div>
                   <label className="flex items-center gap-2.5 cursor-pointer w-fit">
                     <input type="checkbox" className="h-4 w-4 rounded border-gray-300 accent-[#003D7D] cursor-pointer"
@@ -786,8 +829,8 @@ export default function SolicitudNuevaPage() {
                 </div>
               </div>
 
-              {/* Condiciones (solo OC, no Liberalidad) */}
-              {!isRxH && !isLiberalidad && (
+              {/* Condiciones (solo OC, no Liberalidad ni Otros) */}
+              {!isRxH && !isLiberalidad && !isOtros && (
                 <div>
                   <SectionTitle>Condiciones y observaciones</SectionTitle>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -946,16 +989,18 @@ export default function SolicitudNuevaPage() {
           const subtotalEnSoles = moneda === 'USD' && tipoCambio ? subtotal * tipoCambio : subtotal
           const superaUmbral = isRxH && subtotalEnSoles >= 1500
           const totalConIgvEnSoles = subtotalEnSoles * 1.18
-          const requiereContrato = !isRxH && !isLiberalidad && aplica_igv && totalConIgvEnSoles >= 3500
+          const requiereContrato = !isRxH && !isLiberalidad && !isOtros && aplica_igv && totalConIgvEnSoles >= 3500
 
           const tiposVisiblesRxH = aplica_suspension === true
             ? ['Sustento', 'Recibo Honorario', 'Suspension']
             : ['Sustento', 'Recibo Honorario']
 
           // Docs obligatorios: para OC, Cotizacion y Sustento siempre; Contrato solo si monto >= S/ 3,500.
-          // Si la OC es "Sin IGV" o es Liberalidad, ningún documento es obligatorio.
+          // Si la OC es "Sin IGV" o es Liberalidad, ningún documento es obligatorio. Otros: Sustento y Documento Adicional siempre obligatorios.
           const docsObligatorios = isRxH
             ? ['Sustento', 'Recibo Honorario']
+            : isOtros
+              ? ['Sustento', 'Documento Adicional']
             : isLiberalidad || !aplica_igv
               ? []
               : requiereContrato
@@ -977,6 +1022,8 @@ export default function SolicitudNuevaPage() {
                 <p className="text-xs text-blue-600">
                   {isRxH
                     ? 'Sustento y PDF del Recibo por Honorarios son obligatorios.'
+                    : isOtros
+                      ? 'Sustento y Documento Adicional son obligatorios.'
                     : isLiberalidad
                       ? 'Todos los documentos son opcionales.'
                       : !aplica_igv
@@ -1033,11 +1080,15 @@ export default function SolicitudNuevaPage() {
               showOtros
               tiposVisibles={isRxH
                 ? tiposVisiblesRxH
+                : isOtros
+                  ? ['Sustento', 'Documento Adicional']
                 : isLiberalidad
                   ? ['Sustento']
                   : ['Contrato', 'Cotizacion', 'Sustento', 'Cuadro Comparativo']}
               tiposOpcionales={isRxH
                 ? (aplica_suspension === true ? ['Suspension'] : [])
+                : isOtros
+                  ? []
                 : isLiberalidad
                   ? ['Sustento']
                   : !aplica_igv
@@ -1047,7 +1098,7 @@ export default function SolicitudNuevaPage() {
 
             <div className="flex items-center justify-between px-6 py-4 bg-white rounded-2xl border border-gray-200 shadow-sm">
               <div className="flex items-center gap-3">
-                <button onClick={() => setStep(isLiberalidad ? 'form' : 'detalles')}
+                <button onClick={() => setStep(isLiberalidad || isOtros ? 'form' : 'detalles')}
                   className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-600 hover:bg-gray-50 transition-all">
                   ← Atrás
                 </button>
@@ -1169,8 +1220,8 @@ export default function SolicitudNuevaPage() {
               </div>
             </div>
 
-            {/* Factura (solo OC, no Liberalidad) */}
-            {!isRxH && !isLiberalidad && (
+            {/* Factura (solo OC, no Liberalidad ni Otros) */}
+            {!isRxH && !isLiberalidad && !isOtros && (
               <>
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="px-6 py-4 border-b border-gray-100">

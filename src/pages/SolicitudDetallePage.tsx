@@ -330,9 +330,10 @@ export default function SolicitudDetallePage() {
 
   const isRxH        = solicitud?.solicitud_tipo?.nombre === 'Recibo por Honorarios'
   const isLiberalidad = solicitud?.solicitud_tipo?.nombre === 'Liberalidad'
+  const isOtros      = solicitud?.solicitud_tipo?.nombre === 'Otros'
   const isValorizacion = solicitud?.solicitud_tipo?.nombre === 'Factura con Valorización'
   // OC marcada "Sin IGV" al crearla: no suma 18% y los documentos dejan de ser obligatorios
-  const sinIgv       = !isRxH && !isLiberalidad && solicitud?.aplica_igv === false
+  const sinIgv       = !isRxH && !isLiberalidad && !isOtros && solicitud?.aplica_igv === false
   // Observado (devuelto por contabilidad): editable como Pendiente, pero SIN abrir el modal
   // de cabecera — así banco y número de cuenta quedan bloqueados durante la corrección.
   const canEdit      = (isPendiente || isObservado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
@@ -343,6 +344,8 @@ export default function SolicitudDetallePage() {
   const _tc          = _solMoneda === 'USD' ? (tipoCambio ?? 1) : 1
   const DOCS_OBLIGATORIOS     = isRxH
     ? ['Sustento', 'Recibo Honorario']
+    : isOtros
+      ? ['Sustento', 'Documento Adicional']
     : isLiberalidad
       ? []
     : sinIgv
@@ -370,8 +373,8 @@ export default function SolicitudDetallePage() {
   const canMarcarPagado        = isAprobado && !solicitud?.fecha_pago && userRole === ROLES.VISUALIZADOR
   const canMarcarDetraccionPag = isAprobado && !!solicitud?.detraccion_id && !solicitud?.detraccion_pagada
                                  && (userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN)
-  const canEditFactura  = !isRxH && (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const showFacturaCard = !isRxH && (canEdit || !!solicitud?.numero_factura || !!solicitud?.motivo_factura || !!solicitud?.fecha_emision_factura || archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF'))
+  const canEditFactura  = !isRxH && !isOtros && (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const showFacturaCard = !isRxH && !isOtros && (canEdit || !!solicitud?.numero_factura || !!solicitud?.motivo_factura || !!solicitud?.fecha_emision_factura || archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF'))
 
   const estadoColor = ESTADO_COLOR[nombre] ?? 'bg-gray-100 text-gray-600'
 
@@ -605,10 +608,11 @@ export default function SolicitudDetallePage() {
   const handleConfirmEvaluar = async (planContableId: number, porcentajeRetencion?: number, detraccionId?: number, montoDetraccion?: number) => {
     if (!solicitud?.id || !id) return
     const isRxHSol = solicitud.solicitud_tipo?.nombre === 'Recibo por Honorarios'
+    const isOtrosSol = solicitud.solicitud_tipo?.nombre === 'Otros'
     const subtotalSol = (solicitud.detalles ?? detalles).reduce(
       (s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0
     )
-    const montoRetencion = isRxHSol && porcentajeRetencion !== undefined
+    const montoRetencion = (isRxHSol || isOtrosSol) && porcentajeRetencion !== undefined
       ? subtotalSol * porcentajeRetencion / 100
       : undefined
     try {
@@ -771,9 +775,9 @@ export default function SolicitudDetallePage() {
 
   const subtotal       = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
   const retencionPct   = solicitud?.porcentaje_retencion ?? 0
-  const retencion      = isRxH || isLiberalidad ? (solicitud?.monto_retencion ?? subtotal * retencionPct / 100) : 0
-  const igv            = isRxH || isLiberalidad || sinIgv ? 0 : subtotal * 0.18
-  const totalConIgv    = isRxH || isLiberalidad ? subtotal - retencion : subtotal + igv
+  const retencion      = isRxH || isLiberalidad || isOtros ? (solicitud?.monto_retencion ?? subtotal * retencionPct / 100) : 0
+  const igv            = isRxH || isLiberalidad || isOtros || sinIgv ? 0 : subtotal * 0.18
+  const totalConIgv    = isRxH || isLiberalidad || isOtros ? subtotal - retencion : subtotal + igv
 
   // ── Loading / not found ───────────────────────────────────────
   if (loadingSol) {
@@ -912,7 +916,7 @@ export default function SolicitudDetallePage() {
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-[#003D7D] uppercase tracking-wide">Información general</h2>
-            {canEdit && isPendiente && !isLiberalidad && (
+            {canEdit && isPendiente && !isLiberalidad && !isOtros && (
               <button onClick={() => setEditInfoOpen(true)}
                 className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-semibold hover:bg-gray-50 transition-colors">
                 <Pencil size={13} /> Editar
@@ -1087,7 +1091,7 @@ export default function SolicitudDetallePage() {
             </h2>
             <div className="flex items-center gap-3">
               {subtotal > 0 && <span className="text-sm font-bold text-[#003D7D]">{fmtMoney(totalConIgv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</span>}
-              {canEdit && !(isLiberalidad && detalles.length >= 1) && (
+              {canEdit && !((isLiberalidad || isOtros) && detalles.length >= 1) && (
                 <button onClick={openAdd}
                   className="flex items-center gap-1.5 h-8 px-3 rounded-xl bg-[#003D7D] text-white text-xs font-medium hover:bg-[#002D5C] transition-all">
                   <Plus size={13} /> Agregar
@@ -1142,7 +1146,7 @@ export default function SolicitudDetallePage() {
                     <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoneySmart(subtotal, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                     {canEdit && <td />}
                   </tr>
-                  {isRxH || isLiberalidad ? (
+                  {isRxH || isLiberalidad || isOtros ? (
                     <tr>
                       <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">
                         {isLiberalidad
@@ -1163,7 +1167,7 @@ export default function SolicitudDetallePage() {
                   )}
                   <tr className="border-t border-gray-200">
                     <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">
-                      {isRxH || isLiberalidad ? 'Monto neto a pagar:' : 'Total general:'}
+                      {isRxH || isLiberalidad || isOtros ? 'Monto neto a pagar:' : 'Total general:'}
                     </td>
                     <td className="px-5 py-3 text-right text-base font-bold text-[#003D7D]">{fmtMoney(totalConIgv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                     {canEdit && <td />}
@@ -1188,11 +1192,15 @@ export default function SolicitudDetallePage() {
           onChange={setArchivosSubidos}
           tiposVisibles={isRxH
             ? ['Sustento', 'Recibo Honorario', ...(solicitud.aplica_suspension ? ['Suspension'] : [])]
+            : isOtros
+              ? ['Sustento', 'Documento Adicional']
             : isLiberalidad
               ? ['Sustento']
               : undefined}
           tiposOpcionales={isRxH
             ? (solicitud.aplica_suspension ? ['Suspension'] : [])
+            : isOtros
+              ? []
             : isLiberalidad
               ? ['Sustento']
               : sinIgv
@@ -1204,6 +1212,8 @@ export default function SolicitudDetallePage() {
             <AlertCircle size={15} className="shrink-0" />
             {isRxH
               ? 'Para enviar a revisión debes adjuntar el Sustento y el PDF del Recibo por Honorarios.'
+              : isOtros
+                ? 'Para enviar a revisión debes adjuntar Sustento y Documento Adicional.'
               : DOCS_OBLIGATORIOS.includes('Contrato')
                 ? 'Para enviar a revisión debes adjuntar: Contrato, Cotización y Sustento (monto supera S/ 3,500).'
                 : 'Para enviar a revisión debes adjuntar: Cotización y Sustento.'}
@@ -1443,7 +1453,7 @@ export default function SolicitudDetallePage() {
         )}
 
         {/* ── DETRACCIÓN ── */}
-        {!isRxH && solicitud.detraccion && (
+        {!isRxH && !isOtros && solicitud.detraccion && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2 flex-wrap">
               <CheckCircle size={15} className="text-amber-600" />
@@ -1596,7 +1606,8 @@ export default function SolicitudDetallePage() {
         open={evaluarOpen}
         codigoSolicitud={solicitud?.codigo ?? `#${solicitud?.id}`}
         isRxH={isRxH}
-        isOC={!isRxH && !isLiberalidad}
+        isOtros={isOtros}
+        isOC={!isRxH && !isLiberalidad && !isOtros}
         totalSolicitud={totalConIgv}
         moneda={(solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN'}
         planContableActual={solicitud?.plan_contable ?? null}

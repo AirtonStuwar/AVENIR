@@ -16,7 +16,7 @@ function montoAGirar(s: Solicitud): number {
   const total = s.monto_total ?? 0
   const tipo  = s.solicitud_tipo?.nombre
   if (tipo === 'Liberalidad') return total
-  if (tipo === 'Recibo por Honorarios') return total - (s.monto_retencion ?? 0)
+  if (tipo === 'Recibo por Honorarios' || tipo === 'Otros') return total - (s.monto_retencion ?? 0)
   const fondoGarantia = s.monto_fondo_garantia ?? 0
   if (!s.detraccion_id) return total - fondoGarantia
   const isPEN = (s.moneda ?? 'PEN') === 'PEN'
@@ -29,7 +29,7 @@ function montoAGirar(s: Solicitud): number {
 // La detracción siempre está en soles (SUNAT); la retención va en la moneda propia de la solicitud.
 function montoDetraccionORetencion(s: Solicitud): { monto: number; moneda: string } | null {
   const tipo = s.solicitud_tipo?.nombre
-  if (tipo === 'Recibo por Honorarios' || tipo === 'Liberalidad') {
+  if (tipo === 'Recibo por Honorarios' || tipo === 'Liberalidad' || tipo === 'Otros') {
     if (s.monto_retencion == null) return null
     return { monto: s.monto_retencion, moneda: s.moneda ?? 'PEN' }
   }

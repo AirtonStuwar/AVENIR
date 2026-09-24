@@ -238,12 +238,13 @@ export async function enviarARevision(id: number): Promise<Solicitud> {
   const solTipada = sol as unknown as { aplica_igv: boolean; monto_retencion: number | null; solicitud_tipo: { nombre: string } | null } | null
   const isRxH = solTipada?.solicitud_tipo?.nombre === 'Recibo por Honorarios'
   const isLiberalidad = solTipada?.solicitud_tipo?.nombre === 'Liberalidad'
+  const isOtros = solTipada?.solicitud_tipo?.nombre === 'Otros'
   const aplicaIgv = solTipada?.aplica_igv !== false
   const subtotal   = ((detalles ?? []) as { valor_total: number | null; cantidad: number; valor_unitario: number }[])
     .reduce((sum, d) => sum + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
   const montoTotal = isLiberalidad
     ? subtotal - (solTipada?.monto_retencion ?? 0)
-    : isRxH || !aplicaIgv ? subtotal : +((subtotal * 1.18).toFixed(2))
+    : isRxH || isOtros || !aplicaIgv ? subtotal : +((subtotal * 1.18).toFixed(2))
 
   const [estadoId] = await resolveEstadoIds(['En Revision'])
   if (!estadoId) throw new Error('Estado "En Revision" no encontrado en BD')

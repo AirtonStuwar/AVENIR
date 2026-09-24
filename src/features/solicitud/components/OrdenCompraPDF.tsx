@@ -393,11 +393,12 @@ export function OrdenCompraPDF({
   const moneda       = (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN'
   const isRxH        = solicitud.solicitud_tipo?.nombre === 'Recibo por Honorarios'
   const isLiberalidad = solicitud.solicitud_tipo?.nombre === 'Liberalidad'
+  const isOtros      = solicitud.solicitud_tipo?.nombre === 'Otros'
   const subtotal     = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-  const retencionPct = isRxH || isLiberalidad ? (solicitud.porcentaje_retencion ?? 0) : 0
-  const retencion    = isRxH || isLiberalidad ? (solicitud.monto_retencion ?? subtotal * retencionPct / 100) : 0
-  const igv          = isRxH || isLiberalidad || solicitud.aplica_igv === false ? 0 : subtotal * 0.18
-  const total        = isRxH || isLiberalidad ? subtotal - retencion : subtotal + igv
+  const retencionPct = isRxH || isLiberalidad || isOtros ? (solicitud.porcentaje_retencion ?? 0) : 0
+  const retencion    = isRxH || isLiberalidad || isOtros ? (solicitud.monto_retencion ?? subtotal * retencionPct / 100) : 0
+  const igv          = isRxH || isLiberalidad || isOtros || solicitud.aplica_igv === false ? 0 : subtotal * 0.18
+  const total        = isRxH || isLiberalidad || isOtros ? subtotal - retencion : subtotal + igv
 
   const proyecto    = solicitud.proyecto
   const hoy         = new Intl.DateTimeFormat('es-PE', { dateStyle: 'short' }).format(new Date())
@@ -413,8 +414,8 @@ export function OrdenCompraPDF({
             : <View style={S.logoPlaceholder} />
           }
           <View style={S.headerCenter}>
-            <Text style={S.headerTitle}>{isRxH ? 'RECIBO POR HONORARIOS' : isLiberalidad ? 'LIBERALIDAD' : 'ORDEN DE COMPRA O SERVICIO'}</Text>
-            <Text style={S.headerSub}>{isRxH ? 'Documento de pago por servicios profesionales' : isLiberalidad ? 'Documento de pago por liberalidad' : 'Documento de solicitud de adquisición'}</Text>
+            <Text style={S.headerTitle}>{isRxH ? 'RECIBO POR HONORARIOS' : isLiberalidad ? 'LIBERALIDAD' : isOtros ? 'OTROS' : 'ORDEN DE COMPRA O SERVICIO'}</Text>
+            <Text style={S.headerSub}>{isRxH ? 'Documento de pago por servicios profesionales' : isLiberalidad ? 'Documento de pago por liberalidad' : isOtros ? 'Documento de pago' : 'Documento de solicitud de adquisición'}</Text>
           </View>
           <View style={S.headerRight}>
             <Text style={S.headerRightLabel}>N° {solicitud.codigo ?? `#${solicitud.id}`}</Text>
@@ -517,7 +518,7 @@ export function OrdenCompraPDF({
               <Text style={S.totalLabel}>Monto bruto</Text>
               <Text style={S.totalValue}>{fmtMoneySmart(subtotal, moneda)}</Text>
             </View>
-            {isRxH || isLiberalidad ? (
+            {isRxH || isLiberalidad || isOtros ? (
               <View style={S.totalRow}>
                 <Text style={S.totalLabel}>
                   {isLiberalidad ? `Retención (${retencionPct}%)` : `Retención IR ${retencionPct > 0 ? `(${retencionPct}%)` : '(Exonerado)'}`}
@@ -533,7 +534,7 @@ export function OrdenCompraPDF({
               </>
             )}
             <View style={S.totalFinal}>
-              <Text style={S.totalFinalText}>{isRxH || isLiberalidad ? 'MONTO NETO A PAGAR' : 'TOTAL'}</Text>
+              <Text style={S.totalFinalText}>{isRxH || isLiberalidad || isOtros ? 'MONTO NETO A PAGAR' : 'TOTAL'}</Text>
               <Text style={S.totalFinalText}>{fmtMoney(total, moneda)}</Text>
             </View>
           </View>

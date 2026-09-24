@@ -13,7 +13,7 @@ export interface ReporteFiltros {
 }
 
 export interface ReporteRow {
-  tipo:           'OC' | 'RxH' | 'Liberalidad' | 'A Rendir' | 'Reembolso' | 'Caja Chica' | 'Devolución'
+  tipo:           'OC' | 'RxH' | 'Liberalidad' | 'Otros' | 'A Rendir' | 'Reembolso' | 'Caja Chica' | 'Devolución'
   estado:         string | null
   codigo:         string | null
   fecha_solicitud: string | null
@@ -202,9 +202,10 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     const arcs = archivosMap[s.id] ?? new Set()
     const isRxH   = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
     const isLiberalidad = s.solicitud_tipo?.nombre === 'Liberalidad'
+    const isOtros = s.solicitud_tipo?.nombre === 'Otros'
     const det      = detallesMap[s.id] ?? []
     const subtotal = det.reduce((sum, d) => sum + d.valor_total, 0)
-    const igv      = isRxH || isLiberalidad || s.aplica_igv === false ? 0 : subtotal * 0.18
+    const igv      = isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? 0 : subtotal * 0.18
     const total    = subtotal + igv
     const detrac   = s.monto_detraccion ?? 0
     const reten    = s.monto_retencion ?? 0
@@ -217,7 +218,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     const u        = s.usuario_creador ? (userMap[s.usuario_creador] ?? null) : null
 
     return {
-      tipo:           isRxH ? 'RxH' : isLiberalidad ? 'Liberalidad' : 'OC',
+      tipo:           isRxH ? 'RxH' : isLiberalidad ? 'Liberalidad' : isOtros ? 'Otros' : 'OC',
       estado:         s.estado_soli?.nombre ?? null,
       codigo:         s.codigo,
       fecha_solicitud: s.fecha_creacion,
@@ -634,6 +635,7 @@ const TIPO_COLOR: Record<string, string> = {
   'OC':        'DDEEFF',
   'RxH':       'E8F5E9',
   'Liberalidad': 'FFE0B2',
+  'Otros':       'ECEFF1',
   'A Rendir':  'FFF8E1',
   'Reembolso':   'FCE4EC',
   'Caja Chica':  'F3E5F5',

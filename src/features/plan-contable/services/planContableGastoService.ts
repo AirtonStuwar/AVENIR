@@ -84,7 +84,8 @@ export async function getGastoPorPlanContable(userId?: string): Promise<GastoPla
       const subtotal = subtotalBySol[s.id] ?? 0
       const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
       const isLiberalidad = s.solicitud_tipo?.nombre === 'Liberalidad'
-      const total = isRxH || isLiberalidad || s.aplica_igv === false ? subtotal : subtotal * 1.18
+      const isOtros = s.solicitud_tipo?.nombre === 'Otros'
+      const total = isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? subtotal : subtotal * 1.18
       const entry = ensurePlan(byPlan, plan)
       entry.cantidad += 1
       if ((s.moneda ?? 'PEN') === 'USD') entry.usd += total

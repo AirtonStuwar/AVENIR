@@ -27,7 +27,7 @@ function montoAGirar(s: Solicitud): number {
   const tipo  = s.solicitud_tipo?.nombre
   if (tipo === 'Liberalidad') return total
 
-  if (tipo === 'Recibo por Honorarios') return total - (s.monto_retencion ?? 0)
+  if (tipo === 'Recibo por Honorarios' || tipo === 'Otros') return total - (s.monto_retencion ?? 0)
 
   // OC (incluye Factura con Valorización, que además puede tener Fondo de Garantía)
   const fondoGarantia = s.monto_fondo_garantia ?? 0
@@ -169,7 +169,7 @@ export default function SolicitudesPage() {
         s.numero_cuenta ?? '',
         sanitizeBBVA(s.razon_social),
         montoAGirar(s),
-        s.solicitud_tipo?.nombre === 'Liberalidad' ? 'B' : 'F',
+        s.solicitud_tipo?.nombre === 'Liberalidad' || s.solicitud_tipo?.nombre === 'Otros' ? 'B' : 'F',
         s.numero_factura ?? '',
         'N',
         '',

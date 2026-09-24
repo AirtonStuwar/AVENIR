@@ -54,7 +54,7 @@ async function fetchSolicitudesPagables(cuentaId: number, fechaDesde: string, fe
     const isPEN = (s.moneda ?? 'PEN') === 'PEN'
     const fondoGarantia = s.monto_fondo_garantia ?? 0
     let monto = total - fondoGarantia
-    if (tipo === 'Recibo por Honorarios') {
+    if (tipo === 'Recibo por Honorarios' || tipo === 'Otros') {
       monto = total - (s.monto_retencion ?? 0)
     } else if (tipo !== 'Liberalidad' && s.detraccion_id) {
       if (isPEN) monto = total - (s.monto_detraccion ?? 0) - fondoGarantia
