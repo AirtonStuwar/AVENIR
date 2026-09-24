@@ -20,7 +20,7 @@ const egresoChildren = [
 const menuItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: [1, 8, 9, 10, 11] },
   { name: 'Egreso',    icon: Banknote,     roles: ALL_ROLES, children: egresoChildren },
-  { name: 'Ingreso',   path: '/ingreso',   icon: TrendingUp, roles: [1, 10, 11] },
+  { name: 'Ingreso',   path: '/ingreso',   icon: TrendingUp, roles: [1, 9, 10] },
   { name: 'Usuarios',    path: '/usuarios',    icon: UserCog,    roles: [1] },
   { name: 'Proveedores', path: '/proveedores', icon: Users,      roles: [1, 11] },
   { name: 'Empresas',    path: '/proyectos',   icon: Briefcase,  roles: [1] },

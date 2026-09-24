@@ -995,7 +995,7 @@ Cruza el estado de cuenta bancario (Excel descargado del banco) contra los pagos
 
 ## Módulo Cobranza / Ingreso
 
-Página `/ingreso` (`IngresoPage.tsx`) — visible para ADMIN (1), VISUALIZADOR (10) y USUARIO (11). Combina tres cosas: un dashboard "Cartera y Cobranza" (mock o real, ver abajo), el registro manual de cobranza (`cobranza_cliente`, ver más abajo), y — desde setiembre 2026 — dos vistas conectadas en vivo a Mobysuite.
+Página `/ingreso` (`IngresoPage.tsx`) — ítem "Ingreso" del sidebar visible para ADMIN (1), APROBADOR (9) y VISUALIZADOR (10) (setiembre 2026: se quitó USUARIO y se agregó APROBADOR, `Sidebar.tsx` `roles: [1, 9, 10]`). La ruta `/ingreso` en sí solo está gateada por `ProtectedRoute` (autenticación) sin restricción de rol, así que un USUARIO que ya tenga el link no queda bloqueado a nivel de ruta — solo se le ocultó el botón del sidebar. Los permisos internos de la página (`canRegistrarCobranza` = USUARIO/ADMIN, `canVerReportes` = VISUALIZADOR/ADMIN) **no se tocaron** — APROBADOR entra y ve lo mismo que hoy ve VISUALIZADOR (dashboard/reportes/Mobysuite), sin el botón "Registrar Cobranza". Combina tres cosas: un dashboard "Cartera y Cobranza" (mock o real, ver abajo), el registro manual de cobranza (`cobranza_cliente`, ver más abajo), y — desde setiembre 2026 — dos vistas conectadas en vivo a Mobysuite.
 
 **`canRegistrarCobranza` (USUARIO/ADMIN) y `canVerReportes` (VISUALIZADOR/ADMIN)** gatean qué se muestra: el dashboard, el cronograma Mobysuite y la cuenta por cobrar vencida solo se renderizan para `canVerReportes`; el botón "Registrar Cobranza" solo para `canRegistrarCobranza`.
 
