@@ -376,7 +376,7 @@ export default function SolicitudesTable({
                 )}
                 {[
                   'Código', 'Razón social', 'Estado', 'Factura',
-                  ...(showMontoPago ? ['Monto a pagar', 'Detracción/Retención'] : []),
+                  ...(showMontoPago ? ['Monto Total', 'Monto a pagar', 'Detracción/Retención'] : []),
                   'Empresa', 'Fecha pedido', 'Vencimiento', 'Creado por', 'Área', 'RUC', '',
                 ].map(h => (
                   <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
@@ -435,6 +435,9 @@ export default function SolicitudesTable({
                     </td>
                     {showMontoPago && (
                       <>
+                        <td className="px-4 py-3 whitespace-nowrap text-xs font-semibold text-gray-800">
+                          {s.monto_total != null ? fmtMoney(s.monto_total, s.moneda ?? 'PEN') : <span className="text-gray-300 font-normal">—</span>}
+                        </td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs font-semibold text-gray-800">
                           {s.monto_total != null ? fmtMoney(montoAGirar(s), s.moneda ?? 'PEN') : <span className="text-gray-300 font-normal">—</span>}
                         </td>
