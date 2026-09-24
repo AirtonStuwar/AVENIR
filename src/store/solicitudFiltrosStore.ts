@@ -8,6 +8,7 @@ interface SolicitudFiltrosState {
   monedaFilter: 'PEN' | 'USD' | null
   ordenVencimiento: boolean
   estadoNombre: string | null
+  searchQuery: string
   setProyectoFilter: (v: number | null) => void
   setAreaFilter: (v: number | null) => void
   setMesAprobacion: (v: number | null) => void
@@ -15,6 +16,7 @@ interface SolicitudFiltrosState {
   setMonedaFilter: (v: 'PEN' | 'USD' | null) => void
   setOrdenVencimiento: (v: boolean) => void
   setEstadoNombre: (v: string | null) => void
+  setSearchQuery: (v: string) => void
   clear: () => void
 }
 
@@ -26,6 +28,7 @@ export const useSolicitudFiltrosStore = create<SolicitudFiltrosState>((set) => (
   monedaFilter: null,
   ordenVencimiento: false,
   estadoNombre: null,
+  searchQuery: '',
   setProyectoFilter: (v) => set({ proyectoFilter: v }),
   setAreaFilter: (v) => set({ areaFilter: v }),
   setMesAprobacion: (v) => set({ mesAprobacion: v }),
@@ -33,5 +36,6 @@ export const useSolicitudFiltrosStore = create<SolicitudFiltrosState>((set) => (
   setMonedaFilter: (v) => set({ monedaFilter: v }),
   setOrdenVencimiento: (v) => set({ ordenVencimiento: v }),
   setEstadoNombre: (v) => set({ estadoNombre: v }),
-  clear: () => set({ proyectoFilter: null, areaFilter: null, mesAprobacion: null, pagoFilter: null, monedaFilter: null, ordenVencimiento: false, estadoNombre: null }),
+  setSearchQuery: (v) => set({ searchQuery: v }),
+  clear: () => set({ proyectoFilter: null, areaFilter: null, mesAprobacion: null, pagoFilter: null, monedaFilter: null, ordenVencimiento: false, estadoNombre: null, searchQuery: '' }),
 }))

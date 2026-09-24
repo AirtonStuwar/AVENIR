@@ -71,6 +71,7 @@ interface Props {
   onCancel?: (s: Solicitud) => void
   onCreate?: () => void
   onSearch: (q: string) => void
+  initialSearch?: string
   onPageChange: (page: number) => void
   onRefresh: () => void
   selectedIds?: Set<number>
@@ -103,9 +104,9 @@ export default function SolicitudesTable({
   monedaFilter, onMonedaFilterChange,
   areaFilter, onAreaFilterChange, ordenVencimiento, onOrdenVencimientoChange,
   hasFiltrosActivos, onClearFilters, estadoFilter, onEstadoFilterChange,
-  showMontoPago, showMontoTotal,
+  showMontoPago, showMontoTotal, initialSearch,
 }: Props) {
-  const [searchVal, setSearchVal] = useState('')
+  const [searchVal, setSearchVal] = useState(initialSearch ?? '')
   const [proyectos, setProyectos] = useState<Array<{id: number; nombre: string}>>([])
   const [areas, setAreas] = useState<Array<{id: number; nombre: string}>>([])
   const selectAllRef = useRef<HTMLInputElement>(null)

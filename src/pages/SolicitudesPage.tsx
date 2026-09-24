@@ -44,17 +44,22 @@ export default function SolicitudesPage() {
 
   // ── Filtros persistentes (sobreviven a navegar a un detalle y volver) ──
   const {
-    proyectoFilter, areaFilter, mesAprobacion, pagoFilter: pagoLocal, monedaFilter: monedaLocal, ordenVencimiento, estadoNombre,
+    proyectoFilter, areaFilter, mesAprobacion, pagoFilter: pagoLocal, monedaFilter: monedaLocal, ordenVencimiento, estadoNombre, searchQuery,
     setProyectoFilter: setProyectoStore, setAreaFilter: setAreaStore,
     setMesAprobacion: setMesStore, setPagoFilter: setPagoStore, setMonedaFilter: setMonedaStore,
-    setOrdenVencimiento: setOrdenStore, setEstadoNombre: setEstadoStore,
+    setOrdenVencimiento: setOrdenStore, setEstadoNombre: setEstadoStore, setSearchQuery: setSearchStore,
     clear: clearFiltrosStore,
   } = useSolicitudFiltrosStore()
 
   const {
     data, total, page, pageSize, totalPages, loading, setPage, setSearch,
     setProyectoFilter, setMesAprobacion, setPagoFilter, setMonedaFilter, setAreaFilter, setOrdenVencimiento, setEstadoNombre, refresh,
-  } = useSolicitudes({ proyecto_id: proyectoFilter, areaId: areaFilter, mes_aprobacion: mesAprobacion, pagoFilter: pagoLocal, monedaFilter: monedaLocal, ordenVencimiento, estadoNombre })
+  } = useSolicitudes({ proyecto_id: proyectoFilter, areaId: areaFilter, mes_aprobacion: mesAprobacion, pagoFilter: pagoLocal, monedaFilter: monedaLocal, ordenVencimiento, estadoNombre, search: searchQuery })
+
+  const handleSearchChange = (q: string) => {
+    setSearchStore(q)
+    setSearch(q)
+  }
 
   const isVisualizador = userRole === ROLES.VISUALIZADOR
   const isEvaluador    = userRole === ROLES.EVALUADOR
@@ -422,7 +427,8 @@ export default function SolicitudesPage() {
         pageSize={pageSize}
         totalPages={totalPages}
         loading={loading}
-        onSearch={setSearch}
+        onSearch={handleSearchChange}
+        initialSearch={searchQuery}
         onPageChange={handlePageChange}
         onRefresh={refresh}
         onCreate={!isVisualizador ? () => navigate('/solicitudes/nueva') : undefined}
