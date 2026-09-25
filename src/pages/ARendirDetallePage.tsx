@@ -460,7 +460,7 @@ export default function ARendirDetallePage() {
     ws.addRow(['DNI', solicitud.beneficiario_dni ?? ''])
     ws.addRow(['Banco', solicitud.banco ?? ''])
     ws.addRow(['Cuenta', solicitud.numero_cuenta ?? ''])
-    ws.addRow(['Importe adelanto', `${sym}${solicitud.importe.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`])
+    ws.addRow(['Importe a rendir', `${sym}${solicitud.importe.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`])
     ws.addRow(['Fecha rendición', fmtDate(solicitud.fecha_rendicion)])
     ws.addRow(['Total gastado', `${sym}${solicitud.total_reembolso.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`])
     ws.getColumn(1).font = { bold: true }
@@ -788,9 +788,9 @@ export default function ARendirDetallePage() {
             { label: 'Cargo',            value: solicitud.beneficiario_cargo },
             { label: 'Empresa',          value: solicitud.proyecto?.nombre },
             { label: 'Moneda',           value: solicitud.moneda === 'USD' ? 'Dólares (USD)' : 'Soles (PEN)' },
-            { label: 'Importe adelanto', value: fmtMoney(solicitud.importe, solicitud.moneda) },
+            { label: 'Importe a rendir', value: fmtMoney(solicitud.importe, solicitud.moneda) },
             { label: 'Motivo',           value: solicitud.motivo },
-            { label: 'Total reembolso',  value: fmtMoney(solicitud.total_reembolso, solicitud.moneda) },
+            { label: 'Total rendido',  value: fmtMoney(solicitud.total_reembolso, solicitud.moneda) },
             { label: 'Fecha requerida',  value: fmtDate(solicitud.fecha_rendicion) },
             { label: 'Fecha solicitud',  value: fmtDate(solicitud.fecha_creacion) },
             { label: 'Banco',            value: solicitud.banco },
@@ -959,7 +959,7 @@ export default function ARendirDetallePage() {
               <tfoot>
                 <tr className="bg-[#003D7D]/[0.04] border-t-2 border-[#003D7D]/20">
                   <td colSpan={5} className="px-4 py-3 text-xs font-bold text-gray-700 uppercase text-right">
-                    Total a reembolsar:
+                    Total rendido:
                   </td>
                   <td className="px-4 py-3 text-right font-bold text-[#003D7D]">
                     {fmtMoney(solicitud.total_reembolso, solicitud.moneda)}

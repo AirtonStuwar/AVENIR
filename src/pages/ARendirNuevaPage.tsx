@@ -437,7 +437,7 @@ export default function ARendirNuevaPage() {
             {/* Importe */}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                Importe adelanto ({moneda === 'USD' ? '$' : 'S/'})
+                Importe a rendir ({moneda === 'USD' ? '$' : 'S/'})
               </label>
               <input
                 type="number"
@@ -545,7 +545,7 @@ export default function ARendirNuevaPage() {
           {/* Info card */}
           <div className="bg-[#003D7D]/[0.04] border border-[#003D7D]/20 rounded-2xl px-5 py-3 flex items-center gap-4 text-sm">
             <span className="font-mono font-bold text-[#003D7D]">{solicitudCreada.codigo}</span>
-            <span className="text-gray-600">Importe adelanto: <strong>{moneda === 'USD' ? '$' : 'S/'} {Number(importe).toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
+            <span className="text-gray-600">Importe a rendir: <strong>{moneda === 'USD' ? '$' : 'S/'} {Number(importe).toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
           </div>
 
           {/* Detail table */}
@@ -671,7 +671,7 @@ export default function ARendirNuevaPage() {
                 <tfoot>
                   <tr className="bg-[#003D7D]/[0.04] border-t-2 border-[#003D7D]/20">
                     <td colSpan={5} className="px-3 py-2.5 text-xs font-bold text-gray-700 text-right uppercase">
-                      Total a reembolsar:
+                      Total rendido:
                     </td>
                     <td className="px-3 py-2.5 text-right font-bold text-[#003D7D] text-sm">
                       {moneda === 'USD' ? '$' : 'S/'} {totalDetalle.toLocaleString(moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

@@ -228,7 +228,7 @@ export function ARendirPDF({ solicitud, detalles, logoSrc, firmaUsuarioSrc, firm
             <Text style={s.headerValue}>{solicitud.proyecto?.nombre ?? '—'}</Text>
           </View>
           <View style={s.headerCard}>
-            <Text style={s.headerLabel}>Importe Adelanto</Text>
+            <Text style={s.headerLabel}>Importe a Rendir</Text>
             <Text style={s.headerValue}>{fmtMoney(solicitud.importe)}</Text>
           </View>
           <View style={s.headerCard}>
@@ -288,7 +288,7 @@ export function ARendirPDF({ solicitud, detalles, logoSrc, firmaUsuarioSrc, firm
 
           {/* Total row */}
           <View style={s.tableRowTotal}>
-            <Text style={[s.tdTotal, { flex: 1 }]}>TOTAL A REEMBOLSAR</Text>
+            <Text style={[s.tdTotal, { flex: 1 }]}>TOTAL RENDIDO</Text>
             <Text style={[s.tdTotal, s.colImporte]}>{fmtMoney(totalReembolso)}</Text>
           </View>
         </View>
