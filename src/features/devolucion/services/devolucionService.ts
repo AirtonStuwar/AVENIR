@@ -187,12 +187,13 @@ export interface DevolucionRow {
   estado: string
   proyecto_id: number | null
   fecha_pago: string | null
+  fecha_aprobacion: string | null
 }
 
 export async function getDevolucionesAutorizadas(): Promise<DevolucionRow[]> {
   const { data, error } = await supabase
     .from('devolucion_cliente')
-    .select('id, monto, moneda, estado, proyecto_id, fecha_pago')
+    .select('id, monto, moneda, estado, proyecto_id, fecha_pago, fecha_aprobacion')
     .in('estado', ['Pendiente', 'En Revision', 'Evaluado', 'Autorizado'])
   if (error) throw error
   return (data ?? []) as DevolucionRow[]

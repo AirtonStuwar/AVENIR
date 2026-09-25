@@ -223,12 +223,13 @@ export interface ReembolsoRow {
   estado: string
   proyecto_id: number | null
   fecha_pago: string | null
+  fecha_aprobacion: string | null
 }
 
 export async function getReembolsoAutorizados(): Promise<ReembolsoRow[]> {
   const { data, error } = await supabase
     .from('solicitud_reembolso')
-    .select('id, moneda, total_reembolso, estado, proyecto_id, fecha_pago')
+    .select('id, moneda, total_reembolso, estado, proyecto_id, fecha_pago, fecha_aprobacion')
     .in('estado', ['Evaluado', 'Autorizado'])
   if (error) throw error
   return (data ?? []) as ReembolsoRow[]

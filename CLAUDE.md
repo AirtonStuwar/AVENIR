@@ -790,6 +790,8 @@ El panel APROBADOR incluye dos `ChartCard` con `BarChart` (Recharts) comparando 
 
 Para soportarlos: `SOL_SELECT` en `dashboardService.ts` incluye `fecha_pago`; `ARendirRow`, `ReembolsoRow` y el nuevo `CajaChicaRow` (helper `getCajaChicaAutorizadas()` en `cajaChicaService.ts`) incluyen `fecha_pago`; `AprobadorData` incluye `cajaChica`.
 
+**Filtro de mes (setiembre 2026):** input `type="month"` sobre ambos gráficos (`mesFiltro`, arranca en el mes en curso — `AprobadorDashboard` en `DashboardPage.tsx`), pedido por gerencia para ver "lo que va del mes". Cada barra se filtra por su **propio** campo de fecha dentro del mes elegido (no ambos a la vez en el mismo registro): "Aprobado" cuenta lo que tiene `fecha_aprobacion` en ese mes; "Pagado" cuenta lo que tiene `fecha_pago` en ese mes — así un registro aprobado en agosto pero pagado en setiembre aparece en el "Pagado" de setiembre aunque no aparezca en su "Aprobado". Requirió agregar `fecha_aprobacion` (antes no se traía) a `SOL_SELECT` y a `ARendirRow`/`ReembolsoRow`/`CajaChicaRow`/`DevolucionRow` (`getARendirAutorizados()`, `getReembolsoAutorizados()`, `getCajaChicaAutorizadas()`, `getDevolucionesAutorizadas()`). El filtro de mes es **exclusivo del gráfico** — no afecta los KPIs de arriba (Total comprometido, A Rendir por pagar, Devol. autorizada, etc.), que siguen mostrando el acumulado total sin filtrar por fecha.
+
 ---
 
 ## Módulo Caja Chica

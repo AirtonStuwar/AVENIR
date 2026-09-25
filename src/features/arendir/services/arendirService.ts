@@ -278,13 +278,14 @@ export interface ARendirRow {
   estado: string
   proyecto_id: number | null
   fecha_pago: string | null
+  fecha_aprobacion: string | null
 }
 
 /** Devuelve A Rendir pagados/en revisión/cerrados para KPIs del dashboard */
 export async function getARendirAutorizados(): Promise<ARendirRow[]> {
   const { data, error } = await supabase
     .from('solicitud_arendir')
-    .select('id, importe, moneda, total_reembolso, estado, proyecto_id, fecha_pago')
+    .select('id, importe, moneda, total_reembolso, estado, proyecto_id, fecha_pago, fecha_aprobacion')
     .in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'])
   if (error) throw error
   return (data ?? []) as ARendirRow[]

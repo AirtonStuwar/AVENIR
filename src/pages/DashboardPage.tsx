@@ -394,6 +394,10 @@ function AprobadorDashboard() {
   const [loading,        setLoading]        = useState(true)
   const [error,          setError]          = useState(false)
   const [proyectoFilter, setProyectoFilter] = useState<number | null>(null)
+  const [mesFiltro,      setMesFiltro]      = useState<string>(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
 
   useEffect(() => {
     getAprobadorData().then(setData).catch(() => setError(true)).finally(() => setLoading(false))
@@ -437,13 +441,9 @@ function AprobadorDashboard() {
   const devAutFilUSD = montoDevolucion(devAutTotal, 'USD')
 
   // ── Aprobado vs Pagado (gráficos) ─────────────────────────────
-  const solPagadas   = aprobadasFiltradas.filter(s => s.fecha_pago)
   // Mismo criterio que "Total comprometido": A Rendir Pagado/En Revision/Cerrado (excluye Aprobado sin desembolsar aún)
   const arendirAprob = arendirAuthFil
-  const arendirPag   = arendirAprob.filter(a => a.fecha_pago)
-  const reembolsoPag = reembolsoAuthFil.filter(r => r.fecha_pago)
   const cajaChicaFil = proyectoFilter ? cajaChica.filter(c => c.proyecto_id === proyectoFilter) : cajaChica
-  const cajaChicaPag = cajaChicaFil.filter(c => c.fecha_pago)
   const devFil       = proyectoFilter ? devoluciones.filter(d => d.proyecto_id === proyectoFilter) : devoluciones
   const devPend      = devFil.filter(d => d.estado === 'Evaluado')
   const devAut       = devFil.filter(d => d.estado === 'Autorizado')
@@ -457,18 +457,33 @@ function AprobadorDashboard() {
   const montoSolicitudesNeto = (sols: SolicitudRow[], moneda: 'PEN' | 'USD') =>
     montoSolicitudes(sols, detalles, moneda) - montoRetencionSum(sols, moneda)
 
+  // Filtro de mes para el gráfico Aprobado vs Pagado (gerencia): cada barra se filtra por su
+  // propio campo de fecha dentro del mes elegido — "Aprobado" por fecha_aprobacion, "Pagado" por
+  // fecha_pago — para comparar cuánto se aprobó vs cuánto se pagó dentro de ese mismo período.
+  const inMes = (fecha: string | null) => !!fecha && fecha.slice(0, 7) === mesFiltro
+  const aprobadasMes    = aprobadasFiltradas.filter(s => inMes(s.fecha_aprobacion))
+  const solPagadasMes   = aprobadasFiltradas.filter(s => inMes(s.fecha_pago))
+  const arendirAprobMes = arendirAprob.filter(a => inMes(a.fecha_aprobacion))
+  const arendirPagMes   = arendirAprob.filter(a => inMes(a.fecha_pago))
+  const reembolsoAprobMes = reembolsoAuthFil.filter(r => inMes(r.fecha_aprobacion))
+  const reembolsoPagMes   = reembolsoAuthFil.filter(r => inMes(r.fecha_pago))
+  const cajaChicaAprobMes = cajaChicaFil.filter(c => inMes(c.fecha_aprobacion))
+  const cajaChicaPagMes   = cajaChicaFil.filter(c => inMes(c.fecha_pago))
+  const devAutMes = devAut.filter(d => inMes(d.fecha_aprobacion))
+  const devPagMes = devAut.filter(d => inMes(d.fecha_pago))
+
   const pagosPEN = [
-    { modulo: 'Solicitudes', Aprobado: montoSolicitudesNeto(aprobadasFiltradas, 'PEN'), Pagado: montoSolicitudesNeto(solPagadas, 'PEN') },
-    { modulo: 'A Rendir',    Aprobado: montoARendir(arendirAprob, 'PEN'),                     Pagado: montoARendir(arendirPag, 'PEN') },
-    { modulo: 'Reembolso',   Aprobado: montoReembolso(reembolsoAuthFil, 'PEN'),               Pagado: montoReembolso(reembolsoPag, 'PEN') },
-    { modulo: 'Caja Chica',  Aprobado: cajaChicaFil.reduce((s, c) => s + (c.total_gastos ?? 0), 0), Pagado: cajaChicaPag.reduce((s, c) => s + (c.total_gastos ?? 0), 0) },
-    { modulo: 'Devolución',  Aprobado: montoDevolucion(devAut, 'PEN'),                        Pagado: montoDevolucion(devPag, 'PEN') },
+    { modulo: 'Solicitudes', Aprobado: montoSolicitudesNeto(aprobadasMes, 'PEN'), Pagado: montoSolicitudesNeto(solPagadasMes, 'PEN') },
+    { modulo: 'A Rendir',    Aprobado: montoARendir(arendirAprobMes, 'PEN'),                     Pagado: montoARendir(arendirPagMes, 'PEN') },
+    { modulo: 'Reembolso',   Aprobado: montoReembolso(reembolsoAprobMes, 'PEN'),               Pagado: montoReembolso(reembolsoPagMes, 'PEN') },
+    { modulo: 'Caja Chica',  Aprobado: cajaChicaAprobMes.reduce((s, c) => s + (c.total_gastos ?? 0), 0), Pagado: cajaChicaPagMes.reduce((s, c) => s + (c.total_gastos ?? 0), 0) },
+    { modulo: 'Devolución',  Aprobado: montoDevolucion(devAutMes, 'PEN'),                        Pagado: montoDevolucion(devPagMes, 'PEN') },
   ]
   const pagosUSD = [
-    { modulo: 'Solicitudes', Aprobado: montoSolicitudesNeto(aprobadasFiltradas, 'USD'), Pagado: montoSolicitudesNeto(solPagadas, 'USD') },
-    { modulo: 'A Rendir',    Aprobado: montoARendir(arendirAprob, 'USD'),                     Pagado: montoARendir(arendirPag, 'USD') },
-    { modulo: 'Reembolso',   Aprobado: montoReembolso(reembolsoAuthFil, 'USD'),               Pagado: montoReembolso(reembolsoPag, 'USD') },
-    { modulo: 'Devolución',  Aprobado: montoDevolucion(devAut, 'USD'),                        Pagado: montoDevolucion(devPag, 'USD') },
+    { modulo: 'Solicitudes', Aprobado: montoSolicitudesNeto(aprobadasMes, 'USD'), Pagado: montoSolicitudesNeto(solPagadasMes, 'USD') },
+    { modulo: 'A Rendir',    Aprobado: montoARendir(arendirAprobMes, 'USD'),                     Pagado: montoARendir(arendirPagMes, 'USD') },
+    { modulo: 'Reembolso',   Aprobado: montoReembolso(reembolsoAprobMes, 'USD'),               Pagado: montoReembolso(reembolsoPagMes, 'USD') },
+    { modulo: 'Devolución',  Aprobado: montoDevolucion(devAutMes, 'USD'),                        Pagado: montoDevolucion(devPagMes, 'USD') },
   ]
   const hasPagosUSD = pagosUSD.some(d => d.Aprobado > 0 || d.Pagado > 0)
 
@@ -622,6 +637,17 @@ function AprobadorDashboard() {
         </div>
 
         {/* Gráficos Aprobado vs Pagado */}
+        <div className="flex items-center justify-end">
+          <label className="flex items-center gap-2 text-xs text-gray-500">
+            Mes de Aprobado vs Pagado:
+            <input
+              type="month"
+              value={mesFiltro}
+              onChange={e => setMesFiltro(e.target.value)}
+              className="h-9 rounded-xl border border-gray-200 bg-white px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 shadow-sm"
+            />
+          </label>
+        </div>
         <div className={`grid grid-cols-1 ${hasPagosUSD ? 'lg:grid-cols-2' : ''} gap-4`}>
           <ChartCard title="Aprobado vs Pagado S/" subtitle="Monto aprobado y monto ya pagado por módulo (soles)">
             {pagosPEN.every(d => d.Aprobado === 0 && d.Pagado === 0) ? <EmptyChart /> : (

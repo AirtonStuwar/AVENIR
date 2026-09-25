@@ -291,12 +291,13 @@ export interface CajaChicaRow {
   estado: string
   proyecto_id: number | null
   fecha_pago: string | null
+  fecha_aprobacion: string | null
 }
 
 export async function getCajaChicaAutorizadas(): Promise<CajaChicaRow[]> {
   const { data, error } = await supabase
     .from('caja_chica')
-    .select('id, total_gastos, estado, proyecto_id, fecha_pago')
+    .select('id, total_gastos, estado, proyecto_id, fecha_pago, fecha_aprobacion')
     .eq('estado', 'Autorizado')
   if (error) throw error
   return (data ?? []) as CajaChicaRow[]

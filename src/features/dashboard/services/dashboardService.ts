@@ -6,7 +6,7 @@ import { getDevolucionesAutorizadas, type DevolucionRow } from '../../devolucion
 
 export type { ARendirRow, ReembolsoRow, CajaChicaRow, DevolucionRow }
 
-const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, monto_retencion, moneda, fecha_pago, usuario_evaluador, usuario_aprobador, aplica_igv, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre)'
+const SOL_SELECT = 'id, codigo, razon_social, proyecto_id, estado_id, fecha_creacion, fecha_pedido, monto_total, monto_retencion, moneda, fecha_pago, fecha_aprobacion, usuario_evaluador, usuario_aprobador, aplica_igv, estado_soli:estado_id(id,nombre,tipo), proyecto:proyecto_id(id,nombre), solicitud_tipo:tipo_id(id,nombre)'
 
 export interface SolicitudRow {
   id: number
@@ -20,6 +20,7 @@ export interface SolicitudRow {
   monto_retencion: number | null
   moneda: string | null
   fecha_pago: string | null
+  fecha_aprobacion: string | null
   usuario_evaluador: string | null
   usuario_aprobador: string | null
   aplica_igv: boolean
