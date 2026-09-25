@@ -268,7 +268,7 @@ export default function SolicitudesPage() {
 
   // ── Marcar pagado / detracción pagada (masivo) ─────────────────
   const canMarcarPago = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
-  const canVerMontoTotal = userRole === ROLES.USUARIO
+  const canVerMontoTotal = userRole === ROLES.USUARIO || userRole === ROLES.APROBADOR
   const selectedPorPagar = data.filter(s =>
     selectedIds.has(s.id) && s.estado_soli?.nombre === 'Aprobado' && !s.fecha_pago)
   const selectedDetraccionPendiente = data.filter(s =>
