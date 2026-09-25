@@ -25,6 +25,15 @@ function montoAGirar(s: Solicitud): number {
   return Math.round((total - total * pct / 100) * 100) / 100 - fondoGarantia
 }
 
+// Monto Total a mostrar en la columna: bruto tal cual está guardado, salvo para Recibo por
+// Honorarios — ahí se descuenta la retención (si el evaluador ya la asignó), porque de lo
+// contrario el monto bruto (sin retención) da la impresión de que la retención no aplicó.
+function montoTotalMostrar(s: Solicitud): number {
+  const total = s.monto_total ?? 0
+  if (s.solicitud_tipo?.nombre === 'Recibo por Honorarios') return total - (s.monto_retencion ?? 0)
+  return total
+}
+
 // Monto de detracción/retención aplicado, con su moneda de referencia.
 // La detracción siempre está en soles (SUNAT); la retención va en la moneda propia de la solicitud.
 function montoDetraccionORetencion(s: Solicitud): { monto: number; moneda: string } | null {
@@ -438,7 +447,7 @@ export default function SolicitudesTable({
                     </td>
                     {showMontoTotal && (
                       <td className="px-4 py-3 whitespace-nowrap text-xs font-semibold text-gray-800">
-                        {s.monto_total != null ? fmtMoney(s.monto_total, s.moneda ?? 'PEN') : <span className="text-gray-300 font-normal">—</span>}
+                        {s.monto_total != null ? fmtMoney(montoTotalMostrar(s), s.moneda ?? 'PEN') : <span className="text-gray-300 font-normal">—</span>}
                       </td>
                     )}
                     {showMontoPago && (
