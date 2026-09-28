@@ -441,8 +441,6 @@ function AprobadorDashboard() {
   const devAutFilUSD = montoDevolucion(devAutTotal, 'USD')
 
   // ── Aprobado vs Pagado (gráficos) ─────────────────────────────
-  // Mismo criterio que "Total comprometido": A Rendir Pagado/En Revision/Cerrado (excluye Aprobado sin desembolsar aún)
-  const arendirAprob = arendirAuthFil
   const cajaChicaFil = proyectoFilter ? cajaChica.filter(c => c.proyecto_id === proyectoFilter) : cajaChica
   const devFil       = proyectoFilter ? devoluciones.filter(d => d.proyecto_id === proyectoFilter) : devoluciones
   const devPend      = devFil.filter(d => d.estado === 'Evaluado')
@@ -465,7 +463,11 @@ function AprobadorDashboard() {
   const inMes = (fecha: string | null) => !!fecha && fecha.slice(0, 7) === mesFiltro
   const aprobadasMes    = aprobadasFiltradas.filter(s => inMes(s.fecha_aprobacion))
   const solPagadasMes   = aprobadasMes.filter(s => !!s.fecha_pago)
-  const arendirAprobMes = arendirAprob.filter(a => inMes(a.fecha_aprobacion))
+  // Para este gráfico, "Aprobado" es lo que el aprobador aprobó ese mes — a diferencia de
+  // arendirAprob/arendirAuthFil (usado en "Total comprometido"), aquí SÍ se incluye el estado
+  // "Aprobado" puro (adelanto aprobado pero aún no desembolsado), no solo Pagado/En Revision/Cerrado.
+  const arendirChartBase = proyectoFilter ? arendir.filter(a => a.proyecto_id === proyectoFilter) : arendir
+  const arendirAprobMes = arendirChartBase.filter(a => inMes(a.fecha_aprobacion))
   const arendirPagMes   = arendirAprobMes.filter(a => !!a.fecha_pago)
   const reembolsoAprobMes = reembolsoAuthFil.filter(r => inMes(r.fecha_aprobacion))
   const reembolsoPagMes   = reembolsoAprobMes.filter(r => !!r.fecha_pago)
