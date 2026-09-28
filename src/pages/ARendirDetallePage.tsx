@@ -56,6 +56,12 @@ function fmtDate(val: string | null) {
   return new Date(val.includes('T') ? val : val + 'T00:00:00').toLocaleDateString('es-PE')
 }
 
+// "En Revision" (valor guardado en BD) se muestra como "En Rendición" — solo la etiqueta,
+// el valor interno no cambia (sigue siendo 'En Revision' en filtros y queries).
+function estadoLabelARendir(estado: string) {
+  return estado === 'En Revision' ? 'En Rendición' : estado
+}
+
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   const map: Record<string, string> = {
     'Pendiente':     'bg-yellow-100 text-yellow-800',
@@ -72,7 +78,7 @@ function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   }
   return (
     <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
-      {estado}
+      {estadoLabelARendir(estado)}
     </span>
   )
 }

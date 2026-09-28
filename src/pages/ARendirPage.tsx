@@ -14,6 +14,12 @@ import BulkPagoModal from '../features/solicitud/components/BulkPagoModal'
 import { marcarPagadoARendir } from '../features/arendir/services/arendirService'
 
 // ── Badge de estado ────────────────────────────────────────────
+// "En Revision" (valor guardado en BD) se muestra como "En Rendición" — solo la etiqueta,
+// el valor interno no cambia (sigue siendo 'En Revision' en filtros y queries).
+function estadoLabelARendir(estado: string) {
+  return estado === 'En Revision' ? 'En Rendición' : estado
+}
+
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   const map: Record<string, string> = {
     'Pendiente':     'bg-yellow-100 text-yellow-800',
@@ -29,7 +35,7 @@ function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
   }
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${map[estado] ?? 'bg-gray-100 text-gray-700'}`}>
-      {estado}
+      {estadoLabelARendir(estado)}
     </span>
   )
 }
@@ -216,7 +222,7 @@ export default function ARendirPage() {
             userRole === ROLES.VISUALIZADOR ? ESTADOS_ARENDIR.visualizador :
             ESTADOS_ARENDIR.default
           ).map(e => (
-            <option key={e} value={e}>{e}</option>
+            <option key={e} value={e}>{estadoLabelARendir(e)}</option>
           ))}
         </select>
 
