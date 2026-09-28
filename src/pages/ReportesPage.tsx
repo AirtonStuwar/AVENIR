@@ -13,6 +13,7 @@ const TIPO_BADGE: Record<string, { label: string; color: string; icon: React.Rea
   'OC':        { label: 'OC',        color: 'bg-blue-100 text-blue-700',   icon: <FileText   size={11} /> },
   'RxH':       { label: 'RxH',       color: 'bg-green-100 text-green-700', icon: <FileText   size={11} /> },
   'Liberalidad': { label: 'Liberalidad', color: 'bg-orange-100 text-orange-700', icon: <Gift size={11} /> },
+  'Otros':     { label: 'Otros',     color: 'bg-slate-100 text-slate-700',  icon: <FileText   size={11} /> },
   'A Rendir':  { label: 'A Rendir',  color: 'bg-amber-100 text-amber-700', icon: <Receipt    size={11} /> },
   'Reembolso':   { label: 'Reembolso',   color: 'bg-pink-100 text-pink-700',     icon: <RefreshCw  size={11} /> },
   'Caja Chica':  { label: 'Caja Chica',  color: 'bg-purple-100 text-purple-700', icon: <Wallet     size={11} /> },
@@ -377,7 +378,7 @@ export default function ReportesPage() {
         {rows.length > 0 && (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              {(['OC', 'RxH', 'Liberalidad', 'A Rendir', 'Reembolso', 'Caja Chica', 'Devolución'] as const).map(tipo => {
+              {(['OC', 'RxH', 'Liberalidad', 'Otros', 'A Rendir', 'Reembolso', 'Caja Chica', 'Devolución'] as const).map(tipo => {
                 const rs = byTipo(tipo)
                 const badge = TIPO_BADGE[tipo]
                 return (
