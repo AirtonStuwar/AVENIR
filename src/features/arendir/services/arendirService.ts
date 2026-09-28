@@ -177,10 +177,27 @@ export async function marcarPagadoARendir(
   if (error) throw error
 }
 
-/** USUARIO/ADMIN: sube firma y envía la rendición → En Revision */
-export async function enviarRendicion(id: number): Promise<void> {
+/**
+ * USUARIO/ADMIN: sube firma y envía la rendición → En Revision.
+ * Si hay sobrante (importe > total_reembolso), el usuario ya eligió la cuenta de la empresa
+ * donde depositó la diferencia — se guarda aquí mismo, antes de que evaluador/visualizador cierre.
+ */
+export async function enviarRendicion(
+  id: number,
+  cuentaDevolucionId?: number,
+  fechaDevolucion?: string,
+  montoDevuelto?: number,
+): Promise<void> {
   const { error } = await supabase.from('solicitud_arendir')
-    .update({ estado: 'En Revision' }).eq('id', id)
+    .update({
+      estado: 'En Revision',
+      ...(cuentaDevolucionId !== undefined ? {
+        cuenta_devolucion_id: cuentaDevolucionId,
+        fecha_devolucion: fechaDevolucion ?? null,
+        monto_devuelto: montoDevuelto ?? null,
+      } : {}),
+    })
+    .eq('id', id)
   if (error) throw error
 }
 

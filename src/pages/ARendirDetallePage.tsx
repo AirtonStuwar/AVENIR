@@ -175,7 +175,11 @@ export default function ARendirDetallePage() {
   const [devolverComent, setDevolverComent] = useState('')
   const [rechazarOpen,   setRechazarOpen]   = useState(false)
   const [rechazarComent, setRechazarComent] = useState('')
-  const [cerrarOpen,       setCerrarOpen]       = useState(false)
+  const [cerrarOpen,         setCerrarOpen]         = useState(false)
+  const [cerrarFallbackOpen, setCerrarFallbackOpen] = useState(false)
+  const [envioCuentaOpen,    setEnvioCuentaOpen]    = useState(false)
+  const [cuentaDevolucionSel, setCuentaDevolucionSel] = useState<number | null>(null)
+  const [fechaDevolucionSel,  setFechaDevolucionSel]  = useState<string | null>(null)
   const [correccionOpen, setCorreccionOpen] = useState(false)
   const [cancelarOpen, setCancelarOpen] = useState(false)
 
@@ -349,7 +353,7 @@ export default function ARendirDetallePage() {
     }
   }
 
-  async function handleEnviarRendicion(blob: Blob) {
+  async function handleEnviarRendicion(blob: Blob, cuentaOverride?: number, fechaOverride?: string) {
     if (!solicitud || !user?.id) return
     setActionLoading(true)
     try {
@@ -357,7 +361,15 @@ export default function ARendirDetallePage() {
       let firmaUsuarioSrc: string | null = null
       try { firmaUsuarioSrc = await getArchivoUrl(firmaPath) } catch { /* noop */ }
 
-      await enviarRendicion(solicitud.id)
+      const sobranteActual = solicitud.importe - solicitud.total_reembolso
+      const cuentaFinal = cuentaOverride ?? cuentaDevolucionSel ?? undefined
+      const fechaFinal  = fechaOverride ?? fechaDevolucionSel ?? undefined
+      await enviarRendicion(
+        solicitud.id,
+        sobranteActual > 0 ? cuentaFinal : undefined,
+        sobranteActual > 0 ? fechaFinal : undefined,
+        sobranteActual > 0 ? sobranteActual : undefined,
+      )
 
       // Generar y descargar PDF
       const pdfBlob = await pdf(
@@ -386,13 +398,19 @@ export default function ARendirDetallePage() {
     }
   }
 
-  async function handleIniciarEnvioRendicion() {
+  async function handleIniciarEnvioRendicion(cuentaOverride?: number, fechaOverride?: string) {
     if (!solicitud) return
+    const sobranteActual = solicitud.importe - solicitud.total_reembolso
+    const cuentaActual = cuentaOverride ?? cuentaDevolucionSel
+    if (sobranteActual > 0 && !cuentaActual) {
+      setEnvioCuentaOpen(true)
+      return
+    }
     // Intentar usar firma de perfil del usuario
     if (usuarioProfile?.firma_path) {
       try {
         const blob = await getUserFirmaBlob(usuarioProfile.firma_path)
-        await handleEnviarRendicion(blob)
+        await handleEnviarRendicion(blob, cuentaOverride, fechaOverride)
         return
       } catch { /* no hay firma en perfil, abrir modal */ }
     }
@@ -406,6 +424,7 @@ export default function ARendirDetallePage() {
       await cerrarRendicion(solicitud.id, user.id, montoDevuelto, fechaDevolucion, cuentaDevolucionId)
       toast.success('Rendición cerrada')
       setCerrarOpen(false)
+      setCerrarFallbackOpen(false)
       const sol = await getARendirById(Number(id))
       setSolicitud(sol); setDetalles(sol.detalles ?? [])
     } catch {
@@ -419,7 +438,13 @@ export default function ARendirDetallePage() {
 
   function handleIniciarCerrar() {
     if (sobrante > 0) {
-      setCerrarOpen(true)
+      // Caso normal: el usuario ya eligió la cuenta al enviar la rendición — solo se confirma.
+      // Fallback (rendiciones enviadas antes de este cambio, sin cuenta guardada): el evaluador la elige aquí.
+      if (solicitud?.cuenta_devolucion_id) {
+        setCerrarOpen(true)
+      } else {
+        setCerrarFallbackOpen(true)
+      }
     } else {
       handleCerrar()
     }
@@ -691,7 +716,7 @@ export default function ARendirDetallePage() {
           {/* USUARIO/ADMIN: Enviar rendición con firma (Pagado) */}
           {canEnviarRendicion && (
             <button
-              onClick={handleIniciarEnvioRendicion}
+              onClick={() => handleIniciarEnvioRendicion()}
               disabled={actionLoading}
               className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors"
             >
@@ -1090,14 +1115,39 @@ export default function ARendirDetallePage() {
         </div>
       )}
 
-      {/* Modal cerrar rendición con devolución de sobrante */}
+      {/* USUARIO: al enviar rendición con sobrante, elige la cuenta donde depositó la diferencia */}
       <PagoModal
+        open={envioCuentaOpen}
+        proyectoId={solicitud?.proyecto_id ?? null}
+        title="Cuenta de devolución del sobrante"
+        description={`Monto TOTAL a devolver: ${fmtMoney(sobrante, solicitud?.moneda)}. Selecciona la cuenta de la empresa donde depositaste/transferiste la diferencia.`}
+        onConfirm={async (cuentaId, fecha) => {
+          setCuentaDevolucionSel(cuentaId)
+          setFechaDevolucionSel(fecha)
+          setEnvioCuentaOpen(false)
+          await handleIniciarEnvioRendicion(cuentaId, fecha)
+        }}
+        onCancel={() => setEnvioCuentaOpen(false)}
+      />
+
+      {/* EVALUADOR/VISUALIZADOR/ADMIN: solo confirma la cuenta que ya eligió el usuario */}
+      <ConfirmModal
         open={cerrarOpen}
+        title="Cerrar rendición"
+        message={`Monto TOTAL devuelto: ${fmtMoney(sobrante, solicitud?.moneda)}. Cuenta: ${solicitud?.cuenta_devolucion ? `${solicitud.cuenta_devolucion.banco} · ${solicitud.cuenta_devolucion.numero_cuenta}` : '—'}. Fecha: ${fmtDate(solicitud?.fecha_devolucion ?? null)}. Verifica que el depósito corresponda antes de confirmar.`}
+        confirmLabel="Confirmar y cerrar"
+        onConfirm={() => handleCerrar()}
+        onCancel={() => setCerrarOpen(false)}
+      />
+
+      {/* Fallback: rendiciones enviadas antes de este cambio, sin cuenta guardada por el usuario */}
+      <PagoModal
+        open={cerrarFallbackOpen}
         proyectoId={solicitud?.proyecto_id ?? null}
         title="Devolución de sobrante"
-        description={`Monto TOTAL a devolver: ${fmtMoney(sobrante, solicitud?.moneda)}. Selecciona la cuenta de la empresa a la que se transfirió.`}
+        description={`Esta rendición no tiene cuenta de devolución registrada por el usuario. Monto TOTAL a devolver: ${fmtMoney(sobrante, solicitud?.moneda)}. Selecciona la cuenta a la que se transfirió.`}
         onConfirm={async (cuentaId, fecha) => { await handleCerrar(sobrante, fecha, cuentaId) }}
-        onCancel={() => setCerrarOpen(false)}
+        onCancel={() => setCerrarFallbackOpen(false)}
       />
 
       {/* Modales */}
