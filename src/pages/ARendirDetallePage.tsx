@@ -56,10 +56,12 @@ function fmtDate(val: string | null) {
   return new Date(val.includes('T') ? val : val + 'T00:00:00').toLocaleDateString('es-PE')
 }
 
-// "En Revision" (valor guardado en BD) se muestra como "En Rendición" — solo la etiqueta,
-// el valor interno no cambia (sigue siendo 'En Revision' en filtros y queries).
+// Etiquetas visibles distintas al valor guardado en BD — el valor interno no cambia,
+// sigue siendo 'En Revision'/'En Evaluación' en filtros y queries.
 function estadoLabelARendir(estado: string) {
-  return estado === 'En Revision' ? 'En Rendición' : estado
+  if (estado === 'En Revision') return 'En Rendición'
+  if (estado === 'En Evaluación') return 'En Revision'
+  return estado
 }
 
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {

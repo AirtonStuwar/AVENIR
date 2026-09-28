@@ -14,10 +14,12 @@ import BulkPagoModal from '../features/solicitud/components/BulkPagoModal'
 import { marcarPagadoARendir } from '../features/arendir/services/arendirService'
 
 // ── Badge de estado ────────────────────────────────────────────
-// "En Revision" (valor guardado en BD) se muestra como "En Rendición" — solo la etiqueta,
-// el valor interno no cambia (sigue siendo 'En Revision' en filtros y queries).
+// Etiquetas visibles distintas al valor guardado en BD — el valor interno no cambia,
+// sigue siendo 'En Revision'/'En Evaluación' en filtros y queries.
 function estadoLabelARendir(estado: string) {
-  return estado === 'En Revision' ? 'En Rendición' : estado
+  if (estado === 'En Revision') return 'En Rendición'
+  if (estado === 'En Evaluación') return 'En Revision'
+  return estado
 }
 
 function EstadoBadge({ estado }: { estado: SolicitudARendir['estado'] }) {
