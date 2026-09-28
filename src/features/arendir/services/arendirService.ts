@@ -6,7 +6,7 @@ import type {
 import { ROLES } from '../../solicitud/types/solicitud'
 
 const BUCKET = 'arendir-documentos'
-const SEL = '*, proyecto:proyecto_id(id,nombre), proyecto_partida:proyecto_partida_id(id,nombre), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)'
+const SEL = '*, proyecto:proyecto_id(id,nombre), proyecto_partida:proyecto_partida_id(id,nombre), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal), cuenta_devolucion:cuenta_devolucion_id(id,banco,numero_cuenta,moneda)'
 
 // ── Enrich helper ──────────────────────────────────────────────
 async function enrichARendir(items: SolicitudARendir[]): Promise<SolicitudARendir[]> {
@@ -190,13 +190,18 @@ export async function cerrarRendicion(
   usuarioId: string,
   montoDevuelto?: number,
   fechaDevolucion?: string,
+  cuentaDevolucionId?: number,
 ): Promise<void> {
   const { error } = await supabase.from('solicitud_arendir')
     .update({
       estado: 'Cerrado',
       usuario_aprobador: usuarioId,
       fecha_aprobacion: new Date().toISOString(),
-      ...(montoDevuelto !== undefined ? { monto_devuelto: montoDevuelto, fecha_devolucion: fechaDevolucion ?? null } : {}),
+      ...(montoDevuelto !== undefined ? {
+        monto_devuelto: montoDevuelto,
+        fecha_devolucion: fechaDevolucion ?? null,
+        cuenta_devolucion_id: cuentaDevolucionId ?? null,
+      } : {}),
     })
     .eq('id', id)
   if (error) throw error

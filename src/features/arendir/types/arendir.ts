@@ -40,6 +40,7 @@ export interface SolicitudARendir {
   usuario_pago: string | null
   monto_devuelto: number | null
   fecha_devolucion: string | null
+  cuenta_devolucion_id: number | null
   // beneficiario manual — si el creador llena estos campos (ej. crea la solicitud a nombre
   // de otra persona), tienen prioridad sobre el nombre/dni del perfil de beneficiario_id
   beneficiario_nombre: string | null
@@ -55,6 +56,7 @@ export interface SolicitudARendir {
     partida_presupuestal: string | null
   } | null
   detalles?: ARendirDetalle[]
+  cuenta_devolucion?: { id: number; banco: string; numero_cuenta: string; moneda: string } | null
   // enriched (siempre calculados via join a `usuario`, nunca guardados)
   beneficiario_email?: string | null
   beneficiario_cargo?: string | null
@@ -67,7 +69,7 @@ export type SolicitudARendirInsert = Omit<SolicitudARendir,
   'usuario_aprobador' | 'fecha_aprobacion' | 'comentario' | 'detalles' |
   'plan_contable_id' | 'usuario_evaluador' | 'plan_contable' |
   'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago' |
-  'monto_devuelto' | 'fecha_devolucion' |
+  'monto_devuelto' | 'fecha_devolucion' | 'cuenta_devolucion_id' | 'cuenta_devolucion' |
   'beneficiario_email' |
   'beneficiario_cargo' | 'aprobador_nombre' | 'evaluador_nombre'
 >

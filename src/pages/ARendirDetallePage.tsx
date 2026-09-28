@@ -176,8 +176,6 @@ export default function ARendirDetallePage() {
   const [rechazarOpen,   setRechazarOpen]   = useState(false)
   const [rechazarComent, setRechazarComent] = useState('')
   const [cerrarOpen,       setCerrarOpen]       = useState(false)
-  const [montoDevueltoInput, setMontoDevueltoInput] = useState('')
-  const [fechaDevolucionInput, setFechaDevolucionInput] = useState(new Date().toISOString().slice(0, 10))
   const [correccionOpen, setCorreccionOpen] = useState(false)
   const [cancelarOpen, setCancelarOpen] = useState(false)
 
@@ -401,11 +399,11 @@ export default function ARendirDetallePage() {
     setFirmaOpen(true)
   }
 
-  async function handleCerrar(montoDevuelto?: number, fechaDevolucion?: string) {
+  async function handleCerrar(montoDevuelto?: number, fechaDevolucion?: string, cuentaDevolucionId?: number) {
     if (!solicitud || !user?.id) return
     setActionLoading(true)
     try {
-      await cerrarRendicion(solicitud.id, user.id, montoDevuelto, fechaDevolucion)
+      await cerrarRendicion(solicitud.id, user.id, montoDevuelto, fechaDevolucion, cuentaDevolucionId)
       toast.success('Rendición cerrada')
       setCerrarOpen(false)
       const sol = await getARendirById(Number(id))
@@ -421,8 +419,6 @@ export default function ARendirDetallePage() {
 
   function handleIniciarCerrar() {
     if (sobrante > 0) {
-      setMontoDevueltoInput(sobrante.toFixed(2))
-      setFechaDevolucionInput(new Date().toISOString().slice(0, 10))
       setCerrarOpen(true)
     } else {
       handleCerrar()
@@ -799,6 +795,10 @@ export default function ARendirDetallePage() {
             ...(solicitud.monto_devuelto != null ? [
               { label: 'Devuelto a la empresa', value: fmtMoney(solicitud.monto_devuelto, solicitud.moneda) },
               { label: 'Fecha de devolución', value: fmtDate(solicitud.fecha_devolucion) },
+              ...(solicitud.cuenta_devolucion ? [{
+                label: 'Cuenta de devolución',
+                value: `${solicitud.cuenta_devolucion.banco} · ${solicitud.cuenta_devolucion.numero_cuenta}`,
+              }] : []),
             ] : []),
           ].map(({ label, value }) => (
             <div key={label}>
@@ -1091,44 +1091,14 @@ export default function ARendirDetallePage() {
       )}
 
       {/* Modal cerrar rendición con devolución de sobrante */}
-      {cerrarOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-            <h2 className="text-base font-semibold text-gray-900">Cerrar rendición</h2>
-            <p className="text-sm text-gray-600">
-              El adelanto ({fmtMoney(solicitud.importe, solicitud.moneda)}) fue mayor a lo gastado ({fmtMoney(solicitud.total_reembolso, solicitud.moneda)}).
-              Registra la devolución del sobrante a la empresa.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Monto devuelto *</label>
-                <input type="number" step="0.01" min="0" value={montoDevueltoInput}
-                  onChange={e => setMontoDevueltoInput(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Fecha *</label>
-                <input type="date" value={fechaDevolucionInput}
-                  onChange={e => setFechaDevolucionInput(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30" />
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button onClick={() => setCerrarOpen(false)} disabled={actionLoading}
-                className="flex-1 h-10 rounded-xl border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50">
-                Cancelar
-              </button>
-              <button
-                onClick={() => handleCerrar(parseFloat(montoDevueltoInput) || 0, fechaDevolucionInput)}
-                disabled={actionLoading || !montoDevueltoInput || !fechaDevolucionInput}
-                className="flex-1 h-10 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                {actionLoading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                Cerrar rendición
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <PagoModal
+        open={cerrarOpen}
+        proyectoId={solicitud?.proyecto_id ?? null}
+        title="Devolución de sobrante"
+        description={`Monto TOTAL a devolver: ${fmtMoney(sobrante, solicitud?.moneda)}. Selecciona la cuenta de la empresa a la que se transfirió.`}
+        onConfirm={async (cuentaId, fecha) => { await handleCerrar(sobrante, fecha, cuentaId) }}
+        onCancel={() => setCerrarOpen(false)}
+      />
 
       {/* Modales */}
       <PagoModal
