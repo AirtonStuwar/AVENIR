@@ -457,20 +457,22 @@ function AprobadorDashboard() {
   const montoSolicitudesNeto = (sols: SolicitudRow[], moneda: 'PEN' | 'USD') =>
     montoSolicitudes(sols, detalles, moneda) - montoRetencionSum(sols, moneda)
 
-  // Filtro de mes para el gráfico Aprobado vs Pagado (gerencia): cada barra se filtra por su
-  // propio campo de fecha dentro del mes elegido — "Aprobado" por fecha_aprobacion, "Pagado" por
-  // fecha_pago — para comparar cuánto se aprobó vs cuánto se pagó dentro de ese mismo período.
+  // Filtro de mes para el gráfico Aprobado vs Pagado (gerencia): "Aprobado" son las que tienen
+  // fecha_aprobacion en el mes elegido. "Pagado" es el SUBCONJUNTO de esas mismas (no un grupo
+  // aparte) que ya tiene fecha_pago — sin importar en qué mes se pagó. Así la barra responde
+  // "de lo aprobado este mes, cuánto ya se pagó" (si algo se aprueba en setiembre y se paga en
+  // octubre, sigue contando como pagado dentro del "setiembre" cuando se revise después).
   const inMes = (fecha: string | null) => !!fecha && fecha.slice(0, 7) === mesFiltro
   const aprobadasMes    = aprobadasFiltradas.filter(s => inMes(s.fecha_aprobacion))
-  const solPagadasMes   = aprobadasFiltradas.filter(s => inMes(s.fecha_pago))
+  const solPagadasMes   = aprobadasMes.filter(s => !!s.fecha_pago)
   const arendirAprobMes = arendirAprob.filter(a => inMes(a.fecha_aprobacion))
-  const arendirPagMes   = arendirAprob.filter(a => inMes(a.fecha_pago))
+  const arendirPagMes   = arendirAprobMes.filter(a => !!a.fecha_pago)
   const reembolsoAprobMes = reembolsoAuthFil.filter(r => inMes(r.fecha_aprobacion))
-  const reembolsoPagMes   = reembolsoAuthFil.filter(r => inMes(r.fecha_pago))
+  const reembolsoPagMes   = reembolsoAprobMes.filter(r => !!r.fecha_pago)
   const cajaChicaAprobMes = cajaChicaFil.filter(c => inMes(c.fecha_aprobacion))
-  const cajaChicaPagMes   = cajaChicaFil.filter(c => inMes(c.fecha_pago))
+  const cajaChicaPagMes   = cajaChicaAprobMes.filter(c => !!c.fecha_pago)
   const devAutMes = devAut.filter(d => inMes(d.fecha_aprobacion))
-  const devPagMes = devAut.filter(d => inMes(d.fecha_pago))
+  const devPagMes = devAutMes.filter(d => !!d.fecha_pago)
 
   const pagosPEN = [
     { modulo: 'Solicitudes', Aprobado: montoSolicitudesNeto(aprobadasMes, 'PEN'), Pagado: montoSolicitudesNeto(solPagadasMes, 'PEN') },
