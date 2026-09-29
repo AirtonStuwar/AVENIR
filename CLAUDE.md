@@ -783,7 +783,7 @@ Pendiente
 
 ## Módulo Gasto por Plan Contable
 
-Página `/plan-contable` — visible para **ADMIN (1)** y **USUARIO (11)**. El USUARIO ve solo sus propias solicitudes; ADMIN ve todas.
+Página `/plan-contable` — visible para **ADMIN (1)**, **APROBADOR (9)** y **USUARIO (11)** (setiembre 2026: se agregó APROBADOR, sin quitárselo a USUARIO). El USUARIO ve solo sus propias solicitudes; ADMIN y APROBADOR ven todas (`verTodas = isAdmin || isAprobador` en `PlanContableGastoPage.tsx`, pasa `undefined` como `userId` al servicio) — se decidió así porque el aprobador necesita ver el gasto consolidado del sistema, no solo lo que él mismo creó (normalmente no crea solicitudes).
 
 **Feature folder:** `src/features/plan-contable/services/planContableGastoService.ts` — sin types propios ni hooks.
 
@@ -791,7 +791,7 @@ Página `/plan-contable` — visible para **ADMIN (1)** y **USUARIO (11)**. El U
 
 **Página:** `src/pages/PlanContableGastoPage.tsx` — buscador de texto, dropdown de plan contable, tarjetas de totales (S/, $, # solicitudes), lista de cards con barra de progreso relativa al plan con mayor gasto.
 
-**Sidebar:** item "Plan Contable" con ícono `PieChart`, roles [1, 11].
+**Sidebar:** item "Plan Contable" con ícono `PieChart`, roles [1, 9, 11].
 
 ---
 

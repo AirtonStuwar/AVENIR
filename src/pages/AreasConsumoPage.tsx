@@ -32,7 +32,7 @@ export default function AreasConsumoPage() {
 
   const grandTotalPen = areas.reduce((s, a) => s + a.total_pen, 0)
   const grandTotalUsd = areas.reduce((s, a) => s + a.total_usd, 0)
-
+  
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}

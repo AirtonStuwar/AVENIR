@@ -27,7 +27,7 @@ const menuItems = [
   { name: 'Áreas',       path: '/areas',       icon: Building2,  roles: [1, 9] },
   { name: 'Reportes',    path: '/reportes',    icon: BarChart2,  roles: [1, 8, 10] },
   { name: 'Conciliación Bancaria', path: '/conciliacion', icon: Landmark, roles: [1, 10] },
-  { name: 'Plan Contable', path: '/plan-contable', icon: PieChart, roles: [1, 11] },
+  { name: 'Plan Contable', path: '/plan-contable', icon: PieChart, roles: [1, 9, 11] },
 ]
 
 const ROLE_LABELS: Record<number, string> = {

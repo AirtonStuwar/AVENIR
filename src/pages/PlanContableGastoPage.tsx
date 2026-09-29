@@ -10,6 +10,8 @@ const fmtUSD = (n: number) => `$ ${n.toLocaleString('en-US', { minimumFractionDi
 export default function PlanContableGastoPage() {
   const { user, userRole } = useAuthStore()
   const isAdmin = userRole === ROLES.ADMIN
+  const isAprobador = userRole === ROLES.APROBADOR
+  const verTodas = isAdmin || isAprobador
 
   const [rows,    setRows]    = useState<GastoPlanContable[]>([])
   const [loading, setLoading] = useState(true)
@@ -20,11 +22,11 @@ export default function PlanContableGastoPage() {
   useEffect(() => {
     if (!user?.id) return
     setLoading(true)
-    getGastoPorPlanContable(isAdmin ? undefined : user.id)
+    getGastoPorPlanContable(verTodas ? undefined : user.id)
       .then(setRows)
       .catch(() => setError(true))
       .finally(() => setLoading(false))
-  }, [user?.id, isAdmin])
+  }, [user?.id, verTodas])
 
   const filtradas = useMemo(() => {
     let r = rows
@@ -67,7 +69,7 @@ export default function PlanContableGastoPage() {
         <div>
           <h1 className="text-base font-semibold text-gray-900">Gasto por Plan Contable</h1>
           <p className="text-xs text-gray-400">
-            {isAdmin
+            {verTodas
               ? 'Gasto acumulado de todas las solicitudes aprobadas, agrupado por cuenta contable'
               : 'Cuánto has gastado en solicitudes aprobadas, agrupado por cuenta contable'}
           </p>
@@ -139,7 +141,7 @@ export default function PlanContableGastoPage() {
             <PieIcon size={36} className="text-gray-200" />
             <p className="text-sm">
               {rows.length === 0
-                ? 'Aún no tienes solicitudes aprobadas con plan contable asignado.'
+                ? (verTodas ? 'Aún no hay solicitudes aprobadas con plan contable asignado.' : 'Aún no tienes solicitudes aprobadas con plan contable asignado.')
                 : 'Sin resultados para el filtro aplicado.'}
             </p>
           </div>
