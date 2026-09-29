@@ -37,6 +37,7 @@ export interface DevolucionCliente {
   creador_email?: string | null
   aprobador_nombre?: string | null
   evaluador_nombre?: string | null
+  pago_usuario_nombre?: string | null
 }
 
 export type DevolucionClienteInsert = Omit<
@@ -47,7 +48,7 @@ export type DevolucionClienteInsert = Omit<
   | 'plan_contable_id' | 'usuario_evaluador'
   | 'comprobante_pago_path'
   | 'proyecto' | 'proyecto_partida' | 'plan_contable'
-  | 'creador_nombre' | 'creador_email' | 'aprobador_nombre' | 'evaluador_nombre'
+  | 'creador_nombre' | 'creador_email' | 'aprobador_nombre' | 'evaluador_nombre' | 'pago_usuario_nombre'
 >
 
 export interface DevolucionFiltros {

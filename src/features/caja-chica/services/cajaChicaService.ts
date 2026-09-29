@@ -15,6 +15,7 @@ async function enrichCajaChica(rows: CajaChica[]): Promise<CajaChica[]> {
     ...rows.map(r => r.responsable_id),
     ...rows.map(r => r.usuario_aprobador),
     ...rows.map(r => r.usuario_evaluador),
+    ...rows.map(r => r.usuario_pago),
   ].filter(Boolean))] as string[]
 
   if (!uids.length) return rows
@@ -36,6 +37,7 @@ async function enrichCajaChica(rows: CajaChica[]): Promise<CajaChica[]> {
     responsable_dni: r.responsable_id ? map[r.responsable_id]?.dni ?? null : null,
     aprobador_nombre: r.usuario_aprobador ? map[r.usuario_aprobador]?.nombre ?? null : null,
     evaluador_nombre: r.usuario_evaluador ? map[r.usuario_evaluador]?.nombre ?? null : null,
+    pago_usuario_nombre: r.usuario_pago ? map[r.usuario_pago]?.nombre ?? null : null,
   }))
 }
 

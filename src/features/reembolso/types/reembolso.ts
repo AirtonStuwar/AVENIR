@@ -53,6 +53,7 @@ export interface SolicitudReembolso {
   beneficiario_cargo?: string | null
   aprobador_nombre?: string | null
   evaluador_nombre?: string | null
+  pago_usuario_nombre?: string | null
 }
 
 export type SolicitudReembolsoInsert = Omit<SolicitudReembolso,
@@ -61,7 +62,7 @@ export type SolicitudReembolsoInsert = Omit<SolicitudReembolso,
   'plan_contable_id' | 'usuario_evaluador' | 'plan_contable' |
   'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago' |
   'beneficiario_nombre' | 'beneficiario_email' | 'beneficiario_dni' |
-  'beneficiario_cargo' | 'aprobador_nombre' | 'evaluador_nombre'
+  'beneficiario_cargo' | 'aprobador_nombre' | 'evaluador_nombre' | 'pago_usuario_nombre'
 >
 
 export interface ReembolsoFiltros {

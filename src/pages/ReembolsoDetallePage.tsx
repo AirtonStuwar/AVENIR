@@ -40,6 +40,8 @@ import type { SolicitudReembolso, ReembolsoDetalle } from '../features/reembolso
 import type { PlanContable } from '../features/solicitud/types/solicitud'
 import { ReembolsoPDF } from '../features/reembolso/components/ReembolsoPDF'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
+import BitacoraCard, { fmtDateHora } from '../features/solicitud/components/Bitacora'
+import type { PasoBitacora } from '../features/solicitud/components/Bitacora'
 import logoUrl from '../assets/avenir-logo.png'
 
 function fmtMoney(val: number | null, moneda = 'PEN') {
@@ -297,6 +299,77 @@ export default function ReembolsoDetallePage() {
     ['Pendiente', 'Devuelto', 'Observado'].includes(solicitud?.estado ?? '')
   const canMarcarPagado = solicitud?.estado === 'Autorizado' && !solicitud?.fecha_pago && userRole === ROLES.VISUALIZADOR
   const canReenviarConta = solicitud?.estado === 'Observado' && (isAdmin || (userRole === ROLES.USUARIO && isOwner))
+
+  // ── Bitácora (timeline de solo lectura) ─────────────────────────
+  const bitacoraPasos: PasoBitacora[] = (() => {
+    if (!solicitud) return []
+    const isPend         = solicitud.estado === 'Pendiente'
+    const isEnRevisionSt = solicitud.estado === 'En Revision'
+    const isDevueltoSt   = solicitud.estado === 'Devuelto'
+    const isEvaluadoSt   = solicitud.estado === 'Evaluado'
+    const isAutorizadoSt = solicitud.estado === 'Autorizado'
+    const isRechazadoSt  = solicitud.estado === 'Rechazado'
+    const isObservadoSt  = solicitud.estado === 'Observado'
+    const isCanceladoSt  = solicitud.estado === 'Cancelado'
+
+    const pasos: PasoBitacora[] = [{
+      titulo: 'Reembolso creado',
+      fecha: fmtDateHora(solicitud.fecha_creacion),
+      detalle: solicitud.beneficiario_nombre ? `Por ${solicitud.beneficiario_nombre}` : null,
+      estado: 'done',
+    }]
+
+    if (isDevueltoSt) {
+      pasos.push({
+        titulo: 'Devuelto por el evaluador',
+        detalle: `${solicitud.evaluador_nombre ? `${solicitud.evaluador_nombre} — ` : ''}${solicitud.comentario ?? ''}`,
+        estado: 'warn',
+      })
+    } else if (isEnRevisionSt) {
+      pasos.push({ titulo: 'En revisión — pendiente de evaluación', estado: 'current' })
+    } else if (!isPend && !isCanceladoSt) {
+      pasos.push({
+        titulo: 'Evaluado',
+        detalle: solicitud.evaluador_nombre ? `Por ${solicitud.evaluador_nombre}` : null,
+        estado: 'done',
+      })
+    }
+
+    if (isEvaluadoSt) {
+      pasos.push({ titulo: 'Evaluado — pendiente de aprobación', estado: 'current' })
+    }
+
+    if (isAutorizadoSt || isRechazadoSt) {
+      pasos.push({
+        titulo: isRechazadoSt ? 'Rechazado' : 'Autorizado',
+        fecha: fmtDateHora(solicitud.fecha_aprobacion),
+        detalle: [
+          solicitud.aprobador_nombre ? `Por ${solicitud.aprobador_nombre}` : null,
+          isRechazadoSt ? solicitud.comentario : null,
+        ].filter(Boolean).join(' — ') || null,
+        estado: isRechazadoSt ? 'warn' : 'done',
+      })
+    }
+
+    if (isObservadoSt) {
+      pasos.push({ titulo: 'Observado por Contabilidad', detalle: solicitud.comentario, estado: 'warn' })
+    }
+
+    if (isCanceladoSt) {
+      pasos.push({ titulo: 'Cancelado por el creador', estado: 'warn' })
+    }
+
+    if (solicitud.fecha_pago) {
+      pasos.push({
+        titulo: 'Pagado',
+        fecha: fmtDate(solicitud.fecha_pago),
+        detalle: solicitud.pago_usuario_nombre ? `Marcado por ${solicitud.pago_usuario_nombre}` : null,
+        estado: 'done',
+      })
+    }
+
+    return pasos
+  })()
 
   const [pagoOpen, setPagoOpen] = useState(false)
   const handleConfirmPago = async (cuentaId: number, fechaPago: string) => {
@@ -899,6 +972,9 @@ export default function ReembolsoDetallePage() {
           </div>
         </div>
       )}
+
+      {/* Bitácora */}
+      <BitacoraCard pasos={bitacoraPasos} />
 
       {/* Modales */}
       <PagoModal

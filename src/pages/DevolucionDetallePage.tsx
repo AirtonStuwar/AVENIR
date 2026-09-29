@@ -31,6 +31,8 @@ import type { TipoArchivoDevolucion } from '../features/devolucion/services/devo
 import { getPlanContable } from '../features/solicitud/services/solicitudService'
 import type { DevolucionCliente } from '../features/devolucion/types/devolucion'
 import type { PlanContable } from '../features/solicitud/types/solicitud'
+import BitacoraCard, { fmtDateHora } from '../features/solicitud/components/Bitacora'
+import type { PasoBitacora } from '../features/solicitud/components/Bitacora'
 
 function fmtMoney(val: number | null, moneda = 'PEN') {
   if (val == null) return '—'
@@ -446,6 +448,76 @@ export default function DevolucionDetallePage() {
 
   const archivosDisponibles = ARCHIVO_LABELS.filter(({ field }) => !!(dev[field] as string | null))
 
+  // ── Bitácora (timeline de solo lectura) ─────────────────────────
+  const isPend         = dev.estado === 'Pendiente'
+  const isEnRevisionSt = dev.estado === 'En Revision'
+  const isDevueltoSt   = dev.estado === 'Devuelto'
+  const isEvaluadoSt   = dev.estado === 'Evaluado'
+  const isAutorizadoSt = dev.estado === 'Autorizado'
+  const isRechazadoSt  = dev.estado === 'Rechazado'
+  const isObservadoSt  = dev.estado === 'Observado'
+  const isCanceladoSt  = dev.estado === 'Cancelado'
+
+  const bitacoraPasos: PasoBitacora[] = (() => {
+    const pasos: PasoBitacora[] = [{
+      titulo: 'Devolución creada',
+      fecha: fmtDateHora(dev.fecha_creacion),
+      detalle: dev.creador_nombre ? `Por ${dev.creador_nombre}` : null,
+      estado: 'done',
+    }]
+
+    if (isDevueltoSt) {
+      pasos.push({
+        titulo: 'Devuelta por el evaluador',
+        detalle: `${dev.evaluador_nombre ? `${dev.evaluador_nombre} — ` : ''}${dev.comentario ?? ''}`,
+        estado: 'warn',
+      })
+    } else if (isEnRevisionSt) {
+      pasos.push({ titulo: 'En revisión — pendiente de evaluación', estado: 'current' })
+    } else if (!isPend && !isCanceladoSt) {
+      pasos.push({
+        titulo: 'Evaluada',
+        detalle: dev.evaluador_nombre ? `Por ${dev.evaluador_nombre}` : null,
+        estado: 'done',
+      })
+    }
+
+    if (isEvaluadoSt) {
+      pasos.push({ titulo: 'Evaluada — pendiente de aprobación', estado: 'current' })
+    }
+
+    if (isAutorizadoSt || isRechazadoSt) {
+      pasos.push({
+        titulo: isRechazadoSt ? 'Rechazada' : 'Autorizada',
+        fecha: fmtDateHora(dev.fecha_aprobacion),
+        detalle: [
+          dev.aprobador_nombre ? `Por ${dev.aprobador_nombre}` : null,
+          isRechazadoSt ? dev.comentario : null,
+        ].filter(Boolean).join(' — ') || null,
+        estado: isRechazadoSt ? 'warn' : 'done',
+      })
+    }
+
+    if (isObservadoSt) {
+      pasos.push({ titulo: 'Observada por Contabilidad', detalle: dev.comentario, estado: 'warn' })
+    }
+
+    if (isCanceladoSt) {
+      pasos.push({ titulo: 'Cancelada por el creador', estado: 'warn' })
+    }
+
+    if (dev.fecha_pago) {
+      pasos.push({
+        titulo: 'Pagada',
+        fecha: fmtDate(dev.fecha_pago),
+        detalle: dev.pago_usuario_nombre ? `Marcado por ${dev.pago_usuario_nombre}` : null,
+        estado: 'done',
+      })
+    }
+
+    return pasos
+  })()
+
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
 
@@ -835,6 +907,9 @@ export default function DevolucionDetallePage() {
           </div>
         </div>
       )}
+
+      {/* Bitácora */}
+      <BitacoraCard pasos={bitacoraPasos} />
 
       {/* Modal pago */}
       <PagoModal

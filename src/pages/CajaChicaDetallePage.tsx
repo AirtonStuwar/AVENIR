@@ -31,6 +31,8 @@ import { CajaChicaPDF } from '../features/caja-chica/components/CajaChicaPDF'
 import PagoModal from '../features/solicitud/components/PagoModal'
 import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
+import BitacoraCard, { fmtDateHora } from '../features/solicitud/components/Bitacora'
+import type { PasoBitacora } from '../features/solicitud/components/Bitacora'
 import logoUrl from '../assets/avenir-logo.png'
 
 const fmt = (n: number) => `S/ ${n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -158,6 +160,69 @@ export default function CajaChicaDetallePage() {
   const canAprobar = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canMarcarPagado = isAutorizado && !cc.fecha_pago && (userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN)
   const canShowPDF = detalles.length > 0
+
+  // ── Bitácora (timeline de solo lectura) ─────────────────────────
+  const isRechazado   = cc.estado === 'Rechazado'
+  const isCancelado   = cc.estado === 'Cancelado'
+  const bitacoraPasos: PasoBitacora[] = (() => {
+    const pasos: PasoBitacora[] = [{
+      titulo: 'Caja chica creada',
+      fecha: fmtDateHora(cc.fecha_creacion),
+      detalle: cc.responsable_nombre ? `Por ${cc.responsable_nombre}` : null,
+      estado: 'done',
+    }]
+
+    if (isDevuelto) {
+      pasos.push({
+        titulo: 'Devuelta por el evaluador/aprobador',
+        detalle: `${cc.evaluador_nombre ? `${cc.evaluador_nombre} — ` : ''}${cc.comentario ?? ''}`,
+        estado: 'warn',
+      })
+    } else if (isEnRevision) {
+      pasos.push({ titulo: 'En revisión — pendiente de evaluación', estado: 'current' })
+    } else if (!isPendiente && !isCancelado) {
+      pasos.push({
+        titulo: 'Evaluada',
+        detalle: cc.evaluador_nombre ? `Por ${cc.evaluador_nombre}` : null,
+        estado: 'done',
+      })
+    }
+
+    if (isEvaluado) {
+      pasos.push({ titulo: 'Evaluada — pendiente de aprobación', estado: 'current' })
+    }
+
+    if (isAutorizado || isRechazado) {
+      pasos.push({
+        titulo: isRechazado ? 'Rechazada' : 'Autorizada',
+        fecha: fmtDateHora(cc.fecha_aprobacion),
+        detalle: [
+          cc.aprobador_nombre ? `Por ${cc.aprobador_nombre}` : null,
+          isRechazado ? cc.comentario : null,
+        ].filter(Boolean).join(' — ') || null,
+        estado: isRechazado ? 'warn' : 'done',
+      })
+    }
+
+    if (isObservado) {
+      pasos.push({ titulo: 'Observada por Contabilidad', detalle: cc.comentario, estado: 'warn' })
+    }
+
+    if (isCancelado) {
+      pasos.push({ titulo: 'Cancelada por el responsable', estado: 'warn' })
+    }
+
+    if (cc.fecha_pago) {
+      pasos.push({
+        titulo: 'Pagada',
+        fecha: fmtDate(cc.fecha_pago),
+        detalle: cc.pago_usuario_nombre ? `Marcado por ${cc.pago_usuario_nombre}` : null,
+        estado: 'done',
+      })
+    }
+
+    return pasos
+  })()
 
   const totalGastos = detalles.reduce((s, d) => s + d.monto, 0)
   const pctUsado = cc.monto_asignado > 0 ? (totalGastos / cc.monto_asignado) * 100 : 0
@@ -814,6 +879,9 @@ export default function CajaChicaDetallePage() {
           )}
         </div>
       </div>
+
+      {/* Bitácora */}
+      <BitacoraCard pasos={bitacoraPasos} />
 
       {/* Modals */}
       <PagoModal

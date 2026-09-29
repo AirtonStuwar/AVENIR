@@ -14,6 +14,7 @@ async function enrichARendir(items: SolicitudARendir[]): Promise<SolicitudARendi
     ...items.map(i => i.beneficiario_id).filter(Boolean),
     ...items.map(i => i.usuario_aprobador).filter(Boolean),
     ...items.map(i => i.usuario_evaluador).filter(Boolean),
+    ...items.map(i => i.usuario_pago).filter(Boolean),
   ])] as string[]
   if (uids.length === 0) return items
   const { data: users } = await supabase
@@ -31,6 +32,7 @@ async function enrichARendir(items: SolicitudARendir[]): Promise<SolicitudARendi
     beneficiario_cargo:  map[i.beneficiario_id ?? '']?.cargo ?? null,
     aprobador_nombre:    map[i.usuario_aprobador ?? '']?.nombre_completo ?? null,
     evaluador_nombre:    map[i.usuario_evaluador ?? '']?.nombre_completo ?? null,
+    pago_usuario_nombre: map[i.usuario_pago ?? '']?.nombre_completo ?? null,
   }))
 }
 

@@ -40,6 +40,8 @@ import {
 import type { SolicitudARendir, ARendirDetalle } from '../features/arendir/types/arendir'
 import { ARendirPDF } from '../features/arendir/components/ARendirPDF'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
+import BitacoraCard, { fmtDateHora } from '../features/solicitud/components/Bitacora'
+import type { PasoBitacora } from '../features/solicitud/components/Bitacora'
 import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import logoUrl from '../assets/avenir-logo.png'
 
@@ -573,6 +575,96 @@ export default function ARendirDetallePage() {
   const canEnviarRendicion = solicitud?.estado === 'Pagado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
   const canCerrar         = solicitud?.estado === 'En Revision' && (isVisualizador || isEvaluador || isAdmin)
 
+  // ── Bitácora (timeline de solo lectura) ─────────────────────────
+  const bitacoraPasos: PasoBitacora[] = (() => {
+    if (!solicitud) return []
+    const isPend        = solicitud.estado === 'Pendiente'
+    const isEnEval       = solicitud.estado === 'En Evaluación'
+    const isDevueltoSt   = solicitud.estado === 'Devuelto'
+    const isEvaluadoSt   = solicitud.estado === 'Evaluado'
+    const isAprobadoSt   = solicitud.estado === 'Aprobado'
+    const isRechazadoSt  = solicitud.estado === 'Rechazado'
+    const isPagadoSt     = solicitud.estado === 'Pagado'
+    const isEnRevisionSt = solicitud.estado === 'En Revision'
+    const isCerradoSt    = solicitud.estado === 'Cerrado'
+    const isObservadoSt  = solicitud.estado === 'Observado'
+    const isCanceladoSt  = solicitud.estado === 'Cancelado'
+
+    const pasos: PasoBitacora[] = [{
+      titulo: 'Adelanto creado',
+      fecha: fmtDateHora(solicitud.fecha_creacion),
+      detalle: solicitud.beneficiario_nombre ? `Por ${solicitud.beneficiario_nombre}` : null,
+      estado: 'done',
+    }]
+
+    if (isDevueltoSt) {
+      pasos.push({
+        titulo: 'Devuelto por el evaluador',
+        detalle: `${solicitud.evaluador_nombre ? `${solicitud.evaluador_nombre} — ` : ''}${solicitud.comentario ?? ''}`,
+        estado: 'warn',
+      })
+    } else if (isEnEval) {
+      pasos.push({ titulo: 'En evaluación — pendiente de revisión', estado: 'current' })
+    } else if (!isPend && !isCanceladoSt) {
+      pasos.push({
+        titulo: 'Evaluado',
+        detalle: solicitud.evaluador_nombre ? `Por ${solicitud.evaluador_nombre}` : null,
+        estado: 'done',
+      })
+    }
+
+    if (isEvaluadoSt) {
+      pasos.push({ titulo: 'Evaluado — pendiente de aprobación', estado: 'current' })
+    }
+
+    if (isAprobadoSt || isRechazadoSt || isPagadoSt || isEnRevisionSt) {
+      pasos.push({
+        titulo: isRechazadoSt ? 'Rechazado' : 'Aprobado',
+        fecha: fmtDateHora(solicitud.fecha_aprobacion),
+        detalle: [
+          solicitud.aprobador_nombre ? `Por ${solicitud.aprobador_nombre}` : null,
+          isRechazadoSt ? solicitud.comentario : null,
+        ].filter(Boolean).join(' — ') || null,
+        estado: isRechazadoSt ? 'warn' : 'done',
+      })
+    }
+
+    if (isObservadoSt) {
+      pasos.push({ titulo: 'Observado por Contabilidad', detalle: solicitud.comentario, estado: 'warn' })
+    }
+
+    if (isCanceladoSt) {
+      pasos.push({ titulo: 'Cancelado por el creador', estado: 'warn' })
+    }
+
+    if (solicitud.fecha_pago) {
+      pasos.push({
+        titulo: 'Dinero entregado',
+        fecha: fmtDate(solicitud.fecha_pago),
+        detalle: solicitud.pago_usuario_nombre ? `Marcado por ${solicitud.pago_usuario_nombre}` : null,
+        estado: 'done',
+      })
+    }
+
+    if (isEnRevisionSt) {
+      pasos.push({ titulo: 'Rendición enviada — pendiente de cierre', estado: 'current' })
+    }
+
+    // Nota: al cerrar, cerrarRendicion() sobrescribe usuario_aprobador/fecha_aprobacion con quien
+    // cerró (mismo patrón de "último gana" que usuario_evaluador en Solicitudes) — por eso el paso
+    // "Aprobado" de arriba deja de mostrarse aquí (ya no refleja al aprobador original).
+    if (isCerradoSt) {
+      pasos.push({
+        titulo: 'Rendición cerrada',
+        fecha: fmtDateHora(solicitud.fecha_aprobacion),
+        detalle: solicitud.aprobador_nombre ? `Por ${solicitud.aprobador_nombre}` : null,
+        estado: 'done',
+      })
+    }
+
+    return pasos
+  })()
+
   // ── Render ─────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -1025,6 +1117,9 @@ export default function ARendirDetallePage() {
           </div>
         </div>
       )}
+
+      {/* Bitácora */}
+      <BitacoraCard pasos={bitacoraPasos} />
 
       {/* Modal aprobar adelanto */}
       {aprobarOpen && (
