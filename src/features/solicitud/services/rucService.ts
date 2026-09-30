@@ -1,7 +1,8 @@
 import { getProveedorByRuc, upsertProveedor } from '../../proveedor/services/proveedorService'
+import { authFetch } from '../../../api/authFetch'
 
 export async function getTipoCambioUSD(): Promise<number> {
-  const res = await fetch('/api/tipo-cambio')
+  const res = await authFetch('/api/tipo-cambio')
   if (!res.ok) throw new Error('No se pudo obtener el tipo de cambio')
   const data = await res.json() as { sell_price?: string; buy_price?: string }
   // Usamos sell_price (precio de venta) para convertir USD → PEN
@@ -35,7 +36,7 @@ export async function buscarRuc(ruc: string): Promise<RucData> {
   }
 
   // 2️⃣ Llamada al API externo
-  const res = await fetch(`/api/ruc?numero=${encodeURIComponent(ruc)}`)
+  const res = await authFetch(`/api/ruc?numero=${encodeURIComponent(ruc)}`)
   if (!res.ok) throw new Error('RUC no encontrado')
   const data = await res.json() as RucData
 

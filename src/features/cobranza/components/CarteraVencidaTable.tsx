@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { ChevronRight, ChevronDown, Loader2, RefreshCw } from 'lucide-react'
 import { getProyectosConMobysuite } from '../../proyecto/services/proyectoService'
 import type { Proyecto } from '../../proyecto/types/proyecto'
+import { authFetch } from '../../../api/authFetch'
 
 interface Cuota {
   contratoId: number
@@ -71,7 +72,7 @@ export default function CarteraVencidaTable() {
     setLoading(true)
     setCuotas(null)
     try {
-      const res = await fetch(`/api/mobysuite-cronograma?mobyProjectId=${proyecto.moby_project_id}`)
+      const res = await authFetch(`/api/mobysuite-cronograma?mobyProjectId=${proyecto.moby_project_id}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Error al consultar Mobysuite')
       setCuotas(json.cuotas)

@@ -3,6 +3,7 @@ import toast from 'react-hot-toast'
 import { RefreshCw, Loader2 } from 'lucide-react'
 import { getProyectosConMobysuite } from '../../proyecto/services/proyectoService'
 import type { Proyecto } from '../../proyecto/types/proyecto'
+import { authFetch } from '../../../api/authFetch'
 
 interface Cuota {
   contratoId: number
@@ -50,7 +51,7 @@ export default function CronogramaMobysuiteView() {
     setLoading(true)
     setConsultado(false)
     try {
-      const res = await fetch(`/api/mobysuite-cronograma?mobyProjectId=${proyecto.moby_project_id}`)
+      const res = await authFetch(`/api/mobysuite-cronograma?mobyProjectId=${proyecto.moby_project_id}`)
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Error al consultar Mobysuite')
       setCuotas(json.cuotas)

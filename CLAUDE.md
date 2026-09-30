@@ -551,6 +551,12 @@ No se replica la máquina de estados fina completa en SQL (ej. "solo el EVALUADO
 
 **Lo que ya estaba bien protegido desde antes** (no formaba parte del hallazgo): `usuario_rol`, `usuario`, `cuenta_bancaria`, `area_usuario` — nadie puede auto-asignarse ADMIN ni tocar cuentas bancarias de empresa sin serlo. El endpoint `api/admin-users.ts` también valida el rol del que llama contra la base de datos real, no confía en nada que mande el navegador.
 
+**Segunda auditoría (2026-09-30) — corregido:**
+- `/api/mobysuite-cronograma` estaba **sin autenticación** y devolvía RUT, nombre, correo, teléfono y saldos de clientes a cualquiera que conociera la URL. Ahora exige token de sesión + rol ADMIN/APROBADOR/VISUALIZADOR (mismos que ven Ingreso). `/api/ruc` y `/api/tipo-cambio` exigen sesión válida (antes cualquiera gastaba la cuota de Decolecta). El frontend usa `authFetch()` (`src/api/authFetch.ts`), que adjunta el token de Supabase — **todo fetch nuevo a `/api/*` debe usarlo**; en local (`vite` proxy) el header se ignora sin problema.
+- `proyecto`: INSERT/UPDATE/DELETE eran `true` para cualquier autenticado; ahora solo ADMIN. `solicitud_archivo`: INSERT/UPDATE/DELETE ahora solo dueño de la solicitud en estado Pendiente/Aprobado/Observado (Aprobado por la factura) o rol privilegiado.
+- Funciones SECURITY DEFINER: se revocó EXECUTE a `anon`/`public` (antes `get_consumo_proyectos` devolvía consumo por empresa sin sesión); las funciones de trigger (`recalc_*`, `gen_codigo_*`, `fn_assign_*`, `assign_numero_pago`) ya no son llamables por RPC ni por `authenticated`.
+- **Sigue pendiente:** `proveedor` INSERT/UPDATE abierto (a propósito: `buscarRuc` hace upsert desde cualquier rol), buckets de Storage sin restricción por dueño, `search_path` fijo en 7 funciones legacy, protección de contraseñas filtradas (se activa en el dashboard de Supabase).
+
 **Otros hallazgos menores de la misma auditoría, sin corregir aún:** validación de tipo de archivo solo en el navegador (no hay chequeo del lado del servidor); un `dangerouslySetInnerHTML` en `RechazoModal.tsx` (hoy no explotable porque ningún caller le pasa texto de usuario, pero es un patrón frágil); construcción de filtros `.or()` con el texto del buscador sin escapar (impacto acotado porque RLS sigue siendo la última barrera); protección de contraseña filtrada (HaveIBeenPwned) desactivada en Supabase Auth; algunas funciones SQL sin `search_path` fijo.
 
 ---

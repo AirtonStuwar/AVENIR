@@ -1,3 +1,5 @@
+import { createClient } from '@supabase/supabase-js'
+
 export const config = { runtime: 'edge' }
 
 // Consulta EN VIVO el cronograma de cuotas de un proyecto en Mobysuite — no persiste nada.
@@ -64,7 +66,24 @@ function categoria(descripcion: string): 'BANCO' | 'CLIENTE' {
   return d.includes('HIPOTECARIO') || d.includes('CREDITO') ? 'BANCO' : 'CLIENTE'
 }
 
+// Datos personales de clientes: solo ADMIN (1), APROBADOR (9) y VISUALIZADOR (10) con sesión válida
+async function requireRolIngreso(req: Request): Promise<boolean> {
+  const url = process.env.VITE_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const auth = req.headers.get('Authorization')
+  if (!url || !key || !auth?.startsWith('Bearer ')) return false
+  const admin = createClient(url, key)
+  const { data: { user }, error } = await admin.auth.getUser(auth.slice(7))
+  if (error || !user) return false
+  const { data: rolRow } = await admin.from('usuario_rol').select('rol').eq('usuario', user.id).maybeSingle()
+  return [1, 9, 10].includes(rolRow?.rol as number)
+}
+
 export default async function handler(req: Request): Promise<Response> {
+  if (!(await requireRolIngreso(req))) {
+    return Response.json({ error: 'No autorizado' }, { status: 401 })
+  }
+
   const { searchParams } = new URL(req.url)
   const mobyProjectId = searchParams.get('mobyProjectId')
 

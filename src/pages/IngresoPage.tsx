@@ -10,6 +10,7 @@ import {
 } from 'recharts'
 import ExcelJS from 'exceljs'
 import { getProyectos } from '../features/proyecto/services/proyectoService'
+import { authFetch } from '../api/authFetch'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -357,7 +358,7 @@ export default function IngresoPage() {
     }
     setCarteraRealLoading(true)
     setCarteraRealError(false)
-    fetch(`/api/mobysuite-cronograma?mobyProjectId=${proyectoSeleccionado.moby_project_id}`)
+    authFetch(`/api/mobysuite-cronograma?mobyProjectId=${proyectoSeleccionado.moby_project_id}`)
       .then(async r => {
         const json = await r.json()
         if (!r.ok) throw new Error(json.error ?? 'Error al consultar Mobysuite')
