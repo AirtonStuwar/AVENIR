@@ -61,6 +61,10 @@ function toDate(iso?: string): string | null {
   return iso.slice(0, 10)
 }
 
+function esCuotaDeAjuste(descripcion?: string): boolean {
+  return (descripcion ?? '').trim().toUpperCase().startsWith('CUOTA DE AJUSTE')
+}
+
 function categoria(descripcion: string): 'BANCO' | 'CLIENTE' {
   const d = descripcion.toUpperCase()
   return d.includes('HIPOTECARIO') || d.includes('CREDITO') ? 'BANCO' : 'CLIENTE'
@@ -123,7 +127,11 @@ export default async function handler(req: Request): Promise<Response> {
         || null
 
       for (const pago of c.pagos ?? []) {
-        if (!pago.montoPago || pago.montoPago === 0) continue // excluye "Cuota de ajuste" sin monto real
+        if (!pago.montoPago || pago.montoPago === 0) continue
+        // "Cuota de ajuste" es un registro contable de Mobysuite, no deuda del cliente: no
+        // forma parte del precio del contrato, así que sumarla infla la cartera. Se excluye
+        // siempre, venga con monto o sin él (antes solo se descartaban las de monto 0).
+        if (esCuotaDeAjuste(pago.descripcionPago)) continue
 
         const reciboPagado = pago.reciboPago?.find(r => r.estadoPago === 'Documentado')
         const pagado = !!reciboPagado

@@ -1051,12 +1051,17 @@ Registro directo (sin flujo de aprobación) de cobros ya recibidos de clientes, 
 **`api/mobysuite-cronograma.ts`** (Vercel Edge Function) — único punto de contacto con Mobysuite. `GET ?mobyProjectId=<id>`:
 1. Login OAuth2 `client_credentials` contra `MOBY_HOST/oauth/token` (variables de entorno `MOBY_HOST`, `MOBY_CLIENT_ID`, `MOBY_CLIENT_SECRET`, configuradas en Vercel → Environment Variables, nunca en el código).
 2. `GET {MOBY_HOST}/v1/api/integrations/contracts?project={mobyProjectId}` — devuelve, por cada contrato (venta), el cliente, el bien, y el array `pagos[]` (cronograma de cuotas: fecha de vencimiento, monto, descripción, y `reciboPago[]` si ya se pagó).
-3. Aplana todo a una lista de "cuotas" (una fila por cada pago de cada contrato), **excluyendo las que tienen `montoPago = 0`** ("Cuota de ajuste" — un registro contable de Mobysuite sin deuda real asociada).
+3. Aplana todo a una lista de "cuotas" (una fila por cada pago de cada contrato), **excluyendo las que tienen `montoPago = 0`** y **todas las "Cuota de ajuste"** (`esCuotaDeAjuste()`, ver abajo).
 4. Cada cuota se marca `estado`: `Pagado` (tiene un `reciboPago` con `estadoPago === 'Documentado'`), `Vencido` (fecha de vencimiento ya pasó y no está pagada), o `Pendiente`.
 5. Cada cuota se clasifica también `categoria`: `BANCO` si la descripción contiene "HIPOTECARIO" o "CREDITO", si no `CLIENTE` — usado para no mezclar cuotas que paga el banco directamente (crédito hipotecario) con las que debe pagar el cliente.
 6. Devuelve también `ventasAcumuladas` (suma de `precioTotal` de todos los contratos) y `totalContratos`.
 
 Como es una Edge Function real (no un simple proxy), **no funciona con `npm run dev`/Vite local** — hay que probarla ya desplegada en Vercel, o con `vercel dev`.
+
+**Bug corregido (2026-10) — la "Cuota de ajuste" inflaba la cartera en S/176,408.33:** el filtro original solo descartaba las cuotas con `montoPago = 0`, asumiendo que todas las "Cuota de ajuste" venían así (las que se vieron al implementar la integración, sí). Pero **23 de ellas traen monto distinto de cero** y pasaban el filtro, sumándose a la deuda del cliente en las 3 vistas. Solo existen en 2 de los 5 proyectos: **20 en Park View, 3 en Costazul** (Mixxo, Fátima y Tinto Magdalena no tienen ninguna).
+- **La cuota de ajuste no es deuda del cliente ni parte del precio del contrato** — es un registro contable interno de Mobysuite. Verificado contra los datos reales: el contrato 289 (Diego Arturo Alfaro Vives) suma `479,750.00` exacto sin el ajuste y `480,479.73` con él; el contrato 303 (Yrma Cervantes Lucana) suma `850,000.00` exacto sin el ajuste —precio confirmado por el usuario— y `1,010,540.54` con él (ese solo ajuste valía S/160,540.54, el 19% del contrato). En Costazul, la suma de todas las cuotas **sin** ajustes cuadra contra `precioTotal` de los contratos con 1 céntimo de diferencia; **con** ajustes se pasa por S/894.59.
+- Corregido con `esCuotaDeAjuste(descripcionPago)` — compara el texto normalizado (`trim().toUpperCase().startsWith('CUOTA DE AJUSTE')`). La descripción llega siempre escrita igual en los 5 proyectos; el resto de descripciones sí varían en mayúsculas/tildes (`"Separación"`/`"Separacion"`/`"SEPARACIÓN"`), por eso la comparación se normaliza.
+- `ventasAcumuladas` **no** se vio afectado: se calcula de `c.precioTotal` que devuelve la API, no de la suma de cuotas.
 
 **Vista "Cronograma real de clientes (Mobysuite)"** (`CronogramaMobysuiteView.tsx`) — selector de empresa (solo las mapeadas) + botón "Consultar" que llama al endpoint de arriba. Tabla con filtros de categoría (Cliente/Banco/Todos) y estado (Pagado/Pendiente/Vencido/Todos), con totales.
 
