@@ -21,7 +21,11 @@ import {
   updateARendir,
 } from '../features/arendir/services/arendirService'
 import { getUltimaCuentaBancariaPersonal } from '../features/solicitud/services/cuentaBancariaService'
+import { buscarRuc } from '../features/solicitud/services/rucService'
+import { getCuentasByProveedor } from '../features/proveedor/services/proveedorCuentaService'
+import type { ProveedorCuenta } from '../features/proveedor/types/proveedor'
 import type { SolicitudARendir } from '../features/arendir/types/arendir'
+import type { TipoDocBeneficiario } from '../features/arendir/utils/documento'
 
 // ── Tipos locales ─────────────────────────────────────────────
 interface DetalleRow {
@@ -74,7 +78,11 @@ export default function ARendirNuevaPage() {
 
   // Step 1 form
   const [beneficiarioNombre, setBeneficiarioNombre] = useState(usuarioProfile?.nombre_completo ?? '')
+  const [tipoDoc, setTipoDoc] = useState<TipoDocBeneficiario>('DNI')
   const [dniEdit, setDniEdit] = useState(usuarioProfile?.dni ?? '')
+  const [rucLoading, setRucLoading] = useState(false)
+  const [rucAutoFilled, setRucAutoFilled] = useState(false)
+  const [cuentasProveedor, setCuentasProveedor] = useState<ProveedorCuenta[]>([])
   const [proyectoId,      setProyectoId]      = useState<string>('')
   const [partidaId,       setPartidaId]       = useState<string>('')
   const [partidas,        setPartidas]        = useState<ProyectoPartida[]>([])
@@ -114,6 +122,52 @@ export default function ARendirNuevaPage() {
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
+
+  // Cambiar entre DNI y RUC limpia el número — un DNI nunca es un RUC válido
+  function cambiarTipoDoc(t: TipoDocBeneficiario) {
+    if (t === tipoDoc) return
+    setTipoDoc(t)
+    setDniEdit('')
+    setCuentasProveedor([])
+    setRucAutoFilled(false)
+  }
+
+  // Con RUC completo: trae la razón social (tabla `proveedor` local, o SUNAT si no está)
+  // y la cuenta bancaria ya registrada de ese proveedor, si tiene alguna.
+  useEffect(() => {
+    if (tipoDoc !== 'RUC' || dniEdit.length !== 11) {
+      setCuentasProveedor([])
+      setRucAutoFilled(false)
+      return
+    }
+    let cancelled = false
+    setRucLoading(true)
+    Promise.all([
+      buscarRuc(dniEdit),
+      getCuentasByProveedor(dniEdit).catch(() => [] as ProveedorCuenta[]),
+    ])
+      .then(([sunat, cuentas]) => {
+        if (cancelled) return
+        setBeneficiarioNombre(sunat.razon_social)
+        setRucAutoFilled(true)
+        setCuentasProveedor(cuentas)
+        setCuentaAutocompletada(false)
+        if (cuentas.length === 1) {
+          setBanco(cuentas[0].banco)
+          setNumeroCuenta(cuentas[0].numero_cuenta)
+        } else {
+          // 0 cuentas → se ingresa a mano; más de una → se elige del dropdown.
+          // En ambos casos la cuenta personal de quien crea la solicitud ya no aplica.
+          setBanco('')
+          setNumeroCuenta('')
+        }
+      })
+      .catch(() => {
+        if (!cancelled) toast.error('RUC no encontrado en SUNAT')
+      })
+      .finally(() => { if (!cancelled) setRucLoading(false) })
+    return () => { cancelled = true }
+  }, [tipoDoc, dniEdit])
 
   // Load partidas and consumo when proyecto changes
   const [consumoPartidas, setConsumoPartidas] = useState<Record<number, Consumo>>({})
@@ -349,17 +403,49 @@ export default function ARendirNuevaPage() {
               />
             </div>
 
-            {/* DNI editable */}
+            {/* Documento editable — DNI (persona) o RUC (empresa / persona con negocio).
+                Con RUC se traen la razón social y la cuenta bancaria registrada del proveedor. */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">DNI</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">{tipoDoc}</label>
+                <div className="flex gap-1">
+                  {(['DNI', 'RUC'] as const).map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => cambiarTipoDoc(t)}
+                      className={`px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-colors ${
+                        tipoDoc === t
+                          ? 'bg-[#003D7D] text-white'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <input
                 type="text"
                 value={dniEdit}
-                onChange={e => setDniEdit(e.target.value)}
-                maxLength={8}
-                placeholder="12345678"
+                onChange={e => setDniEdit(e.target.value.replace(/\D/g, ''))}
+                maxLength={tipoDoc === 'RUC' ? 11 : 8}
+                placeholder={tipoDoc === 'RUC' ? '20123456789' : '12345678'}
                 className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/30 focus:border-[#003D7D]"
               />
+              {tipoDoc === 'RUC' && rucLoading && (
+                <p className="text-xs text-gray-400 flex items-center gap-1">
+                  <Loader2 size={11} className="animate-spin" /> Consultando RUC…
+                </p>
+              )}
+              {tipoDoc === 'RUC' && rucAutoFilled && !rucLoading && (
+                <p className="text-xs text-emerald-600">
+                  Nombre traído del RUC
+                  {cuentasProveedor.length > 0
+                    ? ` · ${cuentasProveedor.length} cuenta${cuentasProveedor.length > 1 ? 's' : ''} registrada${cuentasProveedor.length > 1 ? 's' : ''}`
+                    : ' · sin cuenta registrada, ingrésala abajo'}
+                </p>
+              )}
             </div>
 
             {/* Proyecto */}
@@ -473,6 +559,39 @@ export default function ARendirNuevaPage() {
               />
             </div>
 
+            {/* Selector rápido cuando el RUC tiene varias cuentas registradas */}
+            {cuentasProveedor.length > 1 && (
+              <div className="md:col-span-2 space-y-1">
+                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                  Cuentas registradas de este RUC
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {cuentasProveedor.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setBanco(c.banco)
+                        setNumeroCuenta(c.numero_cuenta)
+                        setCuentaAutocompletada(false)
+                      }}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all ${
+                        banco === c.banco && numeroCuenta === c.numero_cuenta
+                          ? 'bg-[#003D7D] text-white border-[#003D7D]'
+                          : 'bg-white text-gray-600 border-gray-200 hover:border-[#003D7D]/40 hover:text-[#003D7D]'
+                      }`}
+                    >
+                      <span>{c.banco}</span>
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${c.moneda === 'USD' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                        {c.moneda === 'USD' ? '$' : 'S/'}
+                      </span>
+                      <span className="opacity-70">···{c.numero_cuenta.slice(-4)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Banco */}
             <div className="space-y-1">
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Banco</label>
@@ -505,6 +624,9 @@ export default function ARendirNuevaPage() {
               />
               {cuentaAutocompletada && (
                 <p className="text-xs text-gray-400">Autocompletado de tu última solicitud — puedes cambiarlo</p>
+              )}
+              {!cuentaAutocompletada && cuentasProveedor.length === 1 && (
+                <p className="text-xs text-gray-400">Cuenta registrada de este RUC — puedes cambiarla</p>
               )}
             </div>
 

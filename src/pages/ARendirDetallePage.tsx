@@ -38,6 +38,7 @@ import {
   updateARendir,
 } from '../features/arendir/services/arendirService'
 import type { SolicitudARendir, ARendirDetalle } from '../features/arendir/types/arendir'
+import { tipoDocBeneficiario } from '../features/arendir/utils/documento'
 import { ARendirPDF } from '../features/arendir/components/ARendirPDF'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
 import BitacoraCard, { fmtDateHora } from '../features/solicitud/components/Bitacora'
@@ -488,7 +489,7 @@ export default function ARendirDetallePage() {
     ws.addRow(['Código', solicitud.codigo ?? ''])
     ws.addRow(['Empresa', solicitud.proyecto?.nombre ?? ''])
     ws.addRow(['Beneficiario', solicitud.beneficiario_nombre ?? ''])
-    ws.addRow(['DNI', solicitud.beneficiario_dni ?? ''])
+    ws.addRow([tipoDocBeneficiario(solicitud.beneficiario_dni), solicitud.beneficiario_dni ?? ''])
     ws.addRow(['Banco', solicitud.banco ?? ''])
     ws.addRow(['Cuenta', solicitud.numero_cuenta ?? ''])
     ws.addRow(['Importe a rendir', `${sym}${solicitud.importe.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`])
@@ -905,7 +906,7 @@ export default function ARendirDetallePage() {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           {[
             { label: 'Beneficiario',     value: solicitud.beneficiario_nombre },
-            { label: 'DNI',              value: solicitud.beneficiario_dni },
+            { label: tipoDocBeneficiario(solicitud.beneficiario_dni), value: solicitud.beneficiario_dni },
             { label: 'Cargo',            value: solicitud.beneficiario_cargo },
             { label: 'Empresa',          value: solicitud.proyecto?.nombre },
             { label: 'Moneda',           value: solicitud.moneda === 'USD' ? 'Dólares (USD)' : 'Soles (PEN)' },
@@ -1282,7 +1283,7 @@ export default function ARendirDetallePage() {
         open={correccionOpen}
         campos={[
           { campo: 'beneficiario_nombre', label: 'Beneficiario', valorActual: solicitud?.beneficiario_nombre ?? null },
-          { campo: 'beneficiario_dni',    label: 'DNI',          valorActual: solicitud?.beneficiario_dni ?? null },
+          { campo: 'beneficiario_dni',    label: 'DNI / RUC',    valorActual: solicitud?.beneficiario_dni ?? null },
           { campo: 'banco',               label: 'Banco',        valorActual: solicitud?.banco ?? null },
           { campo: 'numero_cuenta',       label: 'Número de cuenta / CCI', valorActual: solicitud?.numero_cuenta ?? null },
         ]}

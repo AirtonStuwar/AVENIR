@@ -2,6 +2,7 @@ import {
   Document, Page, View, Text, Image, StyleSheet, Font,
 } from '@react-pdf/renderer'
 import type { SolicitudARendir, ARendirDetalle } from '../types/arendir'
+import { tipoDocBeneficiario } from '../utils/documento'
 
 // ── Helpers ───────────────────────────────────────────────────
 function fmtDate(val: string | null | undefined): string {
@@ -216,7 +217,7 @@ export function ARendirPDF({ solicitud, detalles, logoSrc, firmaUsuarioSrc, firm
             <Text style={s.headerValue}>{solicitud.beneficiario_nombre ?? '—'}</Text>
           </View>
           <View style={s.headerCard}>
-            <Text style={s.headerLabel}>DNI</Text>
+            <Text style={s.headerLabel}>{tipoDocBeneficiario(solicitud.beneficiario_dni)}</Text>
             <Text style={s.headerValue}>{solicitud.beneficiario_dni ?? '—'}</Text>
           </View>
           <View style={s.headerCard}>
@@ -303,7 +304,7 @@ export function ARendirPDF({ solicitud, detalles, logoSrc, firmaUsuarioSrc, firm
             <View style={s.firmaLine} />
             <Text style={s.firmaLabel}>RENDIDO POR</Text>
             <Text style={s.firmaNombre}>{solicitud.beneficiario_nombre ?? '—'}</Text>
-            <Text style={s.firmaNombre}>DNI: {solicitud.beneficiario_dni ?? '—'}</Text>
+            <Text style={s.firmaNombre}>{tipoDocBeneficiario(solicitud.beneficiario_dni)}: {solicitud.beneficiario_dni ?? '—'}</Text>
           </View>
 
           <View style={s.firmaBox}>

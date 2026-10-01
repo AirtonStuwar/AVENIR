@@ -12,6 +12,7 @@ import { getProyectos } from '../features/proyecto/services/proyectoService'
 import type { Proyecto } from '../features/proyecto/types/proyecto'
 import BulkPagoModal from '../features/solicitud/components/BulkPagoModal'
 import { marcarPagadoARendir } from '../features/arendir/services/arendirService'
+import { doiTipoBBVA } from '../features/arendir/utils/documento'
 
 // ── Badge de estado ────────────────────────────────────────────
 // Etiquetas visibles distintas al valor guardado en BD — el valor interno no cambia,
@@ -115,7 +116,7 @@ export default function ARendirPage() {
 
     selected.forEach((s, idx) => {
       ws.addRow([
-        'L',
+        doiTipoBBVA(s.beneficiario_dni),
         s.beneficiario_dni ?? '',
         s.banco === 'BBVA' ? 'P' : 'I',
         s.numero_cuenta ?? '',

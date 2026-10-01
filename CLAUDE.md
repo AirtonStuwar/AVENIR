@@ -345,6 +345,12 @@ El EVALUADOR aquí **no asigna plan contable** en ninguna de sus dos acciones (n
 
 **Beneficiario y DNI manuales (`beneficiario_nombre`, `beneficiario_dni` en `solicitud_arendir`, nullable):** permiten crear la solicitud a nombre de otra persona (ej. un trabajador de campo sin acceso al sistema) sin tocar el perfil real del usuario que crea la solicitud. `beneficiario_id` sigue siendo siempre quien crea la solicitud (para RLS/ownership); estos dos campos son solo de **visualización**, con prioridad sobre el nombre/DNI del perfil de `beneficiario_id` cuando están llenos — la resolución de prioridad vive en `enrichARendir()` (`arendirService.ts`) y en `fetchARendir()` (`reportesService.ts`, módulo Reportes). Si un lugar nuevo necesita mostrar el beneficiario de A Rendir, debe replicar ese mismo criterio (manual primero, perfil real como fallback) — de lo contrario mostrará a quien creó la solicitud en vez del beneficiario real (bug ya corregido una vez en Reportes).
 
+**Beneficiario con DNI o RUC (2026-10):** el campo del documento del beneficiario (columna `beneficiario_dni`, que se sigue llamando así) ahora acepta **DNI o RUC**, elegido con dos botones `DNI`/`RUC` en el Step 1 del wizard. Solo aplica a A Rendir — Reembolso no se tocó (ahí el beneficiario siempre es un usuario real del sistema, sin nombre manual).
+- **El tipo no se guarda en la BD, se deduce del número:** en Perú el DNI tiene 8 dígitos y el RUC 11, así que `tipoDocBeneficiario()` / `doiTipoBBVA()` (`src/features/arendir/utils/documento.ts`) lo derivan de `beneficiario_dni`. Sin columna nueva ni migración, y las solicitudes anteriores (todas con DNI de 8) siguen resolviéndose como `'DNI'`/`'L'` igual que antes. El botón del wizard solo controla la etiqueta, el `maxLength` (8 vs 11) y si se dispara el lookup — su valor no se persiste porque es redundante.
+- **Con RUC de 11 dígitos** se llama `buscarRuc()` + `getCuentasByProveedor()` en paralelo (mismo patrón que el Step 1 de `SolicitudNuevaPage`): la **razón social sobrescribe `beneficiario_nombre`** (editable después), y si ese RUC tiene cuentas en `proveedor_cuenta_bancaria` se autocompleta Banco/N° de cuenta (1 cuenta → directo; varias → botones para elegir, igual que en Solicitudes). Si el RUC **no** tiene cuenta registrada, Banco y N° de cuenta se **limpian** — la cuenta personal de quien crea la solicitud no aplica al titular del RUC (mismo criterio que el beneficiario manual).
+- **Efecto secundario de `buscarRuc()`:** si el RUC no existía en la tabla `proveedor`, la función lo inserta ahí (así funciona desde Solicitudes). O sea, un beneficiario consultado por RUC desde A Rendir **aparecerá después en el módulo Proveedores** aunque no sea un proveedor de compras.
+- **Etiquetas derivadas:** la ficha del detalle, el Excel individual y el PDF (ficha + línea bajo la firma) muestran "RUC" o "DNI" según el número. El `CorreccionModal` de A Rendir usa la etiqueta fija "DNI / RUC" (es un formulario de edición, no sabe el valor nuevo de antemano). Reportes no requirió cambios: su columna ya se llama RUC/DNI y mapea `beneficiario_dni` tal cual.
+
 **ARendirDetallePage — acciones por rol y estado:**
 - USUARIO (dueño)/ADMIN en Pendiente: "Enviar a evaluación" → En Evaluación
 - EVALUADOR/ADMIN en En Evaluación: "Evaluar" → Evaluado, o "Devolver" (comentario) → Devuelto
@@ -388,7 +394,7 @@ El EVALUADOR aquí **no asigna plan contable** en ninguna de sus dos acciones (n
 
 | Col | Campo | Valor |
 |---|---|---|
-| DOI tipo | Siempre `'L'` (DNI persona natural) |
+| DOI tipo | `doiTipoBBVA(beneficiario_dni)` — `'R'` si el documento tiene 11 dígitos (RUC), `'L'` si no (DNI). Antes era siempre `'L'`; ver "Beneficiario con DNI o RUC" abajo |
 | DOI Numero | `beneficiario_dni` |
 | Tipo abono | `'P'` si `banco === 'BBVA'`, `'I'` (interbancario) para el resto |
 | Cuenta | `numero_cuenta` registrado en Step 1 |
