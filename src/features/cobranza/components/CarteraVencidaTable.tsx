@@ -14,6 +14,7 @@ interface Cuota {
   fechaVencimiento: string | null
   monto: number
   estado: 'Pagado' | 'Pendiente' | 'Vencido'
+  categoria: 'BANCO' | 'CLIENTE'
 }
 
 interface ClienteFila {
@@ -26,12 +27,15 @@ interface ClienteFila {
   d61_90: number
   d91_120: number
   antiguos: number
+  pagado: number
   total: number
 }
 
 const fmt = (n: number) => n === 0 ? '0.00' : n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-const BUCKETS: { key: keyof Omit<ClienteFila, 'clave' | 'nombre' | 'cuotas' | 'total'>; label: string }[] = [
+type BucketKey = Exclude<keyof ClienteFila, 'clave' | 'nombre' | 'cuotas' | 'total' | 'pagado'>
+
+const BUCKETS: { key: BucketKey; label: string }[] = [
   { key: 'actual', label: 'A la fecha' },
   { key: 'd1_30', label: '1-30' },
   { key: 'd31_60', label: '31-60' },
@@ -46,7 +50,7 @@ function diasVencido(fechaVencimiento: string | null, hoy: string): number {
   return Math.round(ms / 86_400_000)
 }
 
-function bucketDe(dias: number): keyof Omit<ClienteFila, 'clave' | 'nombre' | 'cuotas' | 'total'> {
+function bucketDe(dias: number): BucketKey {
   if (dias <= 0) return 'actual'
   if (dias <= 30) return 'd1_30'
   if (dias <= 60) return 'd31_60'
@@ -61,6 +65,9 @@ export default function CarteraVencidaTable() {
   const [loading, setLoading] = useState(false)
   const [cuotas, setCuotas] = useState<Cuota[] | null>(null)
   const [expandido, setExpandido] = useState<Record<string, boolean>>({})
+  // Por defecto solo las cuotas que paga el cliente: el Crédito Hipotecario lo desembolsa
+  // el banco, no es mora del cliente, y mezclarlo multiplicaba la deuda mostrada.
+  const [filtroCategoria, setFiltroCategoria] = useState<'Todos' | Cuota['categoria']>('CLIENTE')
 
   useEffect(() => {
     getProyectosConMobysuite().then(setProyectos).catch(() => toast.error('No se pudo cargar la lista de empresas con Mobysuite'))
@@ -86,32 +93,38 @@ export default function CarteraVencidaTable() {
   const filas = useMemo<ClienteFila[]>(() => {
     if (!cuotas) return []
     const hoy = new Date().toISOString().slice(0, 10)
-    const pendientes = cuotas.filter(c => c.estado !== 'Pagado')
+    const visibles = cuotas.filter(c => filtroCategoria === 'Todos' || c.categoria === filtroCategoria)
 
     const porCliente = new Map<string, ClienteFila>()
-    for (const c of pendientes) {
+    for (const c of visibles) {
       const clave = c.clienteRut ?? c.clienteNombre ?? `contrato-${c.contratoId}`
       if (!porCliente.has(clave)) {
         porCliente.set(clave, {
           clave, nombre: c.clienteNombre ?? clave, cuotas: [],
-          actual: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, antiguos: 0, total: 0,
+          actual: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, antiguos: 0, pagado: 0, total: 0,
         })
       }
       const fila = porCliente.get(clave)!
-      const dias = diasVencido(c.fechaVencimiento, hoy)
-      const bucket = bucketDe(dias)
-      fila[bucket] += c.monto
-      fila.total += c.monto
+      // Las cuotas ya cobradas se muestran y se suman aparte, nunca en los tramos de
+      // antigüedad ni en el Total — así "Total" sigue siendo lo que falta cobrar,
+      // y "Pagado + Total" cuadra contra el plan de pago completo de Mobysuite.
+      if (c.estado === 'Pagado') {
+        fila.pagado += c.monto
+      } else {
+        fila[bucketDe(diasVencido(c.fechaVencimiento, hoy))] += c.monto
+        fila.total += c.monto
+      }
       fila.cuotas.push(c)
     }
     return [...porCliente.values()].sort((a, b) => b.total - a.total)
-  }, [cuotas])
+  }, [cuotas, filtroCategoria])
 
   const totales = useMemo(() => {
-    const t = { actual: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, antiguos: 0, total: 0 }
+    const t = { actual: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, antiguos: 0, pagado: 0, total: 0 }
     for (const f of filas) {
       t.actual += f.actual; t.d1_30 += f.d1_30; t.d31_60 += f.d31_60
-      t.d61_90 += f.d61_90; t.d91_120 += f.d91_120; t.antiguos += f.antiguos; t.total += f.total
+      t.d61_90 += f.d61_90; t.d91_120 += f.d91_120; t.antiguos += f.antiguos
+      t.pagado += f.pagado; t.total += f.total
     }
     return t
   }, [filas])
@@ -126,6 +139,12 @@ export default function CarteraVencidaTable() {
           <p className="text-xs text-gray-500 mt-0.5">Consulta en vivo, agrupado por cliente — al corte de hoy</p>
         </div>
         <div className="flex items-center gap-2">
+          <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value as typeof filtroCategoria)}
+            className="h-9 px-3 rounded-xl border border-gray-200 bg-gray-50 text-xs focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20">
+            <option value="CLIENTE">Solo cliente (excluye banco)</option>
+            <option value="BANCO">Solo financiado por banco</option>
+            <option value="Todos">Todas</option>
+          </select>
           <select value={proyectoId} onChange={e => setProyectoId(e.target.value)}
             className="h-9 px-3 rounded-xl border border-gray-200 bg-gray-50 text-xs focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20">
             <option value="">Selecciona empresa</option>
@@ -146,12 +165,13 @@ export default function CarteraVencidaTable() {
               <tr className="text-left text-gray-400 uppercase tracking-wide border-b border-gray-100 bg-gray-50/50">
                 <th className="px-5 py-2.5 font-semibold">Cliente</th>
                 {BUCKETS.map(b => <th key={b.key} className="px-3 py-2.5 font-semibold text-right">{b.label}</th>)}
+                <th className="px-3 py-2.5 font-semibold text-right text-emerald-600">Pagado</th>
                 <th className="px-5 py-2.5 font-semibold text-right">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filas.length === 0 ? (
-                <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">Sin saldo pendiente para esta empresa</td></tr>
+                <tr><td colSpan={9} className="px-5 py-8 text-center text-gray-400">Sin cuotas para esta empresa con el filtro elegido</td></tr>
               ) : filas.map(f => (
                 <>
                   <tr key={f.clave} onClick={() => toggle(f.clave)} className="hover:bg-gray-50/50 cursor-pointer font-medium text-gray-800">
@@ -164,24 +184,29 @@ export default function CarteraVencidaTable() {
                         {fmt(f[b.key])}
                       </td>
                     ))}
+                    <td className={`px-3 py-2.5 text-right ${f.pagado > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>{fmt(f.pagado)}</td>
                     <td className="px-5 py-2.5 text-right font-semibold text-[#003D7D]">{fmt(f.total)}</td>
                   </tr>
                   {expandido[f.clave] && f.cuotas
                     .slice()
                     .sort((a, b) => (a.fechaVencimiento ?? '').localeCompare(b.fechaVencimiento ?? ''))
                     .map(c => {
-                      const dias = diasVencido(c.fechaVencimiento, new Date().toISOString().slice(0, 10))
-                      const bucket = bucketDe(dias)
+                      const pagada = c.estado === 'Pagado'
+                      const bucket = pagada ? null : bucketDe(diasVencido(c.fechaVencimiento, new Date().toISOString().slice(0, 10)))
                       return (
                         <tr key={`${f.clave}-${c.contratoId}-${c.numeroCuota}-${c.descripcion}`} className="bg-gray-50/40 text-gray-500">
                           <td className="px-5 py-2 pl-9">
                             {c.descripcion} — plazo #{c.numeroCuota}
                             <span className="text-gray-400"> · vence {c.fechaVencimiento ? new Date(c.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-PE') : '—'}</span>
+                            {pagada && (
+                              <span className="ml-2 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[10px] font-semibold">Pagado</span>
+                            )}
                           </td>
                           {BUCKETS.map(b => (
                             <td key={b.key} className="px-3 py-2 text-right">{b.key === bucket ? fmt(c.monto) : ''}</td>
                           ))}
-                          <td className="px-5 py-2 text-right">{fmt(c.monto)}</td>
+                          <td className="px-3 py-2 text-right text-emerald-600">{pagada ? fmt(c.monto) : ''}</td>
+                          <td className="px-5 py-2 text-right">{pagada ? '' : fmt(c.monto)}</td>
                         </tr>
                       )
                     })}
@@ -193,6 +218,7 @@ export default function CarteraVencidaTable() {
                 <tr className="border-t-2 border-gray-200 font-semibold text-gray-800 bg-gray-50/70">
                   <td className="px-5 py-3">Total general</td>
                   {BUCKETS.map(b => <td key={b.key} className="px-3 py-3 text-right">{fmt(totales[b.key])}</td>)}
+                  <td className="px-3 py-3 text-right text-emerald-600">{fmt(totales.pagado)}</td>
                   <td className="px-5 py-3 text-right text-[#003D7D]">{fmt(totales.total)}</td>
                 </tr>
               </tfoot>
