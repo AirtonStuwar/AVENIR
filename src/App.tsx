@@ -28,6 +28,7 @@ import DevolucionPage from './pages/DevolucionPage';
 import DevolucionNuevaPage from './pages/DevolucionNuevaPage';
 import DevolucionDetallePage from './pages/DevolucionDetallePage';
 import AreasConsumoPage from './pages/AreasConsumoPage';
+import FinanzasEgresosPage from './pages/FinanzasEgresosPage';
 import CajaChicaPage from './pages/CajaChicaPage';
 import CajaChicaNuevaPage from './pages/CajaChicaNuevaPage';
 import CajaChicaDetallePage from './pages/CajaChicaDetallePage';
@@ -104,6 +105,7 @@ function App() {
             <Route path="/ingreso"         element={<IngresoPage />} />
             <Route path="/plan-contable"   element={<PlanContableGastoPage />} />
             <Route path="/areas"           element={<AreasConsumoPage />} />
+            <Route path="/finanzas"        element={<FinanzasEgresosPage />} />
             <Route path="/devolucion"        element={<DevolucionPage />} />
             <Route path="/devolucion/nueva"  element={<DevolucionNuevaPage />} />
             <Route path="/devolucion/:id"    element={<DevolucionDetallePage />} />

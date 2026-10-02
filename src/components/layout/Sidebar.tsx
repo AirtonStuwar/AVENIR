@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, FileText, Users, Briefcase, LogOut, X, AlertCircle, Receipt, RefreshCw, BarChart2, Building2, Wallet, PieChart, RotateCcw, UserCog, Landmark, Banknote, TrendingUp, ChevronDown, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, Briefcase, LogOut, X, AlertCircle, Receipt, RefreshCw, BarChart2, Building2, Wallet, PieChart, RotateCcw, UserCog, Landmark, Banknote, TrendingUp, LineChart, ChevronDown, ChevronRight } from 'lucide-react';
 import { supabase } from '../../api/supabase';
 import { useAuthStore } from '../../store/authStore';
 
@@ -21,6 +21,7 @@ const menuItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: [1, 8, 9, 10, 11] },
   { name: 'Egreso',    icon: Banknote,     roles: ALL_ROLES, children: egresoChildren },
   { name: 'Ingreso',   path: '/ingreso',   icon: TrendingUp, roles: [1, 9, 10] },
+  { name: 'Finanzas',  path: '/finanzas',  icon: LineChart,  roles: [1] },
   { name: 'Usuarios',    path: '/usuarios',    icon: UserCog,    roles: [1] },
   { name: 'Proveedores', path: '/proveedores', icon: Users,      roles: [1, 11] },
   { name: 'Empresas',    path: '/proyectos',   icon: Briefcase,  roles: [1] },
