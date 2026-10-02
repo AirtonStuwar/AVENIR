@@ -4,6 +4,9 @@ import { RefreshCw, Loader2 } from 'lucide-react'
 import { getProyectosConMobysuite } from '../../proyecto/services/proyectoService'
 import type { Proyecto } from '../../proyecto/types/proyecto'
 import { authFetch } from '../../../api/authFetch'
+import EtapaFiltro from './EtapaFiltro'
+import { coincideEtapa, etapaLabel } from '../utils/etapas'
+import type { FiltroEtapa } from '../utils/etapas'
 
 interface Cuota {
   contratoId: number
@@ -37,6 +40,7 @@ export default function CronogramaMobysuiteView() {
   const [totalContratos, setTotalContratos] = useState<number | null>(null)
   const [filtroEstado, setFiltroEstado] = useState<'Todos' | Cuota['estado']>('Todos')
   const [filtroCategoria, setFiltroCategoria] = useState<'Todos' | Cuota['categoria']>('CLIENTE')
+  const [filtroEtapa, setFiltroEtapa] = useState<FiltroEtapa>('TODAS')
   const [consultado, setConsultado] = useState(false)
 
   useEffect(() => {
@@ -56,6 +60,7 @@ export default function CronogramaMobysuiteView() {
       if (!res.ok) throw new Error(json.error ?? 'Error al consultar Mobysuite')
       setCuotas(json.cuotas)
       setTotalContratos(json.totalContratos)
+      setFiltroEtapa('TODAS')
       setConsultado(true)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al consultar Mobysuite')
@@ -66,7 +71,8 @@ export default function CronogramaMobysuiteView() {
 
   const cuotasFiltradas = cuotas.filter(c =>
     (filtroEstado === 'Todos' || c.estado === filtroEstado) &&
-    (filtroCategoria === 'Todos' || c.categoria === filtroCategoria)
+    (filtroCategoria === 'Todos' || c.categoria === filtroCategoria) &&
+    coincideEtapa(c.contratoEstado, filtroEtapa)
   )
   const totalMonto = cuotasFiltradas.reduce((s, c) => s + c.monto, 0)
 
@@ -115,12 +121,16 @@ export default function CronogramaMobysuiteView() {
               </select>
             </div>
           </div>
+          <div className="px-5 py-3 border-b border-gray-100">
+            <EtapaFiltro cuotas={cuotas} value={filtroEtapa} onChange={setFiltroEtapa} />
+          </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-gray-400 uppercase tracking-wide border-b border-gray-100">
                   <th className="px-5 py-2.5 font-semibold">Cliente</th>
+                  <th className="px-3 py-2.5 font-semibold">Etapa</th>
                   <th className="px-3 py-2.5 font-semibold">Bien</th>
                   <th className="px-3 py-2.5 font-semibold">Cuota</th>
                   <th className="px-3 py-2.5 font-semibold">Vencimiento</th>
@@ -131,13 +141,14 @@ export default function CronogramaMobysuiteView() {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {cuotasFiltradas.length === 0 ? (
-                  <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">Sin cuotas para este filtro</td></tr>
+                  <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">Sin cuotas para este filtro</td></tr>
                 ) : cuotasFiltradas.map(c => (
                   <tr key={`${c.contratoId}-${c.numeroCuota}-${c.descripcion}`} className="hover:bg-gray-50/50">
                     <td className="px-5 py-2.5">
                       <div className="font-medium text-gray-800">{c.clienteNombre ?? '—'}</div>
                       <div className="text-gray-400">{c.clienteRut ?? ''}</div>
                     </td>
+                    <td className="px-3 py-2.5 text-gray-600">{etapaLabel(c.contratoEstado)}</td>
                     <td className="px-3 py-2.5 text-gray-600">{c.bienNumero ?? '—'}</td>
                     <td className="px-3 py-2.5 text-gray-600">{c.descripcion} (#{c.numeroCuota})</td>
                     <td className="px-3 py-2.5 text-gray-600">{c.fechaVencimiento ? new Date(c.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-PE') : '—'}</td>
