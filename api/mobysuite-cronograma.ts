@@ -61,6 +61,15 @@ function toDate(iso?: string): string | null {
   return iso.slice(0, 10)
 }
 
+// Un recibo "Documentado" o "Pagado" significa que la cuota está cancelada. Antes solo se
+// reconocía "Documentado", y los recibos en estado "Pagado" se contaban como deuda. Se compara
+// sin distinguir mayúsculas/espacios; cualquier otro estado (ej. uno reversado) NO cuenta como pago.
+const ESTADOS_RECIBO_PAGADO = ['DOCUMENTADO', 'PAGADO']
+
+function esReciboPagado(r: MobyRecibo): boolean {
+  return ESTADOS_RECIBO_PAGADO.includes((r.estadoPago ?? '').trim().toUpperCase())
+}
+
 function esCuotaDeAjuste(descripcion?: string): boolean {
   return (descripcion ?? '').trim().toUpperCase().startsWith('CUOTA DE AJUSTE')
 }
@@ -133,7 +142,7 @@ export default async function handler(req: Request): Promise<Response> {
         // siempre, venga con monto o sin él (antes solo se descartaban las de monto 0).
         if (esCuotaDeAjuste(pago.descripcionPago)) continue
 
-        const reciboPagado = pago.reciboPago?.find(r => r.estadoPago === 'Documentado')
+        const reciboPagado = pago.reciboPago?.find(esReciboPagado)
         const pagado = !!reciboPagado
         const fechaVenc = toDate(pago.fechaVencimientoPago)
         const estado = pagado ? 'Pagado' : (fechaVenc && fechaVenc < hoy ? 'Vencido' : 'Pendiente')
