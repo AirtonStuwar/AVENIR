@@ -5,14 +5,19 @@ import { getProyectosConMobysuite } from '../../proyecto/services/proyectoServic
 import type { Proyecto } from '../../proyecto/types/proyecto'
 import { authFetch } from '../../../api/authFetch'
 import EtapaFiltro from './EtapaFiltro'
-import { coincideEtapa, etapaLabel, ordenEtapa } from '../utils/etapas'
+import BienesLista from './BienesLista'
+import { coincideEtapa, etapaLabel } from '../utils/etapas'
 import type { FiltroEtapa } from '../utils/etapas'
+import { bienesDe } from '../utils/bienes'
+import type { Bien } from '../utils/bienes'
 
 interface Cuota {
   contratoId: number
   contratoEstado: string
   clienteRut: string | null
   clienteNombre: string | null
+  bienNumero?: string | null
+  bienes?: Bien[]
   numeroCuota: number
   descripcion: string
   fechaVencimiento: string | null
@@ -21,9 +26,17 @@ interface Cuota {
   categoria: 'BANCO' | 'CLIENTE'
 }
 
+// Una fila por CONTRATO: si el cliente compró departamento y estacionamiento en contratos separados,
+// cada uno va en su propia línea; si ambos bienes vienen en un mismo contrato (un solo plan de pagos),
+// es una sola línea que lista los dos bienes.
 interface ClienteFila {
   clave: string
   nombre: string
+  clienteClave: string
+  contratoId: number
+  contratoEstado: string
+  bienes: Bien[]
+  contratosDelCliente: number
   cuotas: Cuota[]
   actual: number
   d1_30: number
@@ -37,7 +50,7 @@ interface ClienteFila {
 
 const fmt = (n: number) => n === 0 ? '0.00' : n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-type BucketKey = Exclude<keyof ClienteFila, 'clave' | 'nombre' | 'cuotas' | 'total' | 'pagado'>
+type BucketKey = Exclude<keyof ClienteFila, 'clave' | 'nombre' | 'clienteClave' | 'contratoId' | 'contratoEstado' | 'bienes' | 'contratosDelCliente' | 'cuotas' | 'total' | 'pagado'>
 
 const BUCKETS: { key: BucketKey; label: string }[] = [
   { key: 'actual', label: 'A la fecha' },
@@ -103,16 +116,29 @@ export default function CarteraVencidaTable() {
       (filtroCategoria === 'Todos' || c.categoria === filtroCategoria) &&
       coincideEtapa(c.contratoEstado, filtroEtapa))
 
-    const porCliente = new Map<string, ClienteFila>()
+    // Cuántos contratos tiene cada cliente en total (sin filtros), para avisar cuando una línea
+    // es solo uno de varios contratos del mismo cliente
+    const contratosPorCliente = new Map<string, Set<number>>()
+    for (const c of cuotas) {
+      const k = c.clienteRut ?? c.clienteNombre ?? `contrato-${c.contratoId}`
+      if (!contratosPorCliente.has(k)) contratosPorCliente.set(k, new Set())
+      contratosPorCliente.get(k)!.add(c.contratoId)
+    }
+
+    const porContrato = new Map<string, ClienteFila>()
     for (const c of visibles) {
-      const clave = c.clienteRut ?? c.clienteNombre ?? `contrato-${c.contratoId}`
-      if (!porCliente.has(clave)) {
-        porCliente.set(clave, {
-          clave, nombre: c.clienteNombre ?? clave, cuotas: [],
+      const clave = `contrato-${c.contratoId}`
+      const clienteClave = c.clienteRut ?? c.clienteNombre ?? clave
+      if (!porContrato.has(clave)) {
+        porContrato.set(clave, {
+          clave, nombre: c.clienteNombre ?? clienteClave, clienteClave,
+          contratoId: c.contratoId, contratoEstado: c.contratoEstado, bienes: bienesDe(c),
+          contratosDelCliente: contratosPorCliente.get(clienteClave)?.size ?? 1,
+          cuotas: [],
           actual: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, antiguos: 0, pagado: 0, total: 0,
         })
       }
-      const fila = porCliente.get(clave)!
+      const fila = porContrato.get(clave)!
       // Las cuotas ya cobradas se muestran y se suman aparte, nunca en los tramos de
       // antigüedad ni en el Total — así "Total" sigue siendo lo que falta cobrar,
       // y "Pagado + Total" cuadra contra el plan de pago completo de Mobysuite.
@@ -124,7 +150,7 @@ export default function CarteraVencidaTable() {
       }
       fila.cuotas.push(c)
     }
-    return [...porCliente.values()].sort((a, b) => b.total - a.total)
+    return [...porContrato.values()].sort((a, b) => b.total - a.total)
   }, [cuotas, filtroCategoria, filtroEtapa])
 
   const totales = useMemo(() => {
@@ -144,7 +170,7 @@ export default function CarteraVencidaTable() {
       <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-gray-900">Cuenta por Cobrar Vencida</h2>
-          <p className="text-xs text-gray-500 mt-0.5">Consulta en vivo, agrupado por cliente — al corte de hoy</p>
+          <p className="text-xs text-gray-500 mt-0.5">Consulta en vivo, una línea por contrato — al corte de hoy</p>
         </div>
         <div className="flex items-center gap-2">
           <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value as typeof filtroCategoria)}
@@ -169,7 +195,9 @@ export default function CarteraVencidaTable() {
       {cuotas !== null && (
         <div className="px-5 py-3 border-b border-gray-100 bg-gray-50/50 flex flex-wrap items-center gap-x-4 gap-y-2">
           <EtapaFiltro cuotas={cuotas} value={filtroEtapa} onChange={setFiltroEtapa} />
-          <span className="ml-auto text-xs text-gray-500">{filas.length} {filas.length === 1 ? 'cliente' : 'clientes'}</span>
+          <span className="ml-auto text-xs text-gray-500">
+            {filas.length} {filas.length === 1 ? 'contrato' : 'contratos'} · {new Set(filas.map(f => f.clienteClave)).size} clientes
+          </span>
         </div>
       )}
 
@@ -190,15 +218,24 @@ export default function CarteraVencidaTable() {
               ) : filas.map(f => (
                 <Fragment key={f.clave}>
                   <tr key={f.clave} onClick={() => toggle(f.clave)} className="hover:bg-gray-50/50 cursor-pointer font-medium text-gray-800">
-                    <td className="px-5 py-2.5 flex items-center gap-1.5">
-                      {expandido[f.clave] ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
-                      {f.nombre}
-                      {/* La etapa es del contrato: un cliente con contratos en etapas distintas muestra varias */}
-                      {[...new Set(f.cuotas.map(c => c.contratoEstado))]
-                        .sort((a, b) => ordenEtapa(a) - ordenEtapa(b))
-                        .map(e => (
-                          <span key={e} className="px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-semibold">{etapaLabel(e)}</span>
-                        ))}
+                    <td className="px-5 py-2.5">
+                      <div className="flex items-start gap-1.5">
+                        <span className="mt-0.5 shrink-0">
+                          {expandido[f.clave] ? <ChevronDown size={14} className="text-gray-400" /> : <ChevronRight size={14} className="text-gray-400" />}
+                        </span>
+                        <div className="min-w-0">
+                          <div>{f.nombre}</div>
+                          {/* Contrato (el mismo N° que muestra Mobysuite), sus bienes y su etapa */}
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-normal text-gray-500">
+                            <span>Contrato N° {f.contratoId}</span>
+                            <BienesLista bienes={f.bienes} />
+                            <span className="px-1.5 py-0.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-semibold">{etapaLabel(f.contratoEstado)}</span>
+                            {f.contratosDelCliente > 1 && (
+                              <span className="text-gray-400">· cliente con {f.contratosDelCliente} contratos</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </td>
                     {BUCKETS.map(b => (
                       <td key={b.key} className={`px-3 py-2.5 text-right ${f[b.key] > 0 ? 'text-gray-700' : 'text-gray-300'}`}>

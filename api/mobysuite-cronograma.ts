@@ -20,9 +20,18 @@ interface MobyPago {
   reciboPago?: MobyRecibo[]
 }
 
+// Solo conocemos con certeza `numeroDeBien` e `isPrimary`; el resto de campos del bien (entre ellos
+// el que diga si es departamento o estacionamiento) no estaba documentado, por eso se lee de forma
+// defensiva (ver tipoDelBien) y se devuelve un `diagnostico` con los campos que realmente llegan.
 interface MobyBien {
   numeroDeBien?: string
   isPrimary?: boolean
+  [campo: string]: unknown
+}
+
+interface BienSalida {
+  numero: string
+  tipo: string | null
 }
 
 interface MobyCliente {
@@ -59,6 +68,50 @@ async function getToken(host: string, clientId: string, clientSecret: string): P
 function toDate(iso?: string): string | null {
   if (!iso) return null
   return iso.slice(0, 10)
+}
+
+// ── Tipo de bien (departamento, estacionamiento…) ─────────────────────────────────────────────
+const CAMPOS_TIPO = [
+  'tipoDeBien', 'tipoBien', 'tipo', 'tipoUnidad', 'tipoDeUnidad', 'tipoInmueble', 'tipoDeInmueble',
+  'tipoProducto', 'tipoDeProducto', 'categoria', 'clase',
+]
+// Campos cuyo NOMBRE sugiere que describen el bien; solo en estos se busca como último recurso
+const NOMBRE_CAMPO_DESCRIPTIVO = /tipo|type|categ|clase|descrip|nombre|name|producto|unidad/i
+// Orden importa: "estacionamiento de motos" debe ganar a "local"; "depósito" a "departamento"
+const PATRONES_TIPO: Array<[RegExp, string]> = [
+  [/moto/i, 'Estacionamiento de motos'],
+  [/estacionamiento|cochera|parking|garaje|garage/i, 'Estacionamiento'],
+  [/dep[oó]sito|bodega/i, 'Depósito'],
+  [/departamento|dpto|d[uú]plex|flat|penthouse/i, 'Departamento'],
+  [/local/i, 'Local'],
+]
+
+function textoDe(v: unknown): string | null {
+  if (typeof v === 'string' && v.trim()) return v.trim()
+  if (v && typeof v === 'object') {
+    const o = v as Record<string, unknown>
+    for (const k of ['nombre', 'name', 'descripcion', 'description', 'label']) {
+      if (typeof o[k] === 'string' && (o[k] as string).trim()) return (o[k] as string).trim()
+    }
+  }
+  return null
+}
+
+function tipoDelBien(b: MobyBien): string | null {
+  // 1) un campo de tipo conocido, tal cual lo manda Mobysuite
+  for (const k of CAMPOS_TIPO) {
+    const t = textoDe(b[k])
+    if (t) return t
+  }
+  // 2) último recurso: campos con nombre descriptivo cuyo texto mencione un tipo conocido
+  for (const [k, v] of Object.entries(b)) {
+    if (k === 'numeroDeBien' || !NOMBRE_CAMPO_DESCRIPTIVO.test(k)) continue
+    const t = textoDe(v)
+    if (!t) continue
+    const hallado = PATRONES_TIPO.find(([re]) => re.test(t))
+    if (hallado) return hallado[1]
+  }
+  return null
 }
 
 // Un recibo "Documentado" o "Pagado" significa que la cuota está cancelada. Antes solo se
@@ -126,11 +179,24 @@ export default async function handler(req: Request): Promise<Response> {
     const hoy = new Date().toISOString().slice(0, 10)
     const cuotas = []
     let ventasAcumuladas = 0
+    // Diagnóstico informativo (no cambia lo que se muestra): qué trae realmente cada bien
+    const diag = { contratosConVariosBienes: 0, contratosSinBienes: 0, bienesTotales: 0, bienesConTipo: 0, camposBien: new Set<string>() }
 
     for (const c of contratos) {
       ventasAcumuladas += c.precioTotal ?? 0
       const cliente = c.cliente ?? {}
       const bien = c.bienes?.find(b => b.isPrimary) ?? c.bienes?.[0]
+      // TODOS los bienes del contrato (un contrato puede incluir departamento + estacionamiento)
+      const bienes: BienSalida[] = (c.bienes ?? [])
+        .map(b => ({ numero: String(b.numeroDeBien ?? '').trim(), tipo: tipoDelBien(b) }))
+        .filter(b => b.numero || b.tipo)
+      if ((c.bienes?.length ?? 0) > 1) diag.contratosConVariosBienes++
+      if (!c.bienes?.length) diag.contratosSinBienes++
+      for (const b of c.bienes ?? []) {
+        diag.bienesTotales++
+        if (tipoDelBien(b)) diag.bienesConTipo++
+        Object.keys(b).forEach(k => diag.camposBien.add(k))
+      }
       const clienteNombre = cliente.razonSocial
         || [cliente.nombre, cliente.apellido].filter(Boolean).join(' ')
         || null
@@ -155,6 +221,7 @@ export default async function handler(req: Request): Promise<Response> {
           clienteEmail: cliente.email ?? null,
           clienteTelefono: cliente.telefonoDos ?? cliente.telefonoUno ?? null,
           bienNumero: bien?.numeroDeBien ?? null,
+          bienes,
           numeroCuota: pago.cuota,
           descripcion: pago.descripcionPago,
           categoria: categoria(pago.descripcionPago ?? ''),
@@ -171,6 +238,9 @@ export default async function handler(req: Request): Promise<Response> {
       totalCuotas: cuotas.length,
       ventasAcumuladas,
       cuotas,
+      // Solo los NOMBRES de los campos del bien (no sus valores): sirve para saber qué datos manda
+      // Mobysuite sobre cada bien sin exponer nada más de lo necesario.
+      diagnostico: { ...diag, camposBien: [...diag.camposBien].sort() },
     })
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : 'Error desconocido' }, { status: 500 })

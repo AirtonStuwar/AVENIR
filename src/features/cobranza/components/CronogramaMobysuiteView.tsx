@@ -5,6 +5,9 @@ import { getProyectosConMobysuite } from '../../proyecto/services/proyectoServic
 import type { Proyecto } from '../../proyecto/types/proyecto'
 import { authFetch } from '../../../api/authFetch'
 import EtapaFiltro from './EtapaFiltro'
+import BienesLista from './BienesLista'
+import { bienesDe } from '../utils/bienes'
+import type { Bien } from '../utils/bienes'
 import { coincideEtapa, etapaLabel } from '../utils/etapas'
 import type { FiltroEtapa } from '../utils/etapas'
 
@@ -16,6 +19,7 @@ interface Cuota {
   clienteEmail: string | null
   clienteTelefono: string | null
   bienNumero: string | null
+  bienes?: Bien[]
   numeroCuota: number
   descripcion: string
   categoria: 'BANCO' | 'CLIENTE'
@@ -146,10 +150,10 @@ export default function CronogramaMobysuiteView() {
                   <tr key={`${c.contratoId}-${c.numeroCuota}-${c.descripcion}`} className="hover:bg-gray-50/50">
                     <td className="px-5 py-2.5">
                       <div className="font-medium text-gray-800">{c.clienteNombre ?? '—'}</div>
-                      <div className="text-gray-400">{c.clienteRut ?? ''}</div>
+                      <div className="text-gray-400">{c.clienteRut ?? ''}{c.clienteRut ? ' · ' : ''}Contrato N° {c.contratoId}</div>
                     </td>
                     <td className="px-3 py-2.5 text-gray-600">{etapaLabel(c.contratoEstado)}</td>
-                    <td className="px-3 py-2.5 text-gray-600">{c.bienNumero ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-600"><BienesLista bienes={bienesDe(c)} /></td>
                     <td className="px-3 py-2.5 text-gray-600">{c.descripcion} (#{c.numeroCuota})</td>
                     <td className="px-3 py-2.5 text-gray-600">{c.fechaVencimiento ? new Date(c.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-PE') : '—'}</td>
                     <td className="px-3 py-2.5 text-right font-medium text-gray-700">S/ {fmt(c.monto)}</td>
