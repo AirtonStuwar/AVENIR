@@ -193,14 +193,39 @@ export async function enviarRendicion(
   const { error } = await supabase.from('solicitud_arendir')
     .update({
       estado: 'En Revision',
+      // Si la rendición había sido devuelta, el motivo ya cumplió su función
+      comentario_rendicion: null,
+      // Con sobrante se guardan los datos de la devolución; sin sobrante se limpian, porque una
+      // rendición devuelta y corregida puede haber dejado de tener sobrante y no debe arrastrar
+      // la cuenta/monto de la vez anterior.
       ...(cuentaDevolucionId !== undefined ? {
         cuenta_devolucion_id: cuentaDevolucionId,
         fecha_devolucion: fechaDevolucion ?? null,
         monto_devuelto: montoDevuelto ?? null,
-      } : {}),
+      } : {
+        cuenta_devolucion_id: null,
+        fecha_devolucion: null,
+        monto_devuelto: null,
+      }),
     })
     .eq('id', id)
   if (error) throw error
+}
+
+/**
+ * VISUALIZADOR/EVALUADOR/ADMIN: la rendición enviada está incompleta (ej. falta el sustento) →
+ * vuelve a Pagado, con motivo, para que el usuario la complete y la reenvíe con "Enviar rendición".
+ * Solo aplica si sigue En Revision: si otra persona la cerró mientras tanto, no se pisa.
+ */
+export async function devolverRendicion(id: number, comentario: string): Promise<void> {
+  const { data, error } = await supabase.from('solicitud_arendir')
+    .update({ estado: 'Pagado', comentario_rendicion: comentario })
+    .eq('id', id)
+    .eq('estado', 'En Revision')
+    .select()
+    .maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('Esta rendición ya no está En Rendición — recarga la página para ver el estado actual.')
 }
 
 /** VISUALIZADOR/EVALUADOR/ADMIN: cierra la rendición → Cerrado (con devolución de sobrante si aplica) */

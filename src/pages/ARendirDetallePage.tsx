@@ -27,6 +27,7 @@ import {
   reenviarContabilidadARendir,
   marcarPagadoARendir,
   enviarRendicion,
+  devolverRendicion,
   cerrarRendicion,
   getArchivoUrl,
   uploadFirmaARendir,
@@ -232,6 +233,9 @@ export default function ARendirDetallePage() {
       if (solicitud.estado === 'En Evaluación') {
         await devolverDesdeEvaluacionARendir(solicitud.id, devolverComent.trim())
         toast.success('Devuelto al solicitante para que corrija')
+      } else if (solicitud.estado === 'En Revision') {
+        await devolverRendicion(solicitud.id, devolverComent.trim())
+        toast.success('Rendición devuelta al usuario para que la complete')
       } else {
         await devolverARendir(solicitud.id, devolverComent.trim())
         toast.success('Observado — el solicitante puede corregir y reenviar')
@@ -239,8 +243,8 @@ export default function ARendirDetallePage() {
       setDevolverOpen(false); setDevolverComent('')
       const sol = await getARendirById(Number(id))
       setSolicitud(sol); setDetalles(sol.detalles ?? [])
-    } catch {
-      toast.error('Error al devolver')
+    } catch (err) {
+      toast.error(err instanceof Error && err.message.includes('ya no está') ? err.message : 'Error al devolver')
     } finally {
       setActionLoading(false)
     }
@@ -575,6 +579,8 @@ export default function ARendirDetallePage() {
   const canMarcarPagado   = solicitud?.estado === 'Aprobado' && (isVisualizador || isAdmin)
   const canEnviarRendicion = solicitud?.estado === 'Pagado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
   const canCerrar         = solicitud?.estado === 'En Revision' && (isVisualizador || isEvaluador || isAdmin)
+  // Mismos roles que pueden cerrar: si pueden dar por buena la rendición, también pueden decir "le falta algo"
+  const canDevolverRendicion = canCerrar
 
   // ── Bitácora (timeline de solo lectura) ─────────────────────────
   const bitacoraPasos: PasoBitacora[] = (() => {
@@ -644,6 +650,14 @@ export default function ARendirDetallePage() {
         fecha: fmtDate(solicitud.fecha_pago),
         detalle: solicitud.pago_usuario_nombre ? `Marcado por ${solicitud.pago_usuario_nombre}` : null,
         estado: 'done',
+      })
+    }
+
+    if (isPagadoSt && solicitud.comentario_rendicion) {
+      pasos.push({
+        titulo: 'Rendición devuelta — el usuario debe completarla',
+        detalle: solicitud.comentario_rendicion,
+        estado: 'warn',
       })
     }
 
@@ -826,6 +840,17 @@ export default function ARendirDetallePage() {
             </button>
           )}
 
+          {/* VISUALIZADOR/EVALUADOR/ADMIN: la rendición está incompleta (ej. falta el sustento) → devolver al usuario */}
+          {canDevolverRendicion && (
+            <button
+              onClick={() => { setDevolverComent(''); setDevolverOpen(true) }}
+              disabled={actionLoading}
+              className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors"
+            >
+              Devolver al usuario
+            </button>
+          )}
+
           {/* VISUALIZADOR/EVALUADOR/ADMIN: Cerrar rendición (En Revision) */}
           {canCerrar && (
             <button
@@ -867,6 +892,17 @@ export default function ARendirDetallePage() {
           <p className="text-sm text-amber-800">{solicitud.comentario}</p>
           {canReenviarConta && (
             <p className="text-xs text-amber-600 mt-1">Corrige lo indicado y haz clic en "Reenviar a contabilidad" — no pasa de nuevo por aprobación.</p>
+          )}
+        </div>
+      )}
+
+      {/* Alerta de rendición devuelta — quien revisó vio que faltaba algo (ej. el sustento) */}
+      {solicitud.estado === 'Pagado' && solicitud.comentario_rendicion && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
+          <p className="text-xs font-semibold text-amber-700 uppercase mb-1">Rendición devuelta</p>
+          <p className="text-sm text-amber-800">{solicitud.comentario_rendicion}</p>
+          {canEnviarRendicion && (
+            <p className="text-xs text-amber-600 mt-1">Completa lo indicado (por ejemplo, sube el sustento) y vuelve a hacer clic en "Enviar rendición".</p>
           )}
         </div>
       )}
@@ -1169,12 +1205,14 @@ export default function ARendirDetallePage() {
             <p className="text-sm text-gray-600">
               {solicitud.estado === 'En Evaluación'
                 ? 'Quedará Devuelto para que el solicitante corrija y lo reenvíe a evaluación.'
-                : 'Quedará Observado para que el solicitante corrija y lo reenvíe directo a contabilidad (sin re-aprobación).'}
+                : solicitud.estado === 'En Revision'
+                  ? 'Volverá a Pagado para que el solicitante complete lo que falta (por ejemplo el sustento) y vuelva a enviar la rendición.'
+                  : 'Quedará Observado para que el solicitante corrija y lo reenvíe directo a contabilidad (sin re-aprobación).'}
             </p>
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">Motivo *</label>
               <textarea value={devolverComent} onChange={e => setDevolverComent(e.target.value)} rows={3}
-                placeholder="Describe el error encontrado..."
+                placeholder={solicitud.estado === 'En Revision' ? 'Indica qué falta, por ejemplo: falta adjuntar el sustento...' : 'Describe el error encontrado...'}
                 className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30 resize-none" />
             </div>
             <div className="flex gap-3">

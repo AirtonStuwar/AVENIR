@@ -32,6 +32,10 @@ export interface SolicitudARendir {
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
   comentario: string | null
+  // Motivo con el que se devolvió la rendición (En Revision → Pagado) para que el usuario la complete.
+  // Columna aparte de `comentario` para no confundirlo con comentarios viejos (aprobación, devolución
+  // del evaluador); se limpia al reenviar la rendición.
+  comentario_rendicion: string | null
   fecha_creacion: string | null
   plan_contable_id: number | null
   usuario_evaluador: string | null
@@ -67,7 +71,7 @@ export interface SolicitudARendir {
 
 export type SolicitudARendirInsert = Omit<SolicitudARendir,
   'id' | 'codigo' | 'fecha_creacion' | 'total_reembolso' | 'numero_pago' |
-  'usuario_aprobador' | 'fecha_aprobacion' | 'comentario' | 'detalles' |
+  'usuario_aprobador' | 'fecha_aprobacion' | 'comentario' | 'comentario_rendicion' | 'detalles' |
   'plan_contable_id' | 'usuario_evaluador' | 'plan_contable' |
   'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago' |
   'monto_devuelto' | 'fecha_devolucion' | 'cuenta_devolucion_id' | 'cuenta_devolucion' |

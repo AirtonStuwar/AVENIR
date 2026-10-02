@@ -346,6 +346,10 @@ export default function ARendirPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <EstadoBadge estado={item.estado} />
+                      {/* Pagado + motivo guardado = la rendición fue devuelta y el usuario debe completarla */}
+                      {item.estado === 'Pagado' && item.comentario_rendicion && (
+                        <span className="ml-1.5 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[10px] font-semibold">Devuelta</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-500 text-xs">
                       {fmtDate(item.fecha_creacion)}

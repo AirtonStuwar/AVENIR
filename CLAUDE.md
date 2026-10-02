@@ -293,6 +293,7 @@ Gestión de **rendición de gastos con adelantos**. Un empleado solicita un adel
 - `usuario_aprobador` (uuid, nullable), `fecha_aprobacion` (timestamp, nullable)
 - `usuario_evaluador` (uuid, nullable), `plan_contable_id` (FK → `plan_contable_brash`, nullable — existe la columna pero A Rendir no la usa, ver flujo de estados)
 - `comentario` (text, nullable) — motivo de rechazo o devolución
+- `comentario_rendicion` (text, nullable) — motivo con el que se devolvió la rendición (En Revision → Pagado), ver "Devolver una rendición incompleta"
 - `fecha_creacion` (timestamp)
 - `fecha_pago` (date, nullable), `cuenta_pago_id` (FK → `cuenta_bancaria`, nullable), `usuario_pago` (UUID FK, nullable)
 
@@ -327,7 +328,8 @@ Aprobado
 Pagado
   ↓ USUARIO/ADMIN (dueño) → enviarRendicion → En Revision  (sube comprobantes y envía)
 En Revision
-  ↓ VISUALIZADOR/EVALUADOR/ADMIN → cerrarRendicion → Cerrado ✅ (estado terminal, sin plan contable)
+  ├─ VISUALIZADOR/EVALUADOR/ADMIN → cerrarRendicion → Cerrado ✅ (estado terminal, sin plan contable)
+  └─ VISUALIZADOR/EVALUADOR/ADMIN → devolverRendicion(motivo) → Pagado  (falta algo, ej. el sustento; el usuario completa y reenvía)
 Observado
   ↓ USUARIO/ADMIN (dueño) → reenviarContabilidadARendir → Aprobado  (sin volver a pasar por aprobador)
 Pendiente
@@ -358,7 +360,7 @@ El EVALUADOR aquí **no asigna plan contable** en ninguna de sus dos acciones (n
 - APROBADOR/ADMIN en Evaluado: "Aprobar" → Aprobado, o "Rechazar" (comentario) → Rechazado
 - VISUALIZADOR/ADMIN en Aprobado: "Marcar dinero entregado" (abre `PagoModal`) → Pagado, o "Devolver" (comentario) → Observado
 - USUARIO (dueño)/ADMIN en Pagado: "Enviar rendición" → En Revision
-- VISUALIZADOR/EVALUADOR/ADMIN en En Revision: "Cerrar rendición" → Cerrado
+- VISUALIZADOR/EVALUADOR/ADMIN en En Revision: "Cerrar rendición" → Cerrado, o "Devolver al usuario" (motivo obligatorio) → Pagado
 - ADMIN/USUARIO (dueño) en Observado: "Reenviar a contabilidad" → Aprobado
 - Botón "Descargar PDF": visible desde **Pagado** en adelante (Pagado, En Revision, Cerrado) — no antes, porque recién en Pagado tiene sentido imprimir el comprobante de entrega de dinero
 - Botón "Agregar gasto" (líneas de `solicitud_arendir_detalle`): visible en **Aprobado, Pagado u Observado**, para el dueño o ADMIN
@@ -385,6 +387,14 @@ El EVALUADOR aquí **no asigna plan contable** en ninguna de sus dos acciones (n
 - Al hacer clic en **"Cerrar rendición"** (EVALUADOR/VISUALIZADOR/ADMIN), si la solicitud ya tiene `cuenta_devolucion_id` guardado, solo aparece un `ConfirmModal` de **solo lectura** (monto, cuenta, fecha) con botón "Confirmar y cerrar" — ya no elige nada, solo revisa lo que el usuario ya registró.
 - **Fallback:** rendiciones que quedaron En Revision *antes* de este cambio (sin `cuenta_devolucion_id`) muestran en su lugar el `PagoModal` de selección al cerrar — mismo comportamiento que existía originalmente, para no dejarlas bloqueadas sin poder cerrarse.
 - No se agregó archivo de evidencia para esta devolución — a propósito, el respaldo del gasto/devolución queda en el documento de sustento que ya sube el usuario.
+
+**Devolver una rendición incompleta al usuario (2026-10):** antes, una rendición En Revision (mostrada como "En Rendición") **solo tenía una salida: Cerrar**. Si el usuario la enviaba sin el sustento (caso real `AR-2026-003`: 25 gastos, 0 comprobantes por línea, sin sustento general), quien revisaba no tenía cómo pedirle que lo completara. Ahora VISUALIZADOR/EVALUADOR/ADMIN —**los mismos que pueden cerrar**, decisión explícita del usuario— tienen el botón ámbar **"Devolver al usuario"** junto a "Cerrar rendición", con motivo obligatorio (reutiliza el modal de "Devolver" que ya existía, con texto propio para este estado).
+- **Vuelve a `Pagado`** (decisión explícita; se descartó un estado nuevo "Rendición devuelta" porque obligaba a tocar el CHECK de `estado`, filtros, badges y validaciones). En `Pagado` el dueño ya puede subir el sustento, agregar/editar gastos y pulsar "Enviar rendición" otra vez — no hubo que cambiar nada de ese flujo. **No requirió cambiar el CHECK ni las policies RLS** (`Pagado` ya era un estado válido y editable por el dueño); se verificó con simulación SQL: el EVALUADOR puede devolver, el dueño puede reenviar, un USUARIO ajeno no puede tocarla.
+- **Columna nueva `solicitud_arendir.comentario_rendicion`** (text, nullable) guarda el motivo, **separada de `comentario`** a propósito: en `Pagado` el campo `comentario` puede traer texto viejo (el comentario opcional del aprobador, o una devolución anterior del evaluador), y mostrarlo como "rendición devuelta" sería un error. Se **limpia** al reenviar (`enviarRendicion()` la deja en `null`) — por eso la Bitácora solo refleja la última devolución, mismo límite "último gana" que el resto de la Bitácora.
+- **Cómo se entera el usuario:** aviso ámbar "Rendición devuelta" con el motivo en el detalle (visible solo si `estado = 'Pagado'` y hay `comentario_rendicion`), paso "Rendición devuelta — el usuario debe completarla" en la Bitácora, y un distintivo "Devuelta" junto al badge en el listado (`ARendirPage`). El badge de estado sigue diciendo "Pagado" — se evitó un estado nuevo, así que el distintivo es lo que la distingue de una rendición aún sin enviar.
+- **`devolverRendicion()` lleva guarda `.eq('estado', 'En Revision')`** (mismo patrón que la protección contra doble evaluación): si otra persona cerró la rendición mientras se abría el modal, la query devuelve 0 filas y se muestra "ya no está En Rendición — recarga la página", en vez de pisar el cierre.
+- **`enviarRendicion()` ahora limpia los datos de devolución de sobrante cuando se reenvía sin sobrante** (`cuenta_devolucion_id`, `fecha_devolucion`, `monto_devuelto` → `null`): una rendición devuelta y corregida puede haber dejado de tener sobrante, y no debe arrastrar la cuenta/monto de la vez anterior. Con sobrante se siguen guardando como siempre (el `PagoModal` vuelve a pedir la cuenta en cada envío).
+- **No se agregó la obligación de adjuntar sustento al enviar** (decisión explícita: "no, solo habilitar la devolución"): el sustento general y los comprobantes por línea siguen siendo opcionales por diseño; quien revisa decide caso por caso. Al momento de implementarlo había otras 2 rendiciones En Rendición sin sustento general que ahora pueden devolverse.
 
 **Subir/reemplazar sustento general desde el detalle (2026-09):** antes el `documento_sustento_path` solo se podía cargar en el **Step 1 del wizard** — si el usuario no lo subía ahí, ya no había forma de agregarlo después (`ARendirDetallePage` solo dejaba *ver* el archivo, no subirlo). Se agregó un botón "Subir documento sustento" / "Reemplazar" en el detalle (mismo patrón que ya usa Reembolso: `uploadSustento()` + `updateARendir({ documento_sustento_path })`), visible para el dueño o ADMIN mientras la solicitud está en **Pendiente, Aprobado, Pagado u Observado** (`canEditSustento`). No reemplaza los comprobantes por línea de gasto (`archivo_path` en `solicitud_arendir_detalle`) — esos siguen existiendo y son opcionales por línea como antes; el sustento general es un complemento para poder subir un solo PDF consolidado en vez de (o además de) los comprobantes individuales.
 
