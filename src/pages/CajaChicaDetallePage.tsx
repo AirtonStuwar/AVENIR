@@ -102,6 +102,8 @@ export default function CajaChicaDetallePage() {
   const [planOpciones, setPlanOpciones] = useState<PlanContable[]>([])
   const [planSearch, setPlanSearch] = useState('')
   const [cuentaRefId, setCuentaRefId] = useState<number | null>(null)
+  const [cuentaSearch, setCuentaSearch] = useState('')
+  const [cuentaOpen, setCuentaOpen] = useState(false)
   const [planSelected, setPlanSelected] = useState<PlanContable | null>(null)
   const [planDropOpen, setPlanDropOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
@@ -331,16 +333,25 @@ export default function CajaChicaDetallePage() {
 
   // Form handlers
   const resetForm = () => {
-    setFormOpen(false); setEditId(null); setFecha(''); setAreaId(null); setCuentaRefId(null)
+    setFormOpen(false); setEditId(null); setFecha(''); setAreaId(null); setCuentaRefId(null); setCuentaSearch(''); setCuentaOpen(false)
     setProveedor(''); setTipoDoc('FACTURA'); setNumDoc(''); setDetalle(''); setMonto(''); setArchivo(null)
   }
+
+  const cuentaLabel = (p: PlanContable) => [p.codigo_starsoft, p.nombre_cuenta_contable].filter(Boolean).join(' — ') || (p.tipo_gasto_costo ?? '')
+  // Al editar un gasto con cuenta ya elegida, el texto del buscador se llena cuando el catálogo termina de cargar
+  useEffect(() => {
+    if (!cuentaRefId || cuentaSearch) return
+    const p = planOpciones.find(x => x.id === cuentaRefId)
+    if (p) setCuentaSearch(cuentaLabel(p))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planOpciones, cuentaRefId])
 
   const cargarCuentasRef = () => {
     if (!planOpciones.length) getPlanContable().then(setPlanOpciones).catch(() => toast.error('No se pudo cargar el catálogo de cuentas contables'))
   }
   const openAdd = () => { resetForm(); cargarCuentasRef(); setFormOpen(true) }
   const openEdit = (d: CajaChicaDetalle) => {
-    cargarCuentasRef(); setCuentaRefId(d.cuenta_referencia_id ?? null)
+    cargarCuentasRef(); setCuentaRefId(d.cuenta_referencia_id ?? null); setCuentaSearch('')
     setEditId(d.id); setFecha(d.fecha); setAreaId(d.area_id); setProveedor(d.proveedor)
     setTipoDoc(d.tipo_documento); setNumDoc(d.numero_documento ?? ''); setDetalle(d.detalle)
     setMonto(String(d.monto)); setArchivo(null); setFormOpen(true)
@@ -779,14 +790,35 @@ export default function CajaChicaDetallePage() {
                 </div>
                 <div className="col-span-2 md:col-span-4">
                   <label className="text-[10px] font-semibold text-gray-500 uppercase">Cuenta contable (referencia)</label>
-                  <select className={INPUT} value={cuentaRefId ?? ''} onChange={e => setCuentaRefId(e.target.value ? Number(e.target.value) : null)}>
-                    <option value="">—</option>
-                    {planOpciones.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {[p.codigo_starsoft, p.nombre_cuenta_contable].filter(Boolean).join(' — ') || p.tipo_gasto_costo}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <input type="text" className={INPUT} value={cuentaSearch}
+                      onChange={e => { setCuentaSearch(e.target.value); setCuentaRefId(null); setCuentaOpen(true) }}
+                      onFocus={() => setCuentaOpen(true)}
+                      onBlur={() => setCuentaOpen(false)}
+                      placeholder="Buscar por código, cuenta o tipo de gasto…" />
+                    {cuentaRefId && (
+                      <button type="button" onMouseDown={e => e.preventDefault()}
+                        onClick={() => { setCuentaRefId(null); setCuentaSearch(''); setCuentaOpen(false) }}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-gray-400 hover:text-gray-600">Quitar</button>
+                    )}
+                  </div>
+                  {cuentaOpen && (
+                    <ul className="mt-1 bg-white border border-gray-200 rounded-xl shadow-sm max-h-52 overflow-y-auto">
+                      {planOpciones
+                        .filter(p => {
+                          const q = cuentaSearch.trim().toLowerCase()
+                          return !q || [p.codigo_starsoft, p.nombre_cuenta_contable, p.tipo_gasto_costo].some(v => (v ?? '').toLowerCase().includes(q))
+                        })
+                        .slice(0, 40)
+                        .map(p => (
+                          <li key={p.id} onMouseDown={() => { setCuentaRefId(p.id); setCuentaSearch(cuentaLabel(p)); setCuentaOpen(false) }}
+                            className="px-3 py-2 cursor-pointer hover:bg-[#003D7D]/5">
+                            <p className="text-xs font-medium text-gray-800">{p.nombre_cuenta_contable || p.tipo_gasto_costo}</p>
+                            <p className="text-[11px] text-gray-400">{[p.codigo_starsoft, p.tipo_gasto_costo].filter(Boolean).join(' · ')}</p>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
                   <p className="text-[10px] text-gray-400 mt-1">Solo de referencia para tu Excel. No afecta ningún cálculo; el Evaluador clasifica la cuenta oficial.</p>
                 </div>
                 <div>
