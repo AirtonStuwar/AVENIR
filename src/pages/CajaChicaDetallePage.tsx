@@ -125,6 +125,15 @@ export default function CajaChicaDetallePage() {
 
   useEffect(() => { loadData() }, [id])
   useEffect(() => { getAreas().then(setAreas).catch(() => {}) }, [])
+  const cuentaLabel = (p: PlanContable) => [p.codigo_starsoft, p.nombre_cuenta_contable].filter(Boolean).join(' — ') || (p.tipo_gasto_costo ?? '')
+  // Al editar un gasto con cuenta ya elegida, el texto del buscador se llena cuando el catálogo termina de cargar
+  useEffect(() => {
+    if (!cuentaRefId || cuentaSearch) return
+    const p = planOpciones.find(x => x.id === cuentaRefId)
+    if (p) setCuentaSearch(cuentaLabel(p))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [planOpciones, cuentaRefId])
+
 
   const handleCorreccion = async (campo: string, valorAnterior: string | null, valorNuevo: string, categoria: CategoriaCorreccion, motivo: string) => {
     if (!cc || !user) return
@@ -336,15 +345,6 @@ export default function CajaChicaDetallePage() {
     setFormOpen(false); setEditId(null); setFecha(''); setAreaId(null); setCuentaRefId(null); setCuentaSearch(''); setCuentaOpen(false)
     setProveedor(''); setTipoDoc('FACTURA'); setNumDoc(''); setDetalle(''); setMonto(''); setArchivo(null)
   }
-
-  const cuentaLabel = (p: PlanContable) => [p.codigo_starsoft, p.nombre_cuenta_contable].filter(Boolean).join(' — ') || (p.tipo_gasto_costo ?? '')
-  // Al editar un gasto con cuenta ya elegida, el texto del buscador se llena cuando el catálogo termina de cargar
-  useEffect(() => {
-    if (!cuentaRefId || cuentaSearch) return
-    const p = planOpciones.find(x => x.id === cuentaRefId)
-    if (p) setCuentaSearch(cuentaLabel(p))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planOpciones, cuentaRefId])
 
   const cargarCuentasRef = () => {
     if (!planOpciones.length) getPlanContable().then(setPlanOpciones).catch(() => toast.error('No se pudo cargar el catálogo de cuentas contables'))
