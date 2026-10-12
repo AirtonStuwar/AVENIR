@@ -101,6 +101,7 @@ export default function CajaChicaDetallePage() {
   const [pagoOpen, setPagoOpen] = useState(false)
   const [planOpciones, setPlanOpciones] = useState<PlanContable[]>([])
   const [planSearch, setPlanSearch] = useState('')
+  const [cuentaRefId, setCuentaRefId] = useState<number | null>(null)
   const [planSelected, setPlanSelected] = useState<PlanContable | null>(null)
   const [planDropOpen, setPlanDropOpen] = useState(false)
   const [pendingAction, setPendingAction] = useState<{ title: string; message: string; onConfirm: () => void } | null>(null)
@@ -270,6 +271,11 @@ export default function CajaChicaDetallePage() {
 
   const handleDownloadExcel = async () => {
     if (!cc) return
+    let catalogo = planOpciones
+    if (!catalogo.length && detalles.some(d => d.cuenta_referencia_id)) {
+      try { catalogo = await getPlanContable(); setPlanOpciones(catalogo) } catch { toast.error('No se pudo cargar el catálogo de cuentas; las cuentas saldrán vacías') }
+    }
+    const cuentaDe = (id?: number | null) => catalogo.find(p => p.id === id)
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('Caja Chica')
 
@@ -288,7 +294,7 @@ export default function CajaChicaDetallePage() {
     ws.getColumn(1).font = { bold: true }
     ws.addRow([])
 
-    const headerRow = ws.addRow(['Fecha', 'Código de costos', 'Proveedor/Usuario', 'Tipo Doc', 'N° Doc', 'Detalle', 'S/.'])
+    const headerRow = ws.addRow(['Fecha', 'Código de costos', 'Proveedor/Usuario', 'Tipo Doc', 'N° Doc', 'Detalle', 'Cuenta contable', 'Nombre de la cuenta', 'Partida presupuestal', 'S/.'])
     headerRow.font = { bold: true }
     headerRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F497D' } }
@@ -296,6 +302,7 @@ export default function CajaChicaDetallePage() {
     })
 
     detalles.forEach(d => {
+      const cuenta = cuentaDe(d.cuenta_referencia_id)
       ws.addRow([
         fmtDate(d.fecha),
         d.area_nombre ?? '',
@@ -303,6 +310,9 @@ export default function CajaChicaDetallePage() {
         d.tipo_documento,
         d.numero_documento ?? '',
         d.detalle,
+        cuenta?.codigo_starsoft ?? '',
+        cuenta?.nombre_cuenta_contable ?? '',
+        cuenta?.partida_presupuestal ?? '',
         d.monto,
       ])
     })
@@ -321,12 +331,16 @@ export default function CajaChicaDetallePage() {
 
   // Form handlers
   const resetForm = () => {
-    setFormOpen(false); setEditId(null); setFecha(''); setAreaId(null)
+    setFormOpen(false); setEditId(null); setFecha(''); setAreaId(null); setCuentaRefId(null)
     setProveedor(''); setTipoDoc('FACTURA'); setNumDoc(''); setDetalle(''); setMonto(''); setArchivo(null)
   }
 
-  const openAdd = () => { resetForm(); setFormOpen(true) }
+  const cargarCuentasRef = () => {
+    if (!planOpciones.length) getPlanContable().then(setPlanOpciones).catch(() => toast.error('No se pudo cargar el catálogo de cuentas contables'))
+  }
+  const openAdd = () => { resetForm(); cargarCuentasRef(); setFormOpen(true) }
   const openEdit = (d: CajaChicaDetalle) => {
+    cargarCuentasRef(); setCuentaRefId(d.cuenta_referencia_id ?? null)
     setEditId(d.id); setFecha(d.fecha); setAreaId(d.area_id); setProveedor(d.proveedor)
     setTipoDoc(d.tipo_documento); setNumDoc(d.numero_documento ?? ''); setDetalle(d.detalle)
     setMonto(String(d.monto)); setArchivo(null); setFormOpen(true)
@@ -354,6 +368,7 @@ export default function CajaChicaDetallePage() {
           caja_chica_id: cc.id,
           fecha,
           area_id: areaId,
+          cuenta_referencia_id: cuentaRefId,
           proveedor: proveedor.trim(),
           tipo_documento: tipoDoc,
           numero_documento: numDoc.trim() || null,
@@ -367,6 +382,7 @@ export default function CajaChicaDetallePage() {
           caja_chica_id: cc.id,
           fecha,
           area_id: areaId,
+          cuenta_referencia_id: cuentaRefId,
           proveedor: proveedor.trim(),
           tipo_documento: tipoDoc,
           numero_documento: numDoc.trim() || null,
@@ -760,6 +776,18 @@ export default function CajaChicaDetallePage() {
                 <div className="col-span-2">
                   <label className="text-[10px] font-semibold text-gray-500 uppercase">Detalle *</label>
                   <input className={INPUT} value={detalle} onChange={e => setDetalle(e.target.value)} placeholder="Descripción del gasto" />
+                </div>
+                <div className="col-span-2 md:col-span-4">
+                  <label className="text-[10px] font-semibold text-gray-500 uppercase">Cuenta contable (referencia)</label>
+                  <select className={INPUT} value={cuentaRefId ?? ''} onChange={e => setCuentaRefId(e.target.value ? Number(e.target.value) : null)}>
+                    <option value="">—</option>
+                    {planOpciones.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {[p.codigo_starsoft, p.nombre_cuenta_contable].filter(Boolean).join(' — ') || p.tipo_gasto_costo}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-gray-400 mt-1">Solo de referencia para tu Excel. No afecta ningún cálculo; el Evaluador clasifica la cuenta oficial.</p>
                 </div>
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase">Monto S/ *</label>

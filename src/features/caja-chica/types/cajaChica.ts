@@ -56,6 +56,8 @@ export interface CajaChicaDetalle {
   monto: number
   archivo_path: string | null
   fecha_creacion: string | null
+  // Cuenta contable de referencia elegida por el usuario: solo informativa (Excel del área), no entra en ningún cálculo
+  cuenta_referencia_id?: number | null
   // join
   area_nombre?: string | null
 }
