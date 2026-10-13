@@ -20,81 +20,10 @@ import CobranzaModal from '../features/cobranza/components/CobranzaModal'
 import CronogramaMobysuiteView from '../features/cobranza/components/CronogramaMobysuiteView'
 import CarteraVencidaTable from '../features/cobranza/components/CarteraVencidaTable'
 import { construirCartera } from '../features/cobranza/utils/carteraMobysuite'
+import type { CarteraMock } from '../features/cobranza/utils/carteraMobysuite'
 
-// ── Mock de datos (temporal, mientras se conecta la API de Mobysuite) ──
-// Genera valores deterministas por proyecto (mismo id → mismos números siempre),
-// solo para poder visualizar el layout del dashboard antes de tener datos reales.
-function seedFromId(id: number) {
-  return (id * 2654435761) % 1000
-}
-
-interface CarteraMock {
-  ventasAcumuladas: number
-  cobradoAcumulado: number
-  clientesActivos: number
-  clientesMorosos: number
-  diasMoraPonderados: number // moraPromedioDias * clientesMorosos — así se puede sumar entre empresas y volver a promediar
-  composicion: { cuotaInicial: number; planAhorro: number; desembolsoHipotecario: number; creditoDirecto: number }
-  mora: { rango: string; monto: number }[] // suma = carteraVencida
-  cobradoDelMes: number
-  metaMensual: number
-  cumplimiento: {
-    planAhorro: { clientes: number; cumplidos: number }
-    desembolsoHipotecario: { clientes: number; cumplidos: number }
-    creditoDirecto: { clientes: number; cumplidos: number }
-  }
-}
-
-function mockParaProyecto(id: number): CarteraMock {
-  const s = seedFromId(id)
-  const ventasAcumuladas = 800000 + (s % 40) * 45000
-  const cobradoAcumulado = Math.round(ventasAcumuladas * (0.45 + (s % 35) / 100))
-  const saldoPorCobrar = ventasAcumuladas - cobradoAcumulado
-
-  const carteraVencidaTotal = Math.round(saldoPorCobrar * (0.03 + (s % 6) / 100))
-  const clientesActivos = 15 + (s % 60)
-  const clientesMorosos = Math.round(clientesActivos * (0.04 + (s % 12) / 100))
-  const moraPromedioDias = 12 + (s % 35)
-
-  const planAhorroClientes = Math.round(clientesActivos * 0.42)
-  const desembolsoClientes = Math.round(clientesActivos * 0.28)
-  const creditoClientes = Math.round(clientesActivos * 0.30)
-  const planAhorroPct = 80 + (s % 18)
-  const desembolsoPct = 72 + (s % 22)
-  const creditoPct = 45 + (s % 28)
-
-  const cobradoDelMes = Math.round(cobradoAcumulado / (8 + (s % 6)))
-  const metaMensual = Math.round(cobradoDelMes / (0.55 + (s % 35) / 100))
-
-  return {
-    ventasAcumuladas,
-    cobradoAcumulado,
-    clientesActivos,
-    clientesMorosos,
-    diasMoraPonderados: moraPromedioDias * clientesMorosos,
-    composicion: {
-      cuotaInicial: Math.round(cobradoAcumulado * 0.46),
-      planAhorro: Math.round(cobradoAcumulado * 0.27),
-      desembolsoHipotecario: Math.round(cobradoAcumulado * 0.18),
-      creditoDirecto: Math.round(cobradoAcumulado * 0.09),
-    },
-    mora: [
-      { rango: '1-30 días',  monto: Math.round(carteraVencidaTotal * 0.44) },
-      { rango: '31-60 días', monto: Math.round(carteraVencidaTotal * 0.24) },
-      { rango: '61-90 días', monto: Math.round(carteraVencidaTotal * 0.16) },
-      { rango: '+90 días',   monto: Math.round(carteraVencidaTotal * 0.16) },
-    ],
-    cobradoDelMes,
-    metaMensual,
-    cumplimiento: {
-      planAhorro:            { clientes: planAhorroClientes, cumplidos: Math.round(planAhorroClientes * planAhorroPct / 100) },
-      desembolsoHipotecario: { clientes: desembolsoClientes, cumplidos: Math.round(desembolsoClientes * desembolsoPct / 100) },
-      creditoDirecto:        { clientes: creditoClientes,    cumplidos: Math.round(creditoClientes * creditoPct / 100) },
-    },
-  }
-}
-
-function sumarMocks(mocks: CarteraMock[]): CarteraMock {
+// Suma las carteras de varias empresas (vista "Todas las empresas")
+function sumarCarteras(mocks: CarteraMock[]): CarteraMock {
   return mocks.reduce((acc, m) => ({
     ventasAcumuladas: acc.ventasAcumuladas + m.ventasAcumuladas,
     cobradoAcumulado: acc.cobradoAcumulado + m.cobradoAcumulado,
@@ -345,35 +274,40 @@ export default function IngresoPage() {
   const META_MENSUAL_TOTAL = 8_500_000
   const META_MENSUAL_POR_EMPRESA = META_MENSUAL_TOTAL / 5
 
-  const proyectoSeleccionado = proyectos.find(p => String(p.id) === proyectoId)
+  // Empresas a consultar: la elegida, o todas las que tienen integración con Mobysuite (sin datos de ejemplo)
+  const empresasMobysuite = proyectos.filter(p => p.moby_project_id && !p.nombre.toLowerCase().includes('concyssa'))
+  const empresasConsulta = proyectoId ? empresasMobysuite.filter(p => String(p.id) === proyectoId) : empresasMobysuite
+  const claveConsulta = empresasConsulta.map(p => p.moby_project_id).join(',')
   const [carteraReal, setCarteraReal] = useState<CarteraMock | null>(null)
-  const [carteraRealLoading, setCarteraRealLoading] = useState(false)
-  const [carteraRealError, setCarteraRealError] = useState(false)
+  const [carteraLoading, setCarteraLoading] = useState(true)
+  const [empresasFallidas, setEmpresasFallidas] = useState<string[]>([])
 
   useEffect(() => {
-    if (!proyectoSeleccionado?.moby_project_id) {
-      setCarteraReal(null)
-      setCarteraRealError(false)
+    if (loading) return // todavía cargando la lista de empresas
+    if (empresasConsulta.length === 0) {
+      setCarteraReal(null); setEmpresasFallidas([]); setCarteraLoading(false)
       return
     }
-    setCarteraRealLoading(true)
-    setCarteraRealError(false)
-    authFetch(`/api/mobysuite-cronograma?mobyProjectId=${proyectoSeleccionado.moby_project_id}`)
-      .then(async r => {
-        const json = await r.json()
-        if (!r.ok) throw new Error(json.error ?? 'Error al consultar Mobysuite')
-        setCarteraReal(construirCartera(json, META_MENSUAL_POR_EMPRESA))
-      })
-      .catch(() => { setCarteraReal(null); setCarteraRealError(true) })
-      .finally(() => setCarteraRealLoading(false))
+    let cancelado = false
+    setCarteraLoading(true); setCarteraReal(null); setEmpresasFallidas([])
+    Promise.allSettled(empresasConsulta.map(async p => {
+      const r = await authFetch(`/api/mobysuite-cronograma?mobyProjectId=${p.moby_project_id}`)
+      const json = await r.json()
+      if (!r.ok) throw new Error(json.error ?? 'Error al consultar Mobysuite')
+      return construirCartera(json, META_MENSUAL_POR_EMPRESA)
+    })).then(res => {
+      if (cancelado) return
+      const ok = res.flatMap(x => x.status === 'fulfilled' ? [x.value] : [])
+      setCarteraReal(ok.length > 0 ? sumarCarteras(ok) : null)
+      setEmpresasFallidas(empresasConsulta.filter((_, i) => res[i].status === 'rejected').map(p => p.nombre))
+      setCarteraLoading(false)
+    })
+    return () => { cancelado = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [proyectoSeleccionado?.moby_project_id])
+  }, [loading, claveConsulta])
 
-  const usandoDatosReales = !!carteraReal
-
-  const data: CarteraMock = carteraReal ?? (proyectoId
-    ? mockParaProyecto(Number(proyectoId))
-    : sumarMocks(proyectos.length > 0 ? proyectos.map(p => mockParaProyecto(p.id)) : [mockParaProyecto(1)]))
+  const cargandoCartera = loading || carteraLoading
+  const data: CarteraMock = carteraReal ?? sumarCarteras([])
 
   const saldoPorCobrar = data.ventasAcumuladas - data.cobradoAcumulado
   const pctCobrado = data.ventasAcumuladas > 0 ? (data.cobradoAcumulado / data.ventasAcumuladas) * 100 : 0
@@ -439,31 +373,19 @@ export default function IngresoPage() {
       </div>
 
       {/* Aviso de origen de datos */}
-      {usandoDatosReales ? (
+      {carteraReal && !cargandoCartera && (
         <div className="flex items-start gap-2.5 bg-green-50 border border-green-200 rounded-2xl px-4 py-3 text-sm text-green-800">
           <Info size={16} className="shrink-0 mt-0.5" />
           <p>
             <strong>Datos reales de Mobysuite</strong>
+            {!proyectoId && empresasConsulta.length > 1 && ` — suma de ${empresasConsulta.length - empresasFallidas.length} empresas`}
           </p>
         </div>
-      ) : carteraRealLoading ? (
-        <div className="flex items-center gap-2.5 bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-sm text-blue-800">
-          <Loader2 size={16} className="shrink-0 animate-spin" />
-          Consultando datos reales de Mobysuite...
-        </div>
-      ) : carteraRealError ? (
-        <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-800">
-          <Info size={16} className="shrink-0 mt-0.5" />
-          No se pudo consultar Mobysuite para esta empresa — mostrando datos de ejemplo mientras tanto.
-        </div>
-      ) : (
+      )}
+      {empresasFallidas.length > 0 && carteraReal && !cargandoCartera && (
         <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-sm text-amber-800">
           <Info size={16} className="shrink-0 mt-0.5" />
-          <p>
-            <strong>Vista previa con datos de ejemplo.</strong> {proyectoId
-              ? 'Esta empresa aún no tiene integración con Mobysuite configurada.'
-              : 'Selecciona una empresa con integración Mobysuite para ver datos reales, o revisa cada empresa una por una.'}
-          </p>
+          <p>No se pudo consultar: <strong>{empresasFallidas.join(', ')}</strong>. Los totales no incluyen {empresasFallidas.length > 1 ? 'esas empresas' : 'esa empresa'}.</p>
         </div>
       )}
 
@@ -483,93 +405,112 @@ export default function IngresoPage() {
         </select>
       </div>
 
-      {/* Fila 1: KPIs principales + Composición de la Cobranza */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-          <KpiCard label="Ventas Acumuladas" value={fmt(data.ventasAcumuladas)} sub="valor contractual vigente" icon={<TrendingUp size={18} />} color="blue" />
-          <KpiCard label="Cobranza Acumulada" value={fmt(data.cobradoAcumulado)} sub={`${pct(pctCobrado)} del total vendido`} icon={<Wallet size={18} />} color="green" />
-          <KpiCard label="Saldo por Cobrar" value={fmt(saldoPorCobrar)} sub={`${pct(100 - pctCobrado)} pendiente de cobranza`} icon={<PiggyBank size={18} />} color="amber" />
-          <KpiCard label="% Cobrado" value={pct(pctCobrado)} sub="avance acumulado" icon={<Target size={18} />} color="indigo" />
-          <KpiCard label="Clientes Activos" value={data.clientesActivos} sub="base vigente" icon={<Users2 size={18} />} color="blue" />
+      {cargandoCartera ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm py-20 flex flex-col items-center gap-3 text-gray-500">
+          <Loader2 size={28} className="animate-spin text-[#003D7D]" />
+          <p className="text-sm font-medium">Consultando Mobysuite…</p>
+          {!proyectoId && <p className="text-xs text-gray-400">Sumando todas las empresas, puede tardar unos segundos</p>}
         </div>
-        <div className="lg:col-span-1">
-          <ChartCard title="Composición de la Cobranza" subtitle="Distribución del monto ya cobrado">
-            <div className="h-56">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={composicionData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={75} paddingAngle={2}>
-                    {composicionData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip formatter={(v) => fmt(Number(v))} />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </ChartCard>
+      ) : !carteraReal ? (
+        <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-sm text-red-800">
+          <Info size={16} className="shrink-0 mt-0.5" />
+          <p>
+            {empresasConsulta.length === 0
+              ? 'Esta empresa aún no tiene integración con Mobysuite configurada.'
+              : 'No se pudo consultar Mobysuite. Vuelve a intentarlo en unos segundos.'}
+          </p>
         </div>
-      </div>
+      ) : (
+        <>
+        {/* Fila 1: KPIs principales + Composición de la Cobranza */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            <KpiCard label="Ventas Acumuladas" value={fmt(data.ventasAcumuladas)} sub="valor contractual vigente" icon={<TrendingUp size={18} />} color="blue" />
+            <KpiCard label="Cobranza Acumulada" value={fmt(data.cobradoAcumulado)} sub={`${pct(pctCobrado)} del total vendido`} icon={<Wallet size={18} />} color="green" />
+            <KpiCard label="Saldo por Cobrar" value={fmt(saldoPorCobrar)} sub={`${pct(100 - pctCobrado)} pendiente de cobranza`} icon={<PiggyBank size={18} />} color="amber" />
+            <KpiCard label="% Cobrado" value={pct(pctCobrado)} sub="avance acumulado" icon={<Target size={18} />} color="indigo" />
+            <KpiCard label="Clientes Activos" value={data.clientesActivos} sub="base vigente" icon={<Users2 size={18} />} color="blue" />
+          </div>
+          <div className="lg:col-span-1">
+            <ChartCard title="Composición de la Cobranza" subtitle="Distribución del monto ya cobrado">
+              <div className="h-56">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={composicionData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={75} paddingAngle={2}>
+                      {composicionData.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v) => fmt(Number(v))} />
+                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </ChartCard>
+          </div>
+        </div>
 
-      {/* Fila 2: Meta / Cobrado del mes / Brecha / Proyección + Antigüedad de la Deuda */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <GaugeCard pctValue={metaPct} label="Meta Mensual de Cobranza" sub={`Meta: ${fmt(data.metaMensual)}`} />
-          <KpiCard label="Cobrado del Mes" value={fmt(data.cobradoDelMes)} sub={`Meta: ${fmt(data.metaMensual)}`} icon={<Coins size={18} />} color="green" />
-          <KpiCard label="Brecha" value={fmt(brecha)} sub="pendiente para cumplir meta" icon={<AlertTriangle size={18} />} color={brecha > 0 ? 'amber' : 'green'} />
-          <KpiCard label="Proyección de Cierre" value={pct(proyeccionCierre)} sub="si se mantiene el ritmo actual" icon={<Target size={18} />} color={proyeccionCierre >= 90 ? 'green' : 'amber'} />
-        </div>
-        <div className="lg:col-span-1">
-          <ChartCard title="Antigüedad de la Deuda" subtitle={`Cartera vencida: ${fmt(carteraVencida)}`}>
-            <div className="space-y-3">
-              {data.mora.map(r => {
-                const p = carteraVencida > 0 ? (r.monto / carteraVencida) * 100 : 0
-                const critico = r.rango === '+90 días'
-                return (
-                  <div key={r.rango}>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className={`font-semibold flex items-center gap-1 ${critico ? 'text-red-600' : 'text-gray-600'}`}>
-                        {critico && <AlertTriangle size={12} />}
-                        {r.rango}
-                      </span>
-                      <span className="text-gray-500">{pct(p)}</span>
+        {/* Fila 2: Meta / Cobrado del mes / Brecha / Proyección + Antigüedad de la Deuda */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <GaugeCard pctValue={metaPct} label="Meta Mensual de Cobranza" sub={`Meta: ${fmt(data.metaMensual)}`} />
+            <KpiCard label="Cobrado del Mes" value={fmt(data.cobradoDelMes)} sub={`Meta: ${fmt(data.metaMensual)}`} icon={<Coins size={18} />} color="green" />
+            <KpiCard label="Brecha" value={fmt(brecha)} sub="pendiente para cumplir meta" icon={<AlertTriangle size={18} />} color={brecha > 0 ? 'amber' : 'green'} />
+            <KpiCard label="Proyección de Cierre" value={pct(proyeccionCierre)} sub="si se mantiene el ritmo actual" icon={<Target size={18} />} color={proyeccionCierre >= 90 ? 'green' : 'amber'} />
+          </div>
+          <div className="lg:col-span-1">
+            <ChartCard title="Antigüedad de la Deuda" subtitle={`Cartera vencida: ${fmt(carteraVencida)}`}>
+              <div className="space-y-3">
+                {data.mora.map(r => {
+                  const p = carteraVencida > 0 ? (r.monto / carteraVencida) * 100 : 0
+                  const critico = r.rango === '+90 días'
+                  return (
+                    <div key={r.rango}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className={`font-semibold flex items-center gap-1 ${critico ? 'text-red-600' : 'text-gray-600'}`}>
+                          {critico && <AlertTriangle size={12} />}
+                          {r.rango}
+                        </span>
+                        <span className="text-gray-500">{pct(p)}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                        <div className={`h-full rounded-full ${critico ? 'bg-red-500' : 'bg-[#003D7D]'}`} style={{ width: `${p}%` }} />
+                      </div>
                     </div>
-                    <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
-                      <div className={`h-full rounded-full ${critico ? 'bg-red-500' : 'bg-[#003D7D]'}`} style={{ width: `${p}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </ChartCard>
+                  )
+                })}
+              </div>
+            </ChartCard>
+          </div>
         </div>
-      </div>
 
-      {/* Fila 3: Cartera Vencida / Clientes Morosos / Mora Promedio / Cartera Crítica */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard label="Cartera Vencida" value={fmt(carteraVencida)} sub={`${pct(pctCarteraVencida)} del saldo por cobrar`} icon={<CalendarClock size={18} />} color="red" />
-        <KpiCard label="Clientes Morosos" value={data.clientesMorosos} sub={`${pct(pctClientesMorosos)} de clientes activos`} icon={<UserX size={18} />} color="red" />
-        <KpiCard label="Mora Promedio" value={`${moraPromedioDias.toFixed(0)} días`} sub="atraso promedio ponderado" icon={<Clock size={18} />} color="amber" />
-        <KpiCard label="Cartera Crítica" value={fmt(carteraCritica)} sub="> 90 días" icon={<ShieldAlert size={18} />} color="red" />
-      </div>
+        {/* Fila 3: Cartera Vencida / Clientes Morosos / Mora Promedio / Cartera Crítica */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard label="Cartera Vencida" value={fmt(carteraVencida)} sub={`${pct(pctCarteraVencida)} del saldo por cobrar`} icon={<CalendarClock size={18} />} color="red" />
+          <KpiCard label="Clientes Morosos" value={data.clientesMorosos} sub={`${pct(pctClientesMorosos)} de clientes activos`} icon={<UserX size={18} />} color="red" />
+          <KpiCard label="Mora Promedio" value={`${moraPromedioDias.toFixed(0)} días`} sub="atraso promedio ponderado" icon={<Clock size={18} />} color="amber" />
+          <KpiCard label="Cartera Crítica" value={fmt(carteraCritica)} sub="> 90 días" icon={<ShieldAlert size={18} />} color="red" />
+        </div>
 
-      {/* Fila 4: Cumplimiento por producto */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <ProductoCard nombre="Planes de Ahorro" clientes={data.cumplimiento.planAhorro.clientes} pctValue={pctPlanAhorro} icon={<PiggyBank size={16} />} />
-        <ProductoCard nombre="Desembolso Hipotecario" clientes={data.cumplimiento.desembolsoHipotecario.clientes} pctValue={pctDesembolso} icon={<Home size={16} />} />
-        <ProductoCard nombre="Crédito Directo" clientes={data.cumplimiento.creditoDirecto.clientes} pctValue={pctCredito} icon={<CreditCard size={16} />} />
-      </div>
+        {/* Fila 4: Cumplimiento por producto */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <ProductoCard nombre="Planes de Ahorro" clientes={data.cumplimiento.planAhorro.clientes} pctValue={pctPlanAhorro} icon={<PiggyBank size={16} />} />
+          <ProductoCard nombre="Desembolso Hipotecario" clientes={data.cumplimiento.desembolsoHipotecario.clientes} pctValue={pctDesembolso} icon={<Home size={16} />} />
+          <ProductoCard nombre="Crédito Directo" clientes={data.cumplimiento.creditoDirecto.clientes} pctValue={pctCredito} icon={<CreditCard size={16} />} />
+        </div>
 
-      {/* Alertas */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3.5 flex flex-wrap items-center gap-x-6 gap-y-2">
-        <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-          <AlertTriangle size={14} /> Alertas
-        </span>
-        {alertas.map((a, i) => (
-          <span key={i} className="flex items-center gap-1.5 text-xs text-gray-600">
-            <span className={`w-1.5 h-1.5 rounded-full ${DOT_COLOR[a.color]}`} />
-            {a.text}
+        {/* Alertas */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-3.5 flex flex-wrap items-center gap-x-6 gap-y-2">
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            <AlertTriangle size={14} /> Alertas
           </span>
-        ))}
-      </div>
+          {alertas.map((a, i) => (
+            <span key={i} className="flex items-center gap-1.5 text-xs text-gray-600">
+              <span className={`w-1.5 h-1.5 rounded-full ${DOT_COLOR[a.color]}`} />
+              {a.text}
+            </span>
+          ))}
+        </div>
+        </>
+      )}
 
       {/* ── Registro de Cobranza (datos reales, no mock) ── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
