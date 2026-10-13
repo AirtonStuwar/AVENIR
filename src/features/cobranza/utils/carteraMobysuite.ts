@@ -7,6 +7,8 @@
 // en los 5 proyectos probados — falta confirmarla con Comercial/Finanzas (ver nota
 // al final del archivo con las preguntas exactas pendientes).
 
+import { clasePago, hoyLocal, mesActual } from './cobradoMes'
+
 export interface CuotaMobysuite {
   contratoId: number
   contratoEstado: string
@@ -64,7 +66,9 @@ function diasEntre(a: string, b: string): number {
 
 export function construirCartera(json: CronogramaResponse, metaMensual: number): CarteraMock {
   const hoy = new Date().toISOString().slice(0, 10)
-  const inicioMes = hoy.slice(0, 7) + '-01'
+  // Misma regla que la tabla Cuenta por Cobrar Vencida (ver cobradoMes.ts): pagada con fecha valida dentro del mes en curso
+  const hoyReal = hoyLocal()
+  const mesEnCurso = mesActual()
 
   let cobradoAcumulado = 0
   let cobradoDelMes = 0
@@ -95,7 +99,7 @@ export function construirCartera(json: CronogramaResponse, metaMensual: number):
 
     if (c.estado === 'Pagado') {
       cobradoAcumulado += c.monto
-      if (c.fechaPago && c.fechaPago >= inicioMes) cobradoDelMes += c.monto
+      if (clasePago(c.fechaPago, mesEnCurso, hoyReal) === 'en_mes') cobradoDelMes += c.monto
       const prod = clasificarProducto(c.descripcion)
       if (prod !== 'otros') composicion[prod] += c.monto
     }
