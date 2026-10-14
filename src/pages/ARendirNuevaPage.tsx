@@ -25,6 +25,9 @@ import { buscarRuc } from '../features/solicitud/services/rucService'
 import { getCuentasByProveedor } from '../features/proveedor/services/proveedorCuentaService'
 import type { ProveedorCuenta } from '../features/proveedor/types/proveedor'
 import type { SolicitudARendir } from '../features/arendir/types/arendir'
+import CuentaContableSelect from '../features/solicitud/components/CuentaContableSelect'
+import { getPlanContable } from '../features/solicitud/services/solicitudService'
+import type { PlanContable } from '../features/solicitud/types/solicitud'
 import type { TipoDocBeneficiario } from '../features/arendir/utils/documento'
 
 // ── Tipos locales ─────────────────────────────────────────────
@@ -39,6 +42,7 @@ interface DetalleRow {
   file: File | null
   savedId: number | null
   archivo_path: string | null
+  cuenta_referencia_id: number | null   // solo de referencia, se guarda al elegirla
 }
 
 const TIPOS_DOC = ['RECIBO', 'FACTURA', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
@@ -62,6 +66,7 @@ function newRow(): DetalleRow {
     file: null,
     savedId: null,
     archivo_path: null,
+    cuenta_referencia_id: null,
   }
 }
 
@@ -99,6 +104,10 @@ export default function ARendirNuevaPage() {
   // para que nada se pierda si el usuario sale de esta pantalla sin terminar.
   const [rows, setRows] = useState<DetalleRow[]>([])
   const [addingRow, setAddingRow] = useState(false)
+  const [planOpciones, setPlanOpciones] = useState<PlanContable[]>([])
+
+  // Catalogo de cuentas contables (solo de referencia por gasto)
+  useEffect(() => { getPlanContable().then(setPlanOpciones).catch(() => {}) }, [])
 
   // Load proyectos
   useEffect(() => {
@@ -250,7 +259,7 @@ export default function ARendirNuevaPage() {
   }
 
   // ── Step 2: cada fila se guarda de inmediato en la BD — nada vive solo en memoria ──
-  function updateRow(tempId: number, field: keyof DetalleRow, value: string | File | null) {
+  function updateRow(tempId: number, field: keyof DetalleRow, value: string | number | File | null) {
     setRows(prev => prev.map(r => r.tempId === tempId ? { ...r, [field]: value } : r))
   }
 
@@ -286,6 +295,17 @@ export default function ARendirNuevaPage() {
       })
     } catch {
       toast.error('No se pudo guardar la fila — revisa tu conexión')
+    }
+  }
+
+  // La cuenta se guarda al elegirla (no depende del onBlur de la fila)
+  async function handleCuentaSelect(row: DetalleRow, id: number | null) {
+    updateRow(row.tempId, 'cuenta_referencia_id', id)
+    if (!row.savedId) return
+    try {
+      await updateDetalle(row.savedId, { cuenta_referencia_id: id })
+    } catch {
+      toast.error('No se pudo guardar la cuenta contable')
     }
   }
 
@@ -692,6 +712,7 @@ export default function ARendirNuevaPage() {
                     <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-32">Tipo Doc.</th>
                     <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-28">N° Doc.</th>
                     <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Concepto</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-52" title="Opcional, solo de referencia para tu Excel">Cuenta contable (ref.)</th>
                     <th className="text-right px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-24">Importe</th>
                     <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-28">Archivo</th>
                     <th className="w-8" />
@@ -700,7 +721,7 @@ export default function ARendirNuevaPage() {
                 <tbody className="divide-y divide-gray-50">
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-3 py-6 text-center text-xs text-gray-400">
+                      <td colSpan={9} className="px-3 py-6 text-center text-xs text-gray-400">
                         Sin líneas de gasto todavía — "Agregar fila" es opcional, puedes hacerlo después desde el detalle.
                       </td>
                     </tr>
@@ -755,6 +776,15 @@ export default function ARendirNuevaPage() {
                         />
                       </td>
                       <td className="px-2 py-1.5">
+                        <CuentaContableSelect
+                          compact
+                          value={row.cuenta_referencia_id}
+                          onChange={id => handleCuentaSelect(row, id)}
+                          opciones={planOpciones}
+                          placeholder="Buscar cuenta…"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
                         <input
                           type="number"
                           value={row.importe}
@@ -792,7 +822,7 @@ export default function ARendirNuevaPage() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-[#003D7D]/[0.04] border-t-2 border-[#003D7D]/20">
-                    <td colSpan={5} className="px-3 py-2.5 text-xs font-bold text-gray-700 text-right uppercase">
+                    <td colSpan={6} className="px-3 py-2.5 text-xs font-bold text-gray-700 text-right uppercase">
                       Total rendido:
                     </td>
                     <td className="px-3 py-2.5 text-right font-bold text-[#003D7D] text-sm">

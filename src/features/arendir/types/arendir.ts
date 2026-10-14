@@ -9,6 +9,8 @@ export interface ARendirDetalle {
   importe: number
   archivo_path: string | null
   fecha_creacion: string | null
+  // Cuenta contable de referencia elegida por el usuario: solo informativa (Excel), no entra en ningun calculo
+  cuenta_referencia_id?: number | null
 }
 
 export type ARendirDetalleInsert = Omit<ARendirDetalle, 'id' | 'fecha_creacion'>

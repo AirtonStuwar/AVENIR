@@ -39,6 +39,9 @@ import {
   updateARendir,
 } from '../features/arendir/services/arendirService'
 import type { SolicitudARendir, ARendirDetalle } from '../features/arendir/types/arendir'
+import CuentaContableSelect from '../features/solicitud/components/CuentaContableSelect'
+import { getPlanContable } from '../features/solicitud/services/solicitudService'
+import type { PlanContable } from '../features/solicitud/types/solicitud'
 import { tipoDocBeneficiario } from '../features/arendir/utils/documento'
 import { ARendirPDF } from '../features/arendir/components/ARendirPDF'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
@@ -111,19 +114,21 @@ export default function ARendirDetallePage() {
   const [detImporte,  setDetImporte]  = useState('')
   const [detArchivo,  setDetArchivo]  = useState<File | null>(null)
   const [detSaving,   setDetSaving]   = useState(false)
+  const [detCuentaRef, setDetCuentaRef] = useState<number | null>(null)
+  const [planOpciones, setPlanOpciones] = useState<PlanContable[]>([])
   const [uploadingSustento, setUploadingSustento] = useState(false)
 
   const TIPOS_DOC = ['FACTURA', 'RECIBO', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
 
   const resetDetForm = () => {
     setDetFormOpen(false); setDetEditId(null); setDetFecha(''); setDetProv('')
-    setDetTipoDoc('FACTURA'); setDetNumDoc(''); setDetConcepto(''); setDetImporte(''); setDetArchivo(null)
+    setDetTipoDoc('FACTURA'); setDetNumDoc(''); setDetConcepto(''); setDetImporte(''); setDetArchivo(null); setDetCuentaRef(null)
   }
   const openDetAdd = () => { resetDetForm(); setDetFormOpen(true) }
   const openDetEdit = (d: ARendirDetalle) => {
     setDetEditId(d.id); setDetFecha(d.fecha_documento ?? ''); setDetProv(d.proveedor ?? '')
     setDetTipoDoc(d.tipo_documento ?? 'FACTURA'); setDetNumDoc(d.numero_documento ?? '')
-    setDetConcepto(d.concepto ?? ''); setDetImporte(String(d.importe)); setDetArchivo(null); setDetFormOpen(true)
+    setDetConcepto(d.concepto ?? ''); setDetImporte(String(d.importe)); setDetArchivo(null); setDetCuentaRef(d.cuenta_referencia_id ?? null); setDetFormOpen(true)
   }
 
   const handleDetSave = async () => {
@@ -141,7 +146,7 @@ export default function ARendirDetallePage() {
         await updateDetalle(detEditId, {
           fecha_documento: detFecha, proveedor: detProv.trim(), tipo_documento: detTipoDoc,
           numero_documento: detNumDoc.trim() || null, concepto: detConcepto.trim(),
-          importe: parseFloat(detImporte), ...(archivoPath ? { archivo_path: archivoPath } : {}),
+          importe: parseFloat(detImporte), cuenta_referencia_id: detCuentaRef, ...(archivoPath ? { archivo_path: archivoPath } : {}),
         })
         toast.success('Gasto actualizado')
       } else {
@@ -149,7 +154,7 @@ export default function ARendirDetallePage() {
           solicitud_arendir_id: solicitud.id, fecha_documento: detFecha,
           proveedor: detProv.trim(), tipo_documento: detTipoDoc,
           numero_documento: detNumDoc.trim() || null, concepto: detConcepto.trim(),
-          importe: parseFloat(detImporte), archivo_path: archivoPath,
+          importe: parseFloat(detImporte), archivo_path: archivoPath, cuenta_referencia_id: detCuentaRef,
         })
         if (detArchivo && !archivoPath) {
           const path = await uploadDetalleArchivo(detArchivo, solicitud.id, nuevo.id)
@@ -194,6 +199,9 @@ export default function ARendirDetallePage() {
   const [fechaDevolucionSel,  setFechaDevolucionSel]  = useState<string | null>(null)
   const [correccionOpen, setCorreccionOpen] = useState(false)
   const [cancelarOpen, setCancelarOpen] = useState(false)
+
+  // Catalogo de cuentas contables (solo de referencia por gasto)
+  useEffect(() => { getPlanContable().then(setPlanOpciones).catch(() => {}) }, [])
 
   useEffect(() => {
     if (!id) return
@@ -486,6 +494,10 @@ export default function ARendirDetallePage() {
 
   async function handleDownloadExcel() {
     if (!solicitud) return
+    let catalogo = planOpciones
+    if (!catalogo.length && detalles.some(d => d.cuenta_referencia_id)) {
+      try { catalogo = await getPlanContable(); setPlanOpciones(catalogo) } catch { toast.error('No se pudo cargar el catálogo de cuentas; las cuentas saldrán vacías') }
+    }
     const wb = new ExcelJS.Workbook()
     const ws = wb.addWorksheet('A Rendir')
     const sym = solicitud.moneda === 'USD' ? '$ ' : 'S/ '
@@ -502,7 +514,7 @@ export default function ARendirDetallePage() {
     ws.getColumn(1).font = { bold: true }
     ws.addRow([])
 
-    const headerRow = ws.addRow(['Fecha', 'Proveedor', 'Tipo Doc', 'N° Doc', 'Concepto', sym.trim()])
+    const headerRow = ws.addRow(['Fecha', 'Proveedor', 'Tipo Doc', 'N° Doc', 'Concepto', 'Cuenta contable', 'Nombre de la cuenta', 'Partida presupuestal', sym.trim()])
     headerRow.font = { bold: true }
     headerRow.eachCell(cell => {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F497D' } }
@@ -510,12 +522,16 @@ export default function ARendirDetallePage() {
     })
 
     detalles.forEach(d => {
+      const cuenta = d.cuenta_referencia_id ? catalogo.find(p => p.id === d.cuenta_referencia_id) : undefined
       ws.addRow([
         fmtDate(d.fecha_documento),
         d.proveedor ?? '',
         d.tipo_documento ?? '',
         d.numero_documento ?? '',
         d.concepto ?? '',
+        cuenta?.codigo_starsoft ?? '',
+        cuenta?.nombre_cuenta_contable ?? '',
+        cuenta?.partida_presupuestal ?? '',
         d.importe,
       ])
     })
@@ -1059,6 +1075,11 @@ export default function ARendirDetallePage() {
                     onChange={e => setDetArchivo(e.target.files?.[0] ?? null)} />
                 </label>
               </div>
+              <div className="col-span-2 md:col-span-4">
+                <label className="text-[10px] font-semibold text-gray-500 uppercase">Cuenta contable (referencia)</label>
+                <CuentaContableSelect value={detCuentaRef} onChange={setDetCuentaRef} opciones={planOpciones} />
+                <p className="text-[10px] text-gray-400 mt-1">Opcional. Solo de referencia para tu Excel; no afecta ningún cálculo ni reporte.</p>
+              </div>
             </div>
             <div className="flex gap-2">
               <button onClick={handleDetSave} disabled={detSaving}
@@ -1096,7 +1117,13 @@ export default function ARendirDetallePage() {
                     <td className="px-4 py-3 text-gray-900">{d.proveedor ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-600">{d.tipo_documento ?? '—'}</td>
                     <td className="px-4 py-3 text-gray-600 font-mono text-xs">{d.numero_documento ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-900">{d.concepto ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-900">
+                      {d.concepto ?? '—'}
+                      {(() => {
+                        const c = d.cuenta_referencia_id ? planOpciones.find(p => p.id === d.cuenta_referencia_id) : null
+                        return c ? <span className="block text-[11px] text-gray-400 mt-0.5">Cuenta: {[c.codigo_starsoft, c.nombre_cuenta_contable].filter(Boolean).join(' — ')}</span> : null
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-900">
                       {sym}{d.importe.toLocaleString(solicitud.moneda === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
