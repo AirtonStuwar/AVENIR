@@ -230,14 +230,15 @@ export default function CarteraVencidaTable() {
               <tr className="text-left text-gray-400 uppercase tracking-wide border-b border-gray-100 bg-gray-50/50">
                 <th className="px-5 py-2.5 font-semibold">Cliente</th>
                 {BUCKETS.map(b => <th key={b.key} className="px-3 py-2.5 font-semibold text-right">{b.label}</th>)}
-                <th className="px-3 py-2.5 font-semibold text-right text-emerald-600">Pagado</th>
+                <th className="px-3 py-2.5 font-semibold text-right text-[#003D7D]">Por pagar</th>
+                <th className="px-3 py-2.5 font-semibold text-right text-emerald-600">Ejecutado</th>
                 <th className="px-3 py-2.5 font-semibold text-right text-sky-600 whitespace-nowrap">Cobrado {mesCorto(mes)}</th>
                 <th className="px-5 py-2.5 font-semibold text-right">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filas.length === 0 ? (
-                <tr><td colSpan={10} className="px-5 py-8 text-center text-gray-400">Sin cuotas para esta empresa con el filtro elegido</td></tr>
+                <tr><td colSpan={11} className="px-5 py-8 text-center text-gray-400">Sin cuotas para esta empresa con el filtro elegido</td></tr>
               ) : filas.map(f => (
                 <Fragment key={f.clave}>
                   <tr key={f.clave} onClick={() => toggle(f.clave)} className="hover:bg-gray-50/50 cursor-pointer font-medium text-gray-800">
@@ -265,9 +266,10 @@ export default function CarteraVencidaTable() {
                         {fmt(f[b.key])}
                       </td>
                     ))}
+                    <td className={`px-3 py-2.5 text-right font-semibold ${f.total > 0 ? 'text-[#003D7D]' : 'text-gray-300'}`}>{fmt(f.total)}</td>
                     <td className={`px-3 py-2.5 text-right ${f.pagado > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>{fmt(f.pagado)}</td>
                     <td className={`px-3 py-2.5 text-right ${f.cobradoMes > 0 ? 'text-sky-600' : 'text-gray-300'}`}>{fmt(f.cobradoMes)}</td>
-                    <td className="px-5 py-2.5 text-right font-semibold text-[#003D7D]">{fmt(f.total)}</td>
+                    <td className="px-5 py-2.5 text-right font-semibold text-gray-900">{fmt(f.total + f.pagado)}</td>
                   </tr>
                   {expandido[f.clave] && f.cuotas
                     .slice()
@@ -297,9 +299,10 @@ export default function CarteraVencidaTable() {
                           {BUCKETS.map(b => (
                             <td key={b.key} className="px-3 py-2 text-right">{b.key === bucket ? fmt(c.monto) : ''}</td>
                           ))}
+                          <td className="px-3 py-2 text-right">{pagada ? '' : fmt(c.monto)}</td>
                           <td className="px-3 py-2 text-right text-emerald-600">{pagada ? fmt(c.monto) : ''}</td>
                           <td className="px-3 py-2 text-right text-sky-600">{clase === 'en_mes' ? fmt(c.monto) : ''}</td>
-                          <td className="px-5 py-2 text-right">{pagada ? '' : fmt(c.monto)}</td>
+                          <td className="px-5 py-2 text-right">{fmt(c.monto)}</td>
                         </tr>
                       )
                     })}
@@ -311,9 +314,10 @@ export default function CarteraVencidaTable() {
                 <tr className="border-t-2 border-gray-200 font-semibold text-gray-800 bg-gray-50/70">
                   <td className="px-5 py-3">Total general</td>
                   {BUCKETS.map(b => <td key={b.key} className="px-3 py-3 text-right">{fmt(totales[b.key])}</td>)}
+                  <td className="px-3 py-3 text-right text-[#003D7D]">{fmt(totales.total)}</td>
                   <td className="px-3 py-3 text-right text-emerald-600">{fmt(totales.pagado)}</td>
                   <td className="px-3 py-3 text-right text-sky-600">{fmt(totales.cobradoMes)}</td>
-                  <td className="px-5 py-3 text-right text-[#003D7D]">{fmt(totales.total)}</td>
+                  <td className="px-5 py-3 text-right text-gray-900">{fmt(totales.total + totales.pagado)}</td>
                 </tr>
               </tfoot>
             )}
@@ -323,6 +327,9 @@ export default function CarteraVencidaTable() {
 
       {cuotas !== null && filas.length > 0 && (
         <div className="px-5 py-3 border-t border-gray-100 text-[11px] text-gray-400 space-y-1">
+          <p>
+            Por pagar = lo que falta cobrar (los tramos de antigüedad suman esta columna) · Ejecutado = lo ya cobrado · Total = Por pagar + Ejecutado, el plan de pago completo del contrato.
+          </p>
           <p>
             Cobrado {mesCorto(mes)} suma las cuotas pagadas con fecha de pago dentro de ese mes, aunque hayan vencido antes. Respeta los filtros de categoria y etapa.
           </p>
