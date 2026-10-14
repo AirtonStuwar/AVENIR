@@ -9,7 +9,7 @@ import {
   observarSolicitud, reenviarAContabilidad,
   getArchivosBySolicitud, getArchivoUrl,
   updateSolicitud, duplicarSolicitud, uploadFirma, getUsuarioById, marcarDetraccionPagada,
-  getPlanContable, checkNumeroFacturaDuplicado,
+  getPlanContable, checkNumeroFacturaDuplicado, registrarDatosFactura, getNombresUsuarios,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
@@ -256,6 +256,18 @@ export default function SolicitudDetallePage() {
     setMontoFondoGarantia(solicitud?.monto_fondo_garantia != null ? String(solicitud.monto_fondo_garantia) : '')
   }, [solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura, solicitud?.monto_fondo_garantia])
 
+  // Nombres de quien subio la factura / registro sus datos (para la Bitacora)
+  const [nombresFactura, setNombresFactura] = useState<Record<string, string>>({})
+  useEffect(() => {
+    const ids = new Set<string>()
+    for (const a of archivosSubidos) {
+      if ((a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF') && a.usuario_id) ids.add(a.usuario_id)
+    }
+    if (solicitud?.factura_datos_usuario) ids.add(solicitud.factura_datos_usuario)
+    if (ids.size === 0) return
+    getNombresUsuarios([...ids]).then(setNombresFactura).catch(() => {})
+  }, [archivosSubidos, solicitud?.factura_datos_usuario])
+
   // Alerta de N° de factura duplicado
   useEffect(() => {
     if (!numeroFactura.trim() || numeroFactura === (solicitud?.numero_factura ?? '')) { setFacturaDuplicada([]); return }
@@ -373,8 +385,12 @@ export default function SolicitudDetallePage() {
   const canMarcarPagado        = isAprobado && !solicitud?.fecha_pago && userRole === ROLES.VISUALIZADOR
   const canMarcarDetraccionPag = isAprobado && !!solicitud?.detraccion_id && !solicitud?.detraccion_pagada
                                  && (userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN)
-  const canEditFactura  = !isRxH && !isOtros && (canEdit || isAprobado) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const showFacturaCard = !isRxH && !isOtros && (canEdit || !!solicitud?.numero_factura || !!solicitud?.motivo_factura || !!solicitud?.fecha_emision_factura || archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF'))
+  // La factura a veces llega DESPUES de aprobada/pagada: el dueño (y ADMIN) puede subir Factura XML/PDF y registrar sus
+  // datos aunque la solicitud ya este Aprobada. Solo OC / pago a proveedores (no RxH, Otros ni Liberalidad).
+  const isOC = !isRxH && !isOtros && !isLiberalidad
+  const canFacturaPostAprobacion = isAprobado && isOC && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const canEditFactura  = !isRxH && !isOtros && (canEdit || canFacturaPostAprobacion) && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
+  const showFacturaCard = !isRxH && !isOtros && (canEdit || canFacturaPostAprobacion || !!solicitud?.numero_factura || !!solicitud?.motivo_factura || !!solicitud?.fecha_emision_factura || archivosSubidos.some(a => a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF'))
 
   const estadoColor = ESTADO_COLOR[nombre] ?? 'bg-gray-100 text-gray-600'
 
@@ -434,6 +450,32 @@ export default function SolicitudDetallePage() {
         detalle: solicitud.pago_usuario_nombre ? `Marcado por ${solicitud.pago_usuario_nombre}` : null,
         estado: 'done',
       })
+    }
+    // Factura que llega DESPUES de la aprobacion (antes o despues del pago): queda registrada con fecha y autor.
+    // Los archivos subidos mientras estaba Pendiente/Observado forman parte de la creacion y no se listan aqui.
+    if (isAprobado && isOC) {
+      const desde = solicitud.fecha_aprobacion ?? ''
+      archivosSubidos
+        .filter(a => (a.tipo_archivo === 'Factura XML' || a.tipo_archivo === 'Factura PDF') && !!a.fecha_creacion && a.fecha_creacion >= desde)
+        .sort((a, b) => (a.fecha_creacion ?? '').localeCompare(b.fecha_creacion ?? ''))
+        .forEach(a => {
+          const quien = a.usuario_id ? nombresFactura[a.usuario_id] : null
+          pasos.push({
+            titulo: `${a.tipo_archivo} adjuntada`,
+            fecha: fmtDateHora(a.fecha_creacion),
+            detalle: [quien ? `Por ${quien}` : null, a.nombre_archivo].filter(Boolean).join(' — ') || null,
+            estado: 'done',
+          })
+        })
+      if (solicitud.factura_datos_fecha) {
+        const quien = solicitud.factura_datos_usuario ? nombresFactura[solicitud.factura_datos_usuario] : null
+        pasos.push({
+          titulo: 'Datos de factura registrados',
+          fecha: fmtDateHora(solicitud.factura_datos_fecha),
+          detalle: [quien ? `Por ${quien}` : null, solicitud.numero_factura ? `N° ${solicitud.numero_factura}` : null].filter(Boolean).join(' — ') || null,
+          estado: 'done',
+        })
+      }
     }
     return pasos
   })()
@@ -702,13 +744,19 @@ export default function SolicitudDetallePage() {
     if (!solicitud || !id) return
     setSavingFactura(true)
     try {
-      await updateSolicitud(solicitud.id, {
+      const datos = {
         numero_factura:           numeroFactura.trim() || null,
         motivo_factura:           motivoFactura.trim() || null,
         fecha_emision_factura:    fechaEmisionFactura || null,
         fecha_vencimiento_factura: fechaVencimientoFactura || null,
-        ...(isValorizacion && { monto_fondo_garantia: montoFondoGarantia.trim() ? Number(montoFondoGarantia) : null }),
-      })
+      }
+      const fondo = isValorizacion ? (montoFondoGarantia.trim() ? Number(montoFondoGarantia) : null) : undefined
+      if (isAprobado) {
+        // Solicitud ya aprobada: el UPDATE directo no esta permitido al dueño, se registra por la funcion de BD (deja autor y fecha)
+        await registrarDatosFactura(solicitud.id, { ...datos, monto_fondo_garantia: fondo })
+      } else {
+        await updateSolicitud(solicitud.id, { ...datos, ...(fondo !== undefined && { monto_fondo_garantia: fondo }) })
+      }
       toast.success('Datos de factura guardados')
       await reload(id)
     } catch (err: unknown) {
@@ -1182,6 +1230,7 @@ export default function SolicitudDetallePage() {
         <SolicitudArchivos
           solicitudId={solicitud.id}
           editable={canEdit}
+          tiposEditables={canFacturaPostAprobacion ? ['Factura XML', 'Factura PDF'] : undefined}
           showOtros
           canDownloadAll={userRole === ROLES.VISUALIZADOR || userRole === ROLES.EVALUADOR}
           zipName={

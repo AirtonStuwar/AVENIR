@@ -96,6 +96,9 @@ export interface Solicitud {
   fecha_pago_detraccion: string | null
   cuenta_pago_detraccion_id: number | null
   aplica_igv: boolean
+  // Datos de factura registrados DESPUES de la aprobacion (via registrar_datos_factura); null si se registraron antes
+  factura_datos_usuario?: string | null
+  factura_datos_fecha?: string | null
   proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null; presupuesto?: number | null } | null
   proyecto_partida?: { id: number; nombre: string; presupuesto_pen: number; presupuesto_usd: number } | null
   detraccion?: Detraccion | null
@@ -176,6 +179,7 @@ export interface SolicitudArchivo {
   tipo_archivo: string | null
   comentario: string | null
   fecha_creacion: string | null
+  usuario_id?: string | null   // quien subio el archivo (lo llena la BD con auth.uid()); null en archivos antiguos
 }
 
 export type SolicitudArchivoInsert = Omit<SolicitudArchivo, 'id' | 'fecha_creacion'>

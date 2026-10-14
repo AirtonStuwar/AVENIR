@@ -30,9 +30,10 @@ interface Props {
   canDownloadAll?: boolean   // muestra el botón "Descargar todos" en el header
   zipName?: string           // nombre del ZIP y la carpeta interna (ej. código de la solicitud)
   showOtros?: boolean        // muestra la sección de "Archivos adicionales" (archivos sueltos + comentario opcional)
+  tiposEditables?: string[]  // tipos que se pueden subir/reemplazar aunque `editable` sea false (ej. la factura de una solicitud ya aprobada)
 }
 
-export default function SolicitudArchivos({ solicitudId, editable, onChange, tiposVisibles, tiposOpcionales, canDownloadAll, zipName, showOtros }: Props) {
+export default function SolicitudArchivos({ solicitudId, editable, onChange, tiposVisibles, tiposOpcionales, canDownloadAll, zipName, showOtros, tiposEditables }: Props) {
   const [archivos,  setArchivos]  = useState<SolicitudArchivo[]>([])
   const [loading,   setLoading]   = useState(true)
   const [uploading, setUploading] = useState<string | null>(null)
@@ -226,6 +227,7 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
             const archivo     = byTipo(tipo)
             const isUploading = uploading === tipo
             const esOpcional  = esOpcionalFn(tipo)
+            const puedeEditar = editable || !!tiposEditables?.includes(tipo)
 
             return (
               <div key={tipo} className={`rounded-xl border-2 p-4 flex flex-col gap-3 transition-all ${
@@ -257,7 +259,7 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
                     >
                       <Eye size={13} />
                     </button>
-                    {editable && (
+                    {puedeEditar && (
                       <button
                         onClick={() => handleDelete(archivo)}
                         className="p-1.5 rounded-lg text-red-400 hover:bg-red-100 transition-colors"
@@ -267,7 +269,7 @@ export default function SolicitudArchivos({ solicitudId, editable, onChange, tip
                       </button>
                     )}
                   </div>
-                ) : editable ? (
+                ) : puedeEditar ? (
                   <>
                     <input
                       ref={el => { refs.current[tipo] = el }}

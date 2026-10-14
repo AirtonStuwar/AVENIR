@@ -14,7 +14,7 @@ const SOL_SEL = [
   'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
   'numero_factura, monto_total, plan_contable_id, usuario_evaluador, moneda',
   'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
-  'detraccion_id, monto_detraccion, monto_fondo_garantia, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, detraccion_pagada, fecha_pago_detraccion, cuenta_pago_detraccion_id, aplica_igv',
+  'detraccion_id, monto_detraccion, monto_fondo_garantia, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, detraccion_pagada, fecha_pago_detraccion, cuenta_pago_detraccion_id, aplica_igv, factura_datos_usuario, factura_datos_fecha',
   'proyecto:proyecto_id(id,nombre,ruc,direccion,presupuesto)',
   'proyecto_partida:proyecto_partida_id(id,nombre,presupuesto_pen,presupuesto_usd)',
   'detraccion:detraccion_id(id,codigo,concepto,porcentaje,monto_minimo)',
@@ -424,6 +424,43 @@ export async function updateSolicitud(id: number, payload: SolicitudUpdate): Pro
   if (error) throw error
   if (!data) throw new Error('No se pudo actualizar la solicitud (sin permisos o fila no encontrada)')
   return data as Solicitud
+}
+
+// Datos de factura de una solicitud ya APROBADA. El dueno no puede hacer UPDATE directo sobre una solicitud
+// Aprobada (policy solicitud_update), asi que pasa por esta funcion de BD, que solo toca las columnas de factura
+// y deja registrado quien y cuando (factura_datos_usuario / factura_datos_fecha).
+export async function registrarDatosFactura(
+  solicitudId: number,
+  datos: {
+    numero_factura: string | null
+    motivo_factura: string | null
+    fecha_emision_factura: string | null
+    fecha_vencimiento_factura: string | null
+    monto_fondo_garantia?: number | null   // solo Factura con Valorizacion; undefined = no tocar
+  },
+): Promise<void> {
+  const { error } = await supabase.rpc('registrar_datos_factura', {
+    p_solicitud_id: solicitudId,
+    p_numero_factura: datos.numero_factura,
+    p_motivo_factura: datos.motivo_factura,
+    p_fecha_emision: datos.fecha_emision_factura,
+    p_fecha_vencimiento: datos.fecha_vencimiento_factura,
+    p_actualizar_fondo: datos.monto_fondo_garantia !== undefined,
+    p_monto_fondo_garantia: datos.monto_fondo_garantia ?? null,
+  })
+  if (error) throw error
+}
+
+// id → nombre completo, para mostrar quien hizo cada paso en la Bitacora
+export async function getNombresUsuarios(ids: string[]): Promise<Record<string, string>> {
+  if (ids.length === 0) return {}
+  const { data, error } = await supabase.from('usuario').select('id, nombre_completo').in('id', ids)
+  if (error) throw error
+  const out: Record<string, string> = {}
+  for (const u of (data ?? []) as { id: string; nombre_completo: string | null }[]) {
+    if (u.nombre_completo) out[u.id] = u.nombre_completo
+  }
+  return out
 }
 
 export async function deleteSolicitud(id: number): Promise<void> {
