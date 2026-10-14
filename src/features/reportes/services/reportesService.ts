@@ -61,6 +61,9 @@ export interface ReporteRow {
   arc_cotizacion: boolean
   arc_factura:    boolean
   arc_otros:      boolean
+  // Solo Devolucion de Cliente (lo registra Contabilidad al pagar); vacios en los demas modulos
+  medio_pago?:    string | null
+  numero_cheque?: string | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -539,7 +542,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
 
   let q = supabase
     .from('devolucion_cliente')
-    .select('id, codigo, estado, creador_id, proyecto_id, cliente_nombre, cliente_dni, concepto, monto, moneda, banco, numero_cuenta, cuenta_pago_id, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)')
+    .select('id, codigo, estado, creador_id, proyecto_id, cliente_nombre, cliente_dni, concepto, monto, moneda, banco, numero_cuenta, cuenta_pago_id, medio_pago, numero_cheque, sustento_path, boucher_separacion_path, constancia_separacion_path, sustento_desistimiento_path, fecha_aprobacion, fecha_creacion, fecha_pago, proyecto:proyecto_id(nombre), proyecto_partida:proyecto_partida_id(nombre), plan_contable:plan_contable_id(tipo_gasto_costo,codigo_starsoft,cuenta_contable_2020_starsoft,nombre_cuenta_contable,partida_presupuestal,partida_presupuesta_n1,partida_presupuesta_n2)')
     .gte(dateField, fechaDesde)
     .lte(dateField, fechaHasta + 'T23:59:59')
 
@@ -553,6 +556,7 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
     cliente_nombre: string; cliente_dni: string | null; concepto: string | null
     monto: number; moneda: string | null
     banco: string | null; numero_cuenta: string | null; cuenta_pago_id: number | null
+    medio_pago: string | null; numero_cheque: string | null
     sustento_path: string | null; boucher_separacion_path: string | null
     constancia_separacion_path: string | null; sustento_desistimiento_path: string | null
     fecha_aprobacion: string | null; fecha_creacion: string | null; fecha_pago: string | null
@@ -610,6 +614,8 @@ async function fetchDevoluciones(filtros: ReporteFiltros): Promise<ReporteRow[]>
       arc_cotizacion: false,
       arc_factura:    false,
       arc_otros:      !!(r.boucher_separacion_path || r.constancia_separacion_path || r.sustento_desistimiento_path),
+      medio_pago:     r.fecha_pago ? (r.medio_pago ?? 'Transferencia') : null,
+      numero_cheque:  r.numero_cheque,
       ...pcFields(r.plan_contable),
     } satisfies ReporteRow
   })
@@ -712,6 +718,8 @@ export async function exportarReporteExcel(
     { header: 'COTIZACIÓN',      key: 'arc_cotizacion',  width: 10 },
     { header: 'FACTURA',         key: 'arc_factura',     width: 10 },
     { header: 'OTROS',           key: 'arc_otros',       width: 10 },
+    { header: 'MEDIO DE PAGO',   key: 'medio_pago',      width: 18 },
+    { header: 'N° CHEQUE',       key: 'numero_cheque',   width: 14 },
   ]
 
   ws.columns = COLS.map(c => ({ key: c.key, width: c.width }))
@@ -800,6 +808,8 @@ export async function exportarReporteExcel(
       row.arc_cotizacion ? 'SI' : '',
       row.arc_factura    ? 'SI' : '',
       row.arc_otros      ? 'SI' : '',
+      row.medio_pago,
+      row.numero_cheque,
     ]
     vals.forEach((v, ci) => {
       const cell = r.getCell(ci + 1)
@@ -875,7 +885,8 @@ const REFERENCIA_POR_TIPO: Partial<Record<ReporteRow['tipo'], string>> = {
 export async function exportarBBVAConsolidado(rows: ReporteRow[]): Promise<number> {
   const pagables = rows.filter(r =>
     r.estado !== null && ESTADOS_PAGABLES.has(r.estado) &&
-    !!r.banco && !!r.cuenta
+    !!r.banco && !!r.cuenta &&
+    r.medio_pago !== 'Cheque de gerencia'   // un cheque no se paga por el banco en pago masivo
   )
   if (pagables.length === 0) return 0
 

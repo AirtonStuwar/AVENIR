@@ -147,15 +147,25 @@ export async function reenviarContabilidadDevolucion(id: number): Promise<void> 
   if (error) throw error
 }
 
-/** VISUALIZADOR/ADMIN: marca como pagado */
+/**
+ * VISUALIZADOR/ADMIN: marca como pagado. `cheque` (N° de cheque de gerencia) lo decide Contabilidad en este
+ * momento; sin cheque se registra como Transferencia. `fechaPago` es una sola fecha (emision del cheque / transferencia).
+ */
 export async function marcarPagadoDevolucion(
   id: number,
   cuentaPagoId: number,
   fechaPago: string,
   usuarioPagoId: string,
+  cheque?: { numero: string } | null,
 ): Promise<void> {
   const { error } = await supabase.from('devolucion_cliente')
-    .update({ cuenta_pago_id: cuentaPagoId, fecha_pago: fechaPago, usuario_pago: usuarioPagoId })
+    .update({
+      cuenta_pago_id: cuentaPagoId,
+      fecha_pago: fechaPago,
+      usuario_pago: usuarioPagoId,
+      medio_pago: cheque ? 'Cheque de gerencia' : 'Transferencia',
+      numero_cheque: cheque ? cheque.numero.trim() : null,
+    })
     .eq('id', id)
   if (error) throw error
 }

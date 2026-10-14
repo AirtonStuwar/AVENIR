@@ -16,6 +16,9 @@ export interface DevolucionCliente {
   constancia_separacion_path: string | null
   sustento_desistimiento_path: string | null
   comprobante_pago_path: string | null
+  // Lo decide Contabilidad al marcar pagado; null = transferencia (registros anteriores)
+  medio_pago: 'Transferencia' | 'Cheque de gerencia' | null
+  numero_cheque: string | null
   estado: 'Pendiente' | 'En Revision' | 'Evaluado' | 'Autorizado' | 'Rechazado' | 'Devuelto' | 'Observado' | 'Cancelado'
   usuario_aprobador: string | null
   fecha_aprobacion: string | null
@@ -46,7 +49,7 @@ export type DevolucionClienteInsert = Omit<
   | 'usuario_aprobador' | 'fecha_aprobacion' | 'comentario'
   | 'fecha_pago' | 'cuenta_pago_id' | 'usuario_pago'
   | 'plan_contable_id' | 'usuario_evaluador'
-  | 'comprobante_pago_path'
+  | 'comprobante_pago_path' | 'medio_pago' | 'numero_cheque'
   | 'proyecto' | 'proyecto_partida' | 'plan_contable'
   | 'creador_nombre' | 'creador_email' | 'aprobador_nombre' | 'evaluador_nombre' | 'pago_usuario_nombre'
 >

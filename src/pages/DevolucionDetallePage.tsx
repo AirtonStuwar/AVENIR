@@ -326,11 +326,16 @@ export default function DevolucionDetallePage() {
     }
   }
 
-  async function handleConfirmPago(cuentaId: number, fechaPago: string) {
+  async function handleConfirmPago(cuentaId: number, fechaPago: string, cheque?: { numero: string } | null) {
     if (!dev?.id || !user?.id) return
+    // Una transferencia necesita la cuenta del cliente; si no la hay, solo se puede pagar con cheque de gerencia
+    if (!cheque && (!dev.banco || !dev.numero_cuenta)) {
+      toast.error('Esta devolución no tiene cuenta del cliente: elige "Cheque de gerencia" o registra la cuenta con "Corregir"')
+      return
+    }
     try {
-      await marcarPagadoDevolucion(dev.id, cuentaId, fechaPago, user.id)
-      toast.success('Devolución marcada como pagada')
+      await marcarPagadoDevolucion(dev.id, cuentaId, fechaPago, user.id, cheque)
+      toast.success(cheque ? 'Devolución marcada como pagada con cheque de gerencia' : 'Devolución marcada como pagada')
       setPagoOpen(false)
       await reload()
     } catch (err) {
@@ -510,7 +515,10 @@ export default function DevolucionDetallePage() {
       pasos.push({
         titulo: 'Pagada',
         fecha: fmtDate(dev.fecha_pago),
-        detalle: dev.pago_usuario_nombre ? `Marcado por ${dev.pago_usuario_nombre}` : null,
+        detalle: [
+          dev.pago_usuario_nombre ? `Marcado por ${dev.pago_usuario_nombre}` : null,
+          dev.medio_pago === 'Cheque de gerencia' ? `Cheque de gerencia N° ${dev.numero_cheque ?? ''}`.trim() : null,
+        ].filter(Boolean).join(' — ') || null,
         estado: 'done',
       })
     }
@@ -544,7 +552,7 @@ export default function DevolucionDetallePage() {
         <div className="flex items-center gap-2 flex-wrap">
           {dev.fecha_pago && (
             <span className="flex items-center gap-1 h-9 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
-              Pagado {fmtDate(dev.fecha_pago)}
+              Pagado {fmtDate(dev.fecha_pago)}{dev.medio_pago === 'Cheque de gerencia' ? ` · Cheque N° ${dev.numero_cheque ?? ''}` : ''}
             </span>
           )}
           {canEnviar && (
@@ -667,6 +675,8 @@ export default function DevolucionDetallePage() {
             { label: 'Centro de costo',  value: dev.proyecto_partida?.nombre },
             { label: 'Banco',            value: dev.banco },
             { label: dev.banco === 'BBVA' ? 'Número de cuenta' : 'Número CCI', value: dev.numero_cuenta },
+            ...(dev.fecha_pago ? [{ label: 'Medio de pago', value: dev.medio_pago === 'Cheque de gerencia' ? 'Cheque de gerencia' : 'Transferencia' }] : []),
+            ...(dev.medio_pago === 'Cheque de gerencia' ? [{ label: 'N° de cheque', value: dev.numero_cheque }] : []),
             { label: 'Registrado por',   value: dev.creador_nombre },
             { label: 'Fecha registro',   value: fmtDate(dev.fecha_creacion) },
             ...(dev.evaluador_nombre ? [{ label: 'Evaluado por', value: dev.evaluador_nombre }] : []),
@@ -915,6 +925,7 @@ export default function DevolucionDetallePage() {
       <PagoModal
         open={pagoOpen}
         proyectoId={dev?.proyecto_id ?? null}
+        permitirCheque
         onConfirm={handleConfirmPago}
         onCancel={() => setPagoOpen(false)}
       />
@@ -936,6 +947,7 @@ export default function DevolucionDetallePage() {
           { campo: 'cliente_dni',    label: 'DNI',             valorActual: dev?.cliente_dni ?? null },
           { campo: 'banco',          label: 'Banco',           valorActual: dev?.banco ?? null },
           { campo: 'numero_cuenta',  label: 'Número de cuenta / CCI', valorActual: dev?.numero_cuenta ?? null },
+          ...(dev?.medio_pago === 'Cheque de gerencia' ? [{ campo: 'numero_cheque', label: 'N° de cheque', valorActual: dev.numero_cheque ?? null }] : []),
         ]}
         onConfirm={handleCorreccion}
         onCancel={() => setCorreccionOpen(false)}

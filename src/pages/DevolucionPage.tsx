@@ -81,8 +81,12 @@ export default function DevolucionPage() {
 
   async function handleBulkPagoConfirm(cuentaId: number, fechaPago: string) {
     if (!user?.id) return
+    // El lote solo registra transferencias: las que no tienen cuenta del cliente se pagan una por una (cheque de gerencia)
+    const elegibles = selectedPorPagar.filter(d => !!d.banco && !!d.numero_cuenta)
+    const sinCuenta = selectedPorPagar.length - elegibles.length
+    if (sinCuenta > 0) toast.error(`${sinCuenta} sin cuenta del cliente: páguelas una por una desde su detalle (cheque de gerencia)`)
     const results = await Promise.allSettled(
-      selectedPorPagar.map(d => marcarPagadoDevolucion(d.id, cuentaId, fechaPago, user.id))
+      elegibles.map(d => marcarPagadoDevolucion(d.id, cuentaId, fechaPago, user.id))
     )
     const ok   = results.filter(r => r.status === 'fulfilled').length
     const fail = results.filter(r => r.status === 'rejected').length
@@ -94,7 +98,12 @@ export default function DevolucionPage() {
   }
 
   async function handleExport() {
-    const selected = data.filter(s => selectedIds.has(s.id))
+    const marcadas = data.filter(s => selectedIds.has(s.id))
+    // Sin cuenta del cliente (o ya pagadas con cheque) no se pueden incluir en un pago masivo del banco
+    const selected = marcadas.filter(s => !!s.banco && !!s.numero_cuenta && s.medio_pago !== 'Cheque de gerencia')
+    if (selected.length < marcadas.length) {
+      toast.error(`${marcadas.length - selected.length} no se incluyeron en el Excel (sin cuenta del cliente o pagadas con cheque)`)
+    }
     if (selected.length === 0) return
 
     const wb = new ExcelJS.Workbook()

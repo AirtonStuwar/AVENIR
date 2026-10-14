@@ -26,6 +26,9 @@ export interface RegistroPagable {
   monto: number
   fecha_pago: string
   banco: string | null
+  // Cheque de gerencia: se cobra dias despues de emitido, por eso se cruza con otra regla de fechas
+  esCheque?: boolean
+  numero_cheque?: string | null
 }
 
 export interface MatchGrupo {

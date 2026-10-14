@@ -93,6 +93,55 @@ async function fetchGenericoPagables(
   }))
 }
 
+const DIAS_COBRO_CHEQUE = 45   // un cheque de gerencia puede cobrarse hasta ~45 dias despues de emitido
+
+const sumaDias = (iso: string, dias: number) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  const x = new Date(y, m - 1, d + dias)
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Devoluciones de cliente pagadas desde esta cuenta. Las transferencias entran por su fecha de pago como los demas
+ * modulos; los cheques de gerencia tambien se buscan hasta 45 dias antes del archivo (se cobran despues de emitirse),
+ * salvo los que ya quedaron cruzados en una conciliacion guardada.
+ */
+async function fetchDevolucionesPagables(cuentaId: number, fechaDesde: string, fechaHasta: string): Promise<RegistroPagable[]> {
+  const { data, error } = await supabase
+    .from('devolucion_cliente')
+    .select('id, codigo, cliente_nombre, monto, fecha_pago, banco, medio_pago, numero_cheque')
+    .eq('cuenta_pago_id', cuentaId)
+    .gte('fecha_pago', sumaDias(fechaDesde, -DIAS_COBRO_CHEQUE))
+    .lte('fecha_pago', fechaHasta)
+  if (error) throw error
+
+  type Fila = { id: number; codigo: string | null; cliente_nombre: string | null; monto: number | null; fecha_pago: string; banco: string | null; medio_pago: string | null; numero_cheque: string | null }
+  const filas = (data ?? []) as unknown as Fila[]
+  const esCheque = (f: Fila) => f.medio_pago === 'Cheque de gerencia'
+
+  // Cheques emitidos antes del rango: solo los que aun no se cruzaron en una conciliacion guardada
+  const previos = filas.filter(f => esCheque(f) && f.fecha_pago < fechaDesde).map(f => f.id)
+  let yaCruzados = new Set<number>()
+  if (previos.length > 0) {
+    const { data: m } = await supabase.from('conciliacion_match').select('registro_id').eq('modulo', 'devolucion_cliente').in('registro_id', previos)
+    yaCruzados = new Set(((m ?? []) as { registro_id: number }[]).map(x => x.registro_id))
+  }
+
+  return filas
+    .filter(f => esCheque(f) ? !(f.fecha_pago < fechaDesde && yaCruzados.has(f.id)) : f.fecha_pago >= fechaDesde)
+    .map(f => ({
+      modulo: 'devolucion_cliente' as ModuloConciliable,
+      id: f.id,
+      codigo: f.codigo,
+      beneficiario: esCheque(f) ? `${f.cliente_nombre ?? ''} (cheque N° ${f.numero_cheque ?? ''})`.trim() : f.cliente_nombre,
+      monto: f.monto ?? 0,
+      fecha_pago: f.fecha_pago,
+      banco: f.banco,
+      esCheque: esCheque(f),
+      numero_cheque: f.numero_cheque,
+    }))
+}
+
 /** Trae todos los registros (5 módulos) pagados desde esta cuenta bancaria, en el rango de fechas. */
 export async function getRegistrosPagables(cuentaId: number, fechaDesde: string, fechaHasta: string): Promise<RegistroPagable[]> {
   const [sol, ar, reemb, cc, dev] = await Promise.all([
@@ -103,7 +152,7 @@ export async function getRegistrosPagables(cuentaId: number, fechaDesde: string,
       .then(rows => resolveBeneficiarios(rows)),
     fetchGenericoPagables('caja_chica', 'caja_chica', 'transferencia', 'responsable_id', cuentaId, fechaDesde, fechaHasta)
       .then(rows => resolveBeneficiarios(rows)),
-    fetchGenericoPagables('devolucion_cliente', 'devolucion_cliente', 'monto', 'cliente_nombre', cuentaId, fechaDesde, fechaHasta),
+    fetchDevolucionesPagables(cuentaId, fechaDesde, fechaHasta),
   ])
   return [...sol, ...ar, ...reemb, ...cc, ...dev]
 }
@@ -123,6 +172,20 @@ const centavos = (n: number) => Math.round(n * 100)
 const diffDias = (a: string, b: string) => Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86400000)
 // Mismo criterio que el Excel de pago masivo BBVA: 'P' = cuenta propia BBVA, 'I' = interbancario (CCI).
 const tipoAbono = (r: RegistroPagable): 'P' | 'I' => (r.banco === 'BBVA' ? 'P' : 'I')
+
+// Un cheque cuenta como "cercano" si el movimiento del banco cae entre 1 dia antes y 45 despues de su emision;
+// el resto de pagos, dentro de ±3 dias de su fecha de pago.
+const fechaCerca = (r: RegistroPagable, fechaRef: string) => {
+  if (!r.esCheque) return diffDias(r.fecha_pago, fechaRef) <= 3
+  const dif = (new Date(fechaRef).getTime() - new Date(r.fecha_pago).getTime()) / 86400000
+  return dif >= -1 && dif <= DIAS_COBRO_CHEQUE
+}
+// ¿El N° de cheque aparece en la descripcion / N° de operacion del movimiento? (desempata cheques del mismo monto)
+const mencionaCheque = (r: RegistroPagable, mov: MovimientoBanco) => {
+  const num = (r.numero_cheque ?? '').replace(/\D/g, '')
+  if (!num) return false
+  return [mov.descripcion, mov.n_operacion].some(t => String(t ?? '').replace(/\D/g, '').includes(num))
+}
 
 function buscarSubconjunto(candidatos: RegistroPagable[], objetivoCentavos: number, maxItems = 12): RegistroPagable[] | null {
   if (candidatos.length === 0 || candidatos.length > maxItems) return null
@@ -159,8 +222,10 @@ export function conciliar(movimientos: MovimientoBanco[], registros: RegistroPag
     const fechaRef = mov.fecha_oper ?? mov.fecha_valor
 
     // 1) Match individual: mismo monto, fecha cercana (±3 días)
-    const idx1a1 = disponibles.findIndex(r =>
-      centavos(r.monto) === objetivo && (!fechaRef || diffDias(r.fecha_pago, fechaRef) <= 3))
+    const candidatos = disponibles
+      .map((r, i) => ({ r, i }))
+      .filter(({ r }) => centavos(r.monto) === objetivo && (!fechaRef || fechaCerca(r, fechaRef)))
+    const idx1a1 = (candidatos.find(({ r }) => mencionaCheque(r, mov)) ?? candidatos[0])?.i ?? -1
     if (idx1a1 !== -1) {
       const registro = disponibles.splice(idx1a1, 1)[0]
       conciliados.push({ movimiento: mov, estado: 'individual', registros: [registro] })
@@ -173,7 +238,8 @@ export function conciliar(movimientos: MovimientoBanco[], registros: RegistroPag
     // demasiado grandes para el buscador de subconjuntos).
     let matched = false
     if (fechaRef) {
-      const cercanos = disponibles.filter(r => diffDias(r.fecha_pago, fechaRef) <= 3)
+      // Los cheques nunca forman parte de un pago masivo: se cruzan solo de a uno
+      const cercanos = disponibles.filter(r => !r.esCheque && diffDias(r.fecha_pago, fechaRef) <= 3)
       const porFechaYTipo = new Map<string, RegistroPagable[]>()
       for (const r of cercanos) {
         const clave = `${r.fecha_pago}|${tipoAbono(r)}`

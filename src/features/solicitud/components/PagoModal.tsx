@@ -9,11 +9,13 @@ interface Props {
   proyectoId: number | null
   title?: string
   description?: string
-  onConfirm: (cuentaId: number, fechaPago: string) => Promise<void>
+  // cheque solo llega cuando permitirCheque=true y Contabilidad eligio "Cheque de gerencia"
+  onConfirm: (cuentaId: number, fechaPago: string, cheque?: { numero: string } | null) => Promise<void>
   onCancel: () => void
+  permitirCheque?: boolean   // solo Devolucion de Cliente por ahora
 }
 
-export default function PagoModal({ open, proyectoId, title, description, onConfirm, onCancel }: Props) {
+export default function PagoModal({ open, proyectoId, title, description, onConfirm, onCancel, permitirCheque }: Props) {
   const [cuentas, setCuentas]     = useState<CuentaBancaria[]>([])
   const [loading, setLoading]     = useState(false)
   const [saving, setSaving]       = useState(false)
@@ -23,11 +25,15 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   }
   const [fechaPago, setFechaPago] = useState(localToday())
+  const [esCheque, setEsCheque]       = useState(false)
+  const [numeroCheque, setNumeroCheque] = useState('')
 
   useEffect(() => {
     if (!open || !proyectoId) return
     setCuentaId(null)
     setFechaPago(localToday())
+    setEsCheque(false)
+    setNumeroCheque('')
     setLoading(true)
     getCuentasByProyecto(proyectoId)
       .then(setCuentas)
@@ -40,9 +46,10 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
   const handleConfirm = async () => {
     if (!cuentaId) { toast.error('Selecciona una cuenta bancaria'); return }
     if (!fechaPago) { toast.error('Ingresa la fecha de pago'); return }
+    if (permitirCheque && esCheque && !numeroCheque.trim()) { toast.error('Ingresa el número de cheque'); return }
     setSaving(true)
     try {
-      await onConfirm(cuentaId, fechaPago)
+      await onConfirm(cuentaId, fechaPago, permitirCheque && esCheque ? { numero: numeroCheque.trim() } : null)
     } finally {
       setSaving(false)
     }
@@ -75,10 +82,41 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
             {description ?? 'Selecciona la cuenta bancaria desde la cual se realizó el pago.'}
           </p>
 
+          {/* Medio de pago (solo Devolucion de Cliente) */}
+          {permitirCheque && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Medio de pago
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {[{ v: false, t: 'Transferencia' }, { v: true, t: 'Cheque de gerencia' }].map(o => (
+                  <button key={o.t} type="button" onClick={() => setEsCheque(o.v)}
+                    className={`px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                      esCheque === o.v
+                        ? 'bg-[#003D7D] text-white border-[#003D7D]'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#003D7D]/40'
+                    }`}>
+                    {o.t}
+                  </button>
+                ))}
+              </div>
+              {esCheque && (
+                <div className="mt-3">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                    N° de cheque <span className="text-red-500">*</span>
+                  </label>
+                  <input className={INPUT} value={numeroCheque} onChange={e => setNumeroCheque(e.target.value)}
+                    placeholder="Ej. 00012345" />
+                  <p className="text-[11px] text-gray-400 mt-1">La cuenta es la de la empresa contra la que se giró el cheque, y la fecha es la de emisión.</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Fecha de pago */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              Fecha de pago <span className="text-red-500">*</span>
+              {permitirCheque && esCheque ? 'Fecha de emisión del cheque' : 'Fecha de pago'} <span className="text-red-500">*</span>
             </label>
             <input type="date" className={INPUT} value={fechaPago}
               onChange={e => setFechaPago(e.target.value)} />

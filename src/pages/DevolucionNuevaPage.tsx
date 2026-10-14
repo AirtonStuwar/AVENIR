@@ -76,8 +76,8 @@ export default function DevolucionNuevaPage() {
     if (!dni.trim()) { toast.error('Ingresa el DNI del cliente'); return }
     if (!concepto.trim()) { toast.error('Ingresa el concepto de la devolución'); return }
     if (!monto || parseFloat(monto) <= 0) { toast.error('Ingresa el monto a devolver'); return }
-    if (!banco) { toast.error('Selecciona el banco'); return }
-    if (!cuenta.trim()) { toast.error(`Ingresa el ${labelNumeroCuenta(banco).toLowerCase()}`); return }
+    // Banco y cuenta son opcionales: Contabilidad decide al pagar si es transferencia o cheque de gerencia
+    if (banco && !cuenta.trim()) { toast.error(`Ingresa el ${labelNumeroCuenta(banco).toLowerCase()} o quita el banco`); return }
     if (partidas.length > 0 && !partidaId) { toast.error('Selecciona el centro de costo'); return }
     if (!archivos.sustento) { toast.error('Adjunta el archivo Sustento'); return }
 
@@ -92,8 +92,8 @@ export default function DevolucionNuevaPage() {
         concepto: concepto.trim(),
         monto: parseFloat(monto),
         moneda,
-        banco,
-        numero_cuenta: cuenta.trim(),
+        banco: banco || null,
+        numero_cuenta: cuenta.trim() || null,
         sustento_path: null,
         boucher_separacion_path: null,
         constancia_separacion_path: null,
@@ -183,19 +183,22 @@ export default function DevolucionNuevaPage() {
               rows={2} placeholder="Explica el motivo de la devolución (ej. desistimiento de compra, anulación de separación...)" />
           </div>
           <div>
-            <label className={LABEL}>Banco *</label>
+            <label className={LABEL}>Banco (opcional)</label>
             <select className={INPUT} value={banco} onChange={e => { setBanco(e.target.value); setCuenta('') }}>
               <option value="">Selecciona banco</option>
               {BANCOS.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
           </div>
           <div>
-            <label className={LABEL}>{banco ? labelNumeroCuenta(banco) : 'Número de cuenta'} *</label>
+            <label className={LABEL}>{banco ? labelNumeroCuenta(banco) : 'Número de cuenta'}{banco ? ' *' : ' (opcional)'}</label>
             <input className={INPUT} value={cuenta} disabled={!banco}
               maxLength={banco ? maxLengthNumeroCuenta(banco) : 20}
               onChange={e => setCuenta(esCuentaRecaudadora(banco) ? e.target.value : e.target.value.replace(/\D/g, ''))}
               placeholder={banco ? placeholderNumeroCuenta(banco) : 'Selecciona banco primero'} />
           </div>
+          <p className="md:col-span-2 text-xs text-gray-400">
+            Si el cliente no tiene cuenta, déjalo vacío: Contabilidad decide al pagar si es transferencia o cheque de gerencia.
+          </p>
         </div>
       </div>
 
