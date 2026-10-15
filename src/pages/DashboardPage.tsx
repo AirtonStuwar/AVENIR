@@ -652,7 +652,7 @@ function AprobadorDashboard() {
             />
           </label>
         </div>
-        <div className={`grid grid-cols-1 ${hasPagosUSD ? 'lg:grid-cols-2' : ''} gap-4`}>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ChartCard title="Aprobado vs Pagado S/" subtitle="Monto aprobado y monto ya pagado por módulo (soles)">
             {pagosPEN.every(d => d.Aprobado === 0 && d.Pagado === 0) ? <EmptyChart /> : (
               <ResponsiveContainer width="100%" height={240}>
@@ -667,9 +667,10 @@ function AprobadorDashboard() {
               </ResponsiveContainer>
             )}
           </ChartCard>
-          {hasPagosUSD && (
+          {/* Siempre visible: si el mes no tiene movimiento en dólares se ve vacío (en vez de desaparecer y parecer que falta la moneda) */}
+          {(
             <ChartCard title="Aprobado vs Pagado $" subtitle="Monto aprobado y monto ya pagado por módulo (dólares)">
-              <ResponsiveContainer width="100%" height={240}>
+              {!hasPagosUSD ? <EmptyChart /> : <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={pagosUSD}>
                   <XAxis dataKey="modulo" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmtMoney(v, 'USD')} width={72} />
@@ -678,7 +679,7 @@ function AprobadorDashboard() {
                   <Bar dataKey="Aprobado" fill="#0D9488" radius={[6, 6, 0, 0]} maxBarSize={42} />
                   <Bar dataKey="Pagado" fill="#10B981" radius={[6, 6, 0, 0]} maxBarSize={42} />
                 </BarChart>
-              </ResponsiveContainer>
+              </ResponsiveContainer>}
             </ChartCard>
           )}
         </div>
