@@ -397,7 +397,7 @@ export default function SolicitudDetallePage() {
   const canAprobar   = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canRechazar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canEncuestar    = isAprobado && !isRxH && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
-  const canMarcarPagado        = isAprobado && !solicitud?.fecha_pago && userRole === ROLES.VISUALIZADOR
+  const canMarcarPagado        = isAprobado && !solicitud?.fecha_pago && (userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN)
   const canMarcarDetraccionPag = isAprobado && !!solicitud?.detraccion_id && !solicitud?.detraccion_pagada
                                  && (userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN)
   // La factura a veces llega DESPUES de aprobada/pagada: el dueño (y ADMIN) puede subir Factura XML/PDF y registrar sus
