@@ -10,12 +10,15 @@ interface Props {
   title?: string
   description?: string
   // cheque solo llega cuando permitirCheque=true y Contabilidad eligio "Cheque de gerencia"
-  onConfirm: (cuentaId: number, fechaPago: string, cheque?: { numero: string } | null) => Promise<void>
+  // monto solo llega cuando se paso montoPendiente (Factura con Valorizacion: se puede pagar en partes)
+  onConfirm: (cuentaId: number, fechaPago: string, cheque?: { numero: string } | null, monto?: number) => Promise<void>
   onCancel: () => void
   permitirCheque?: boolean   // solo Devolucion de Cliente por ahora
+  montoPendiente?: number    // si viene, pide el monto de ESTE pago (por defecto todo lo pendiente) y permite pagar en partes
+  simbolo?: string           // simbolo de moneda para mostrar el monto pendiente
 }
 
-export default function PagoModal({ open, proyectoId, title, description, onConfirm, onCancel, permitirCheque }: Props) {
+export default function PagoModal({ open, proyectoId, title, description, onConfirm, onCancel, permitirCheque, montoPendiente, simbolo }: Props) {
   const [cuentas, setCuentas]     = useState<CuentaBancaria[]>([])
   const [loading, setLoading]     = useState(false)
   const [saving, setSaving]       = useState(false)
@@ -27,6 +30,9 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
   const [fechaPago, setFechaPago] = useState(localToday())
   const [esCheque, setEsCheque]       = useState(false)
   const [numeroCheque, setNumeroCheque] = useState('')
+  const [montoTxt, setMontoTxt]       = useState('')
+  const pedirMonto = montoPendiente != null
+  const fmtM = (n: number) => n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   useEffect(() => {
     if (!open || !proyectoId) return
@@ -34,11 +40,13 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
     setFechaPago(localToday())
     setEsCheque(false)
     setNumeroCheque('')
+    setMontoTxt(montoPendiente != null ? String(Math.round(montoPendiente * 100) / 100) : '')
     setLoading(true)
     getCuentasByProyecto(proyectoId)
       .then(setCuentas)
       .catch(() => toast.error('Error al cargar cuentas'))
       .finally(() => setLoading(false))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, proyectoId])
 
   if (!open) return null
@@ -47,9 +55,14 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
     if (!cuentaId) { toast.error('Selecciona una cuenta bancaria'); return }
     if (!fechaPago) { toast.error('Ingresa la fecha de pago'); return }
     if (permitirCheque && esCheque && !numeroCheque.trim()) { toast.error('Ingresa el número de cheque'); return }
+    const monto = pedirMonto ? Math.round(parseFloat(montoTxt) * 100) / 100 : undefined
+    if (pedirMonto) {
+      if (!monto || monto <= 0) { toast.error('Ingresa el monto de este pago'); return }
+      if (monto > Math.round(montoPendiente! * 100) / 100 + 0.005) { toast.error(`El monto supera lo pendiente (${simbolo ?? ''}${fmtM(montoPendiente!)})`); return }
+    }
     setSaving(true)
     try {
-      await onConfirm(cuentaId, fechaPago, permitirCheque && esCheque ? { numero: numeroCheque.trim() } : null)
+      await onConfirm(cuentaId, fechaPago, permitirCheque && esCheque ? { numero: numeroCheque.trim() } : null, monto)
     } finally {
       setSaving(false)
     }
@@ -110,6 +123,19 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
                   <p className="text-[11px] text-gray-400 mt-1">La cuenta es la de la empresa contra la que se giró el cheque, y la fecha es la de emisión.</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Monto de este pago (solo Factura con Valorizacion) */}
+          {pedirMonto && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Monto de este pago <span className="text-red-500">*</span>
+              </label>
+              <input type="number" step="0.01" min="0" className={INPUT} value={montoTxt} onChange={e => setMontoTxt(e.target.value)} />
+              <p className="text-[11px] text-gray-400 mt-1">
+                Pendiente de pago: <strong>{simbolo ?? ''}{fmtM(montoPendiente!)}</strong>. Si pagas menos, quedará como pago parcial y podrás registrar el resto con otra cuenta.
+              </p>
             </div>
           )}
 

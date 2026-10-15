@@ -48,7 +48,17 @@ async function fetchSolicitudesPagables(cuentaId: number, fechaDesde: string, fe
     .lte('fecha_pago', fechaHasta)
   if (error) throw error
 
-  return ((data ?? []) as unknown as (SolicitudPagableRow & { fecha_pago: string })[]).map(s => {
+  // Las facturas con valorizacion pagadas en partes entran por cada pago (con su cuenta, fecha y monto), no por la
+  // solicitud completa: su cuenta_pago_id solo guarda la del ultimo pago y el monto a girar total no sale de un solo banco.
+  const ids = (data ?? []).map(r => (r as { id: number }).id)
+  const enPartes = new Set<number>()
+  if (ids.length) {
+    const { data: conPagos } = await supabase.from('solicitud_pago').select('solicitud_id').in('solicitud_id', ids)
+    for (const r of (conPagos ?? []) as { solicitud_id: number }[]) enPartes.add(r.solicitud_id)
+  }
+  const pagosEnPartes = await fetchPagosEnPartes(cuentaId, fechaDesde, fechaHasta)
+
+  const individuales = ((data ?? []) as unknown as (SolicitudPagableRow & { fecha_pago: string })[]).filter(s => !enPartes.has(s.id)).map(s => {
     const total = s.monto_total ?? 0
     const tipo = s.solicitud_tipo?.nombre
     const isPEN = (s.moneda ?? 'PEN') === 'PEN'
@@ -69,6 +79,39 @@ async function fetchSolicitudesPagables(cuentaId: number, fechaDesde: string, fe
       monto, fecha_pago: s.fecha_pago, banco: s.banco,
     }
   })
+  return [...individuales, ...pagosEnPartes]
+}
+
+async function fetchPagosEnPartes(cuentaId: number, fechaDesde: string, fechaHasta: string): Promise<RegistroPagable[]> {
+  const { data, error } = await supabase
+    .from('solicitud_pago')
+    .select('id, solicitud_id, monto, fecha_pago, solicitud:solicitud_id(codigo, razon_social, banco)')
+    .eq('cuenta_pago_id', cuentaId)
+    .gte('fecha_pago', fechaDesde)
+    .lte('fecha_pago', fechaHasta)
+  if (error) throw error
+  type Fila = { id: number; solicitud_id: number; monto: number; fecha_pago: string; solicitud: { codigo: string | null; razon_social: string | null; banco: string | null } | null }
+  const filas = (data ?? []) as unknown as Fila[]
+  // Numera las partes de cada factura (parte 1, 2...) para distinguirlas en pantalla
+  const total = new Map<number, number>()
+  if (filas.length) {
+    const { data: todas } = await supabase.from('solicitud_pago').select('id, solicitud_id').in('solicitud_id', [...new Set(filas.map(f => f.solicitud_id))]).order('id')
+    const cont = new Map<number, number>()
+    for (const t of (todas ?? []) as { id: number; solicitud_id: number }[]) {
+      const n = (cont.get(t.solicitud_id) ?? 0) + 1
+      cont.set(t.solicitud_id, n); total.set(t.id, n)
+    }
+  }
+  return filas.map(f => ({
+    modulo: 'solicitud' as ModuloConciliable,
+    id: f.solicitud_id,
+    pagoId: f.id,
+    codigo: f.solicitud?.codigo ? `${f.solicitud.codigo} (pago ${total.get(f.id) ?? 1})` : null,
+    beneficiario: f.solicitud?.razon_social ?? null,
+    monto: Number(f.monto),
+    fecha_pago: f.fecha_pago,
+    banco: f.solicitud?.banco ?? null,
+  }))
 }
 
 async function fetchGenericoPagables(
@@ -250,7 +293,7 @@ export function conciliar(movimientos: MovimientoBanco[], registros: RegistroPag
         const combinacion = buscarSubconjunto(grupo, objetivo)
         if (combinacion) {
           for (const r of combinacion) {
-            const i = disponibles.findIndex(d => d.modulo === r.modulo && d.id === r.id)
+            const i = disponibles.findIndex(d => d.modulo === r.modulo && d.id === r.id && d.pagoId === r.pagoId)
             if (i !== -1) disponibles.splice(i, 1)
           }
           conciliados.push({ movimiento: mov, estado: 'grupo', registros: combinacion })

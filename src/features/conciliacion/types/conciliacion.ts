@@ -27,6 +27,8 @@ export interface RegistroPagable {
   fecha_pago: string
   banco: string | null
   // Cheque de gerencia: se cobra dias despues de emitido, por eso se cruza con otra regla de fechas
+  // Pago en partes de una Factura con Valorizacion: cada parte es un registro propio (mismo id de solicitud)
+  pagoId?: number
   esCheque?: boolean
   numero_cheque?: string | null
 }

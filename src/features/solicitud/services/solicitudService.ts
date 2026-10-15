@@ -14,7 +14,7 @@ const SOL_SEL = [
   'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
   'numero_factura, monto_total, plan_contable_id, usuario_evaluador, moneda',
   'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
-  'detraccion_id, monto_detraccion, monto_fondo_garantia, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, detraccion_pagada, fecha_pago_detraccion, cuenta_pago_detraccion_id, aplica_igv, factura_datos_usuario, factura_datos_fecha',
+  'detraccion_id, monto_detraccion, monto_fondo_garantia, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, monto_pagado, detraccion_pagada, fecha_pago_detraccion, cuenta_pago_detraccion_id, aplica_igv, factura_datos_usuario, factura_datos_fecha',
   'proyecto:proyecto_id(id,nombre,ruc,direccion,presupuesto)',
   'proyecto_partida:proyecto_partida_id(id,nombre,presupuesto_pen,presupuesto_usd)',
   'detraccion:detraccion_id(id,codigo,concepto,porcentaje,monto_minimo)',

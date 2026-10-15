@@ -62,6 +62,41 @@ export async function getUltimaCuentaBancariaPersonal(userId: string): Promise<{
   return { banco: candidatos[0].banco, numero_cuenta: candidatos[0].numero_cuenta }
 }
 
+export interface PagoSolicitud {
+  id: number
+  solicitud_id: number
+  monto: number
+  fecha_pago: string
+  cuenta_pago_id: number
+  usuario_id: string | null
+  fecha_creacion: string
+  cuenta?: { banco: string; numero_cuenta: string; moneda: string } | null
+}
+
+/** Pagos en partes de una Factura con Valorización, en el orden en que se hicieron. */
+export async function getPagosSolicitud(solicitudId: number): Promise<PagoSolicitud[]> {
+  const { data, error } = await supabase
+    .from('solicitud_pago')
+    .select('id, solicitud_id, monto, fecha_pago, cuenta_pago_id, usuario_id, fecha_creacion, cuenta:cuenta_pago_id(banco,numero_cuenta,moneda)')
+    .eq('solicitud_id', solicitudId)
+    .order('id', { ascending: true })
+  if (error) throw error
+  return (data ?? []) as unknown as PagoSolicitud[]
+}
+
+/**
+ * Registra un pago (total o parcial) de una Factura con Valorización. La función de BD valida que el monto no
+ * supere lo pendiente y, cuando la suma de los pagos cubre el monto a girar, marca la solicitud como pagada.
+ * Devuelve lo que aún queda por pagar (0 = pagada por completo).
+ */
+export async function registrarPagoSolicitud(solicitudId: number, monto: number, cuentaId: number, fechaPago: string): Promise<number> {
+  const { data, error } = await supabase.rpc('registrar_pago_solicitud', {
+    p_solicitud_id: solicitudId, p_monto: monto, p_cuenta_id: cuentaId, p_fecha: fechaPago,
+  })
+  if (error) throw new Error(error.message)
+  return Number(data ?? 0)
+}
+
 export async function marcarPagado(
   tabla: 'solicitud' | 'solicitud_arendir' | 'solicitud_reembolso' | 'caja_chica',
   id: number,

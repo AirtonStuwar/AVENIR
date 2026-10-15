@@ -21,7 +21,9 @@ import PagoModal from '../features/solicitud/components/PagoModal'
 import CorreccionModal from '../features/solicitud/components/CorreccionModal'
 import { registrarCorreccion } from '../features/solicitud/services/correccionService'
 import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
-import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
+import { marcarPagado, registrarPagoSolicitud, getPagosSolicitud } from '../features/solicitud/services/cuentaBancariaService'
+import type { PagoSolicitud } from '../features/solicitud/services/cuentaBancariaService'
+import { montoAGirar, montoPendientePago, esPagoParcial } from '../features/solicitud/utils/montoAGirar'
 import { getTipoCambioUSD } from '../features/solicitud/services/rucService'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
 import { OrdenCompraPDF } from '../features/solicitud/components/OrdenCompraPDF'
@@ -258,6 +260,19 @@ export default function SolicitudDetallePage() {
 
   // Nombres de quien subio la factura / registro sus datos (para la Bitacora)
   const [nombresFactura, setNombresFactura] = useState<Record<string, string>>({})
+
+  // Pagos en partes (solo Factura con Valorización): se recargan junto con la solicitud
+  const [pagos, setPagos] = useState<PagoSolicitud[]>([])
+  const [nombresPago, setNombresPago] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (!solicitud?.id || solicitud.solicitud_tipo?.nombre !== 'Factura con Valorización') { setPagos([]); return }
+    getPagosSolicitud(solicitud.id).then(setPagos).catch(() => setPagos([]))
+  }, [solicitud?.id, solicitud?.solicitud_tipo?.nombre, solicitud?.monto_pagado, solicitud?.fecha_pago])
+  useEffect(() => {
+    const ids = [...new Set(pagos.map(p => p.usuario_id).filter(Boolean))] as string[]
+    if (ids.length === 0) return
+    getNombresUsuarios(ids).then(setNombresPago).catch(() => {})
+  }, [pagos])
   useEffect(() => {
     const ids = new Set<string>()
     for (const a of archivosSubidos) {
@@ -443,7 +458,25 @@ export default function SolicitudDetallePage() {
     if (isCancelado) {
       pasos.push({ titulo: 'Cancelada por el creador', estado: 'warn' })
     }
-    if (solicitud.fecha_pago) {
+    if (pagos.length > 0) {
+      const sym = solicitud.moneda === 'USD' ? '$ ' : 'S/ '
+      pagos.forEach((p, i) => {
+        const cuenta = p.cuenta ? `${p.cuenta.banco} ${p.cuenta.numero_cuenta}` : null
+        pasos.push({
+          titulo: `Pago ${i + 1} — ${sym}${p.monto.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          fecha: fmtDate(p.fecha_pago),
+          detalle: [cuenta, p.usuario_id && nombresPago[p.usuario_id] ? `Marcado por ${nombresPago[p.usuario_id]}` : null].filter(Boolean).join(' — ') || null,
+          estado: 'done',
+        })
+      })
+      if (!solicitud.fecha_pago) {
+        pasos.push({
+          titulo: 'Pago parcial — falta pagar el saldo',
+          detalle: `Pendiente: ${fmtMoney(montoPendientePago(solicitud), (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}`,
+          estado: 'current',
+        })
+      }
+    } else if (solicitud.fecha_pago) {
       pasos.push({
         titulo: 'Pagada',
         fecha: fmtDate(solicitud.fecha_pago),
@@ -670,12 +703,22 @@ export default function SolicitudDetallePage() {
   }
 
 
-  const handleConfirmPago = async (cuentaId: number, fechaPago: string) => {
+  const handleConfirmPago = async (cuentaId: number, fechaPago: string, _cheque?: { numero: string } | null, monto?: number) => {
     if (!solicitud?.id || !user?.id) return
-    await marcarPagado('solicitud', solicitud.id, cuentaId, fechaPago, user.id)
-    toast.success('Solicitud marcada como pagada')
-    setPagoOpen(false)
-    await reload(id!)
+    try {
+      if (isValorizacion && monto != null) {
+        // Factura con Valorización: se puede pagar en partes (con distintas cuentas)
+        const falta = await registrarPagoSolicitud(solicitud.id, monto, cuentaId, fechaPago)
+        toast.success(falta > 0 ? `Pago parcial registrado. Falta pagar ${fmtMoney(falta, (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}` : 'Solicitud pagada por completo')
+      } else {
+        await marcarPagado('solicitud', solicitud.id, cuentaId, fechaPago, user.id)
+        toast.success('Solicitud marcada como pagada')
+      }
+      setPagoOpen(false)
+      await reload(id!)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo registrar el pago')
+    }
   }
 
   const handleConfirmDetraccionPago = async (cuentaId: number, fechaPago: string) => {
@@ -875,7 +918,7 @@ export default function SolicitudDetallePage() {
             <>
               <button onClick={() => setPagoOpen(true)} disabled={actioning}
                 className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-                Marcar pagado
+                {isValorizacion && solicitud && esPagoParcial(solicitud) ? 'Registrar otro pago' : 'Marcar pagado'}
               </button>
               <button onClick={() => setDevolucionOpen(true)} disabled={actioning}
                 className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 disabled:opacity-50 transition-colors">
@@ -886,6 +929,11 @@ export default function SolicitudDetallePage() {
           {solicitud?.fecha_pago && (
             <span className="flex items-center gap-1 h-8 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
               Pagado {fmtDate(solicitud.fecha_pago)}
+            </span>
+          )}
+          {solicitud && esPagoParcial(solicitud) && (
+            <span className="flex items-center gap-1 h-8 px-3 rounded-xl bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200">
+              Pago parcial · falta {fmtMoney(montoPendientePago(solicitud), (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}
             </span>
           )}
           {canDuplicar && (
@@ -1566,6 +1614,51 @@ export default function SolicitudDetallePage() {
           </div>
         )}
 
+        {/* ── PAGOS EN PARTES (solo Factura con Valorización con pagos registrados) ── */}
+        {isValorizacion && solicitud && pagos.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Pagos</h2>
+              <span className="text-xs text-gray-500">
+                A girar {fmtMoney(montoAGirar(solicitud), (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[11px] uppercase tracking-wide text-gray-400 border-b border-gray-100">
+                    <th className="px-6 py-2 font-semibold">#</th>
+                    <th className="px-3 py-2 font-semibold">Fecha</th>
+                    <th className="px-3 py-2 font-semibold">Cuenta</th>
+                    <th className="px-3 py-2 font-semibold text-right">Monto</th>
+                    <th className="px-6 py-2 font-semibold">Marcó</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pagos.map((p, i) => (
+                    <tr key={p.id} className="border-b border-gray-50 last:border-0">
+                      <td className="px-6 py-2 text-gray-500">{i + 1}</td>
+                      <td className="px-3 py-2 text-gray-800">{fmtDate(p.fecha_pago)}</td>
+                      <td className="px-3 py-2 text-gray-800">{p.cuenta ? `${p.cuenta.banco} · ${p.cuenta.numero_cuenta}` : '—'}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-gray-900">{fmtMoney(p.monto, (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
+                      <td className="px-6 py-2 text-gray-500">{p.usuario_id ? (nombresPago[p.usuario_id] ?? '—') : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50">
+                    <td colSpan={3} className="px-6 py-2 text-xs font-semibold text-gray-500 uppercase text-right">Pagado</td>
+                    <td className="px-3 py-2 text-right font-bold text-gray-900">{fmtMoney(pagos.reduce((a, p) => a + p.monto, 0), (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
+                    <td className="px-6 py-2 text-xs text-amber-700 font-semibold">
+                      {solicitud.fecha_pago ? 'Completo' : `Falta ${fmtMoney(montoPendientePago(solicitud), (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}`}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* ── BITÁCORA ── */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
@@ -1622,6 +1715,9 @@ export default function SolicitudDetallePage() {
       <PagoModal
         open={pagoOpen}
         proyectoId={solicitud?.proyecto_id ?? null}
+        montoPendiente={isValorizacion && solicitud ? montoPendientePago(solicitud) : undefined}
+        simbolo={solicitud?.moneda === 'USD' ? '$ ' : 'S/ '}
+        description={isValorizacion ? 'Elige la cuenta desde la que se paga. Esta factura puede pagarse en partes con distintas cuentas.' : undefined}
         onConfirm={handleConfirmPago}
         onCancel={() => setPagoOpen(false)}
       />

@@ -19,24 +19,7 @@ import { useSolicitudFiltrosStore } from '../store/solicitudFiltrosStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
 import type { Solicitud } from '../features/solicitud/types/solicitud'
-
-// Monto neto que corresponde girar al proveedor (descuenta detracción en OC y retención en RxH;
-// Liberalidad ya viene neteada en monto_total desde que se crea).
-function montoAGirar(s: Solicitud): number {
-  const total = s.monto_total ?? 0
-  const tipo  = s.solicitud_tipo?.nombre
-  if (tipo === 'Liberalidad') return total
-
-  if (tipo === 'Recibo por Honorarios' || tipo === 'Otros') return total - (s.monto_retencion ?? 0)
-
-  // OC (incluye Factura con Valorización, que además puede tener Fondo de Garantía)
-  const fondoGarantia = s.monto_fondo_garantia ?? 0
-  if (!s.detraccion_id) return total - fondoGarantia
-  const isPEN = (s.moneda ?? 'PEN') === 'PEN'
-  if (isPEN) return total - (s.monto_detraccion ?? 0) - fondoGarantia
-  const pct = s.detraccion?.porcentaje ?? 0
-  return Math.round((total - total * pct / 100) * 100) / 100 - fondoGarantia
-}
+import { montoAGirar, montoPendientePago, esPagoParcial } from '../features/solicitud/utils/montoAGirar'
 
 export default function SolicitudesPage() {
   const navigate = useNavigate()
@@ -173,7 +156,7 @@ export default function SolicitudesPage() {
         s.banco === 'BBVA' ? 'P' : 'I',
         s.numero_cuenta ?? '',
         sanitizeBBVA(s.razon_social),
-        montoAGirar(s),
+        esPagoParcial(s) ? montoPendientePago(s) : montoAGirar(s),   // en pago parcial se gira solo lo que falta
         s.solicitud_tipo?.nombre === 'Liberalidad' || s.solicitud_tipo?.nombre === 'Otros' ? 'B' : 'F',
         s.numero_factura ?? '',
         'N',
@@ -270,7 +253,7 @@ export default function SolicitudesPage() {
   const canMarcarPago = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
   const canVerMontoTotal = userRole === ROLES.USUARIO || userRole === ROLES.APROBADOR
   const selectedPorPagar = data.filter(s =>
-    selectedIds.has(s.id) && s.estado_soli?.nombre === 'Aprobado' && !s.fecha_pago)
+    selectedIds.has(s.id) && s.estado_soli?.nombre === 'Aprobado' && !s.fecha_pago && !esPagoParcial(s))
   const selectedDetraccionPendiente = data.filter(s =>
     selectedIds.has(s.id) && !!s.detraccion_id && !s.detraccion_pagada)
 

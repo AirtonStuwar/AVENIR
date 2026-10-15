@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Search, RefreshCw, FolderOpen, FileText, XCircle, ChevronRight, ArrowDownWideNarrow } from 'lucide-react'
+import { montoAGirar, montoPendientePago, esPagoParcial } from '../utils/montoAGirar'
 import type { Solicitud } from '../types/solicitud'
 import { getProyectos } from '../../proyecto/services/proyectoService'
 import { getAreas } from '../../usuario/services/usuarioService'
@@ -8,21 +9,6 @@ function fmtMoney(val: number, moneda = 'PEN'): string {
   const sym = moneda === 'USD' ? '$ ' : 'S/ '
   const loc = moneda === 'USD' ? 'en-US' : 'es-PE'
   return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-// Monto neto que corresponde girar (descuenta detracción en OC y retención en RxH;
-// Liberalidad ya viene neteada en monto_total desde que se crea). Igual que en SolicitudesPage.
-function montoAGirar(s: Solicitud): number {
-  const total = s.monto_total ?? 0
-  const tipo  = s.solicitud_tipo?.nombre
-  if (tipo === 'Liberalidad') return total
-  if (tipo === 'Recibo por Honorarios' || tipo === 'Otros') return total - (s.monto_retencion ?? 0)
-  const fondoGarantia = s.monto_fondo_garantia ?? 0
-  if (!s.detraccion_id) return total - fondoGarantia
-  const isPEN = (s.moneda ?? 'PEN') === 'PEN'
-  if (isPEN) return total - (s.monto_detraccion ?? 0) - fondoGarantia
-  const pct = s.detraccion?.porcentaje ?? 0
-  return Math.round((total - total * pct / 100) * 100) / 100 - fondoGarantia
 }
 
 // Monto Total a mostrar en la columna: bruto tal cual está guardado, salvo para Recibo por
@@ -430,7 +416,9 @@ export default function SolicitudesTable({
                         {s.estado_soli?.nombre === 'Aprobado' && (
                           s.fecha_pago
                             ? <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded-full border border-emerald-200">Pagado</span>
-                            : <span className="text-[10px] font-semibold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-200">Por pagar</span>
+                            : esPagoParcial(s)
+                              ? <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200">Pago parcial</span>
+                              : <span className="text-[10px] font-semibold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-200">Por pagar</span>
                         )}
                       </div>
                     </td>
@@ -453,7 +441,7 @@ export default function SolicitudesTable({
                     {showMontoPago && (
                       <>
                         <td className="px-4 py-3 whitespace-nowrap text-xs font-semibold text-gray-800">
-                          {s.monto_total != null ? fmtMoney(montoAGirar(s), s.moneda ?? 'PEN') : <span className="text-gray-300 font-normal">—</span>}
+                          {s.monto_total != null ? fmtMoney(esPagoParcial(s) ? montoPendientePago(s) : montoAGirar(s), s.moneda ?? 'PEN') : <span className="text-gray-300 font-normal">—</span>}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-xs">
                           {(() => {

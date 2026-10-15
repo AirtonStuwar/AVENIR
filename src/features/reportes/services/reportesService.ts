@@ -199,7 +199,15 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
 
   // Enrich users
   const userMap = await enrichUsers(aprobadas.map(s => s.usuario_creador))
-  const cuentaMap = await enrichCuentas(aprobadas.flatMap(s => [s.cuenta_pago_id, s.cuenta_pago_detraccion_id]))
+  // Facturas con valorizacion pagadas en partes: la columna de cuenta lista todas las cuentas usadas
+  const { data: pagosParcRes } = await supabase.from('solicitud_pago').select('solicitud_id, cuenta_pago_id').in('solicitud_id', ids).order('id')
+  const pagosParc = (pagosParcRes ?? []) as { solicitud_id: number; cuenta_pago_id: number }[]
+  const cuentaMap = await enrichCuentas([...aprobadas.flatMap(s => [s.cuenta_pago_id, s.cuenta_pago_detraccion_id]), ...pagosParc.map(p => p.cuenta_pago_id)])
+  const cuentasPorSol: Record<number, string> = {}
+  for (const sid of new Set(pagosParc.map(p => p.solicitud_id))) {
+    const etiquetas = [...new Set(pagosParc.filter(p => p.solicitud_id === sid).map(p => cuentaMap[p.cuenta_pago_id]).filter(Boolean))]
+    cuentasPorSol[sid] = etiquetas.join(' + ')
+  }
 
   return aprobadas.map(s => {
     const arcs = archivosMap[s.id] ?? new Set()
@@ -254,7 +262,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
       cuenta:       s.numero_cuenta,
       correo:       u?.correo ?? null,
       fecha_pago:   s.fecha_pago,
-      cuenta_pago:  s.cuenta_pago_id ? (cuentaMap[s.cuenta_pago_id] ?? null) : null,
+      cuenta_pago:  cuentasPorSol[s.id] ?? (s.cuenta_pago_id ? (cuentaMap[s.cuenta_pago_id] ?? null) : null),
       fecha_pago_detraccion: s.fecha_pago_detraccion,
       cuenta_pago_detraccion: s.cuenta_pago_detraccion_id ? (cuentaMap[s.cuenta_pago_detraccion_id] ?? null) : null,
       arc_contrato:   arcs.has('Contrato'),

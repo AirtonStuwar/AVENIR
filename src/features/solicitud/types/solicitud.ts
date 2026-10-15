@@ -92,6 +92,8 @@ export interface Solicitud {
   fecha_pago: string | null
   cuenta_pago_id: number | null
   usuario_pago: string | null
+  // Suma de los pagos parciales registrados (solo Factura con Valorización); 0 si no tiene o se pagó de una sola vez
+  monto_pagado?: number | null
   detraccion_pagada: boolean
   fecha_pago_detraccion: string | null
   cuenta_pago_detraccion_id: number | null
@@ -157,6 +159,7 @@ export type SolicitudInsert = Omit<
   | 'fecha_pago'             // lo marca contabilidad
   | 'cuenta_pago_id'         // lo marca contabilidad
   | 'usuario_pago'           // lo marca contabilidad
+  | 'monto_pagado'           // lo calcula registrar_pago_solicitud()
   | 'detraccion_pagada'      // lo marca contabilidad
   | 'fecha_pago_detraccion'  // lo marca contabilidad
   | 'cuenta_pago_detraccion_id' // lo marca contabilidad
