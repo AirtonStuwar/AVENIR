@@ -1136,11 +1136,11 @@ Como es una Edge Function real (no un simple proxy), **no funciona con `npm run 
 
 ## Módulo Finanzas · Egresos (primera versión, 2026-10)
 
-Página `/finanzas` — **solo ADMIN (1)** por ahora (decisión explícita del usuario para esta primera versión; se abrirá a más roles después). Pensada para el gerente de Finanzas: ver **lo pagado y lo pendiente de pago** en todas las empresas, mes a mes. Sidebar: ítem "Finanzas" (ícono `LineChart`, `roles: [1]`), debajo de "Ingreso".
+Página `/finanzas` — **ADMIN (1) y APROBADOR (9)** (2026-10: se habilitó al aprobador a pedido del usuario; antes solo ADMIN. Las demás roles siguen sin acceso). Pensada para el gerente de Finanzas: ver **lo pagado y lo pendiente de pago** en todas las empresas, mes a mes. Sidebar: ítem "Finanzas" (ícono `LineChart`, `roles: [1]`), debajo de "Ingreso".
 
 **Alcance de esta versión:** solo **gasto ejecutado real** de AVENIR. **No** tiene "proyectado" ni ingresos todavía — el aviso azul de la propia pantalla lo dice. Se presentó así a propósito: lo único confiable hoy.
 
-**Seguridad:** la pantalla redirige a `/dashboard` si `userRole !== ADMIN`, pero la barrera real es la BD: la función `get_finanzas_egresos(p_desde, p_hasta)` es `SECURITY DEFINER` y lanza `42501 No autorizado` si `auth.uid()` no tiene rol 1 en `usuario_rol`; `EXECUTE` revocado a `public`/`anon`, concedido solo a `authenticated`. Verificado con simulación SQL (ADMIN OK, USUARIO y anon bloqueados). Necesita ser función y no consulta directa porque `vista_gasto_consolidado` solo tiene GRANT para `postgres`/`service_role` (ver sección Power BI) y el cliente no puede leerla.
+**Seguridad:** la pantalla redirige a `/dashboard` si el rol no es ADMIN ni APROBADOR, pero la barrera real es la BD: la función `get_finanzas_egresos(p_desde, p_hasta)` es `SECURITY DEFINER` y lanza `42501 No autorizado` si `auth.uid()` no tiene rol 1 ni 9 en `usuario_rol` (verificado: aprobador OK, USUARIO bloqueado); `EXECUTE` revocado a `public`/`anon`, concedido solo a `authenticated`. Verificado con simulación SQL (ADMIN OK, USUARIO y anon bloqueados). Necesita ser función y no consulta directa porque `vista_gasto_consolidado` solo tiene GRANT para `postgres`/`service_role` (ver sección Power BI) y el cliente no puede leerla.
 
 **`get_finanzas_egresos`** (migración `funcion_finanzas_egresos`) — lee `vista_gasto_consolidado` y devuelve filas ya agregadas: `mes` ('YYYY-MM' de `fecha_pago`, `null` si está por pagar), `empresa`, `moneda`, `categoria`, `estado_pago` ('Pagado' | 'Por pagar'), `registros`, `monto`. Criterios:
 - **Pagado** = tiene `fecha_pago`, en el mes de ese pago; el rango `p_desde`/`p_hasta` aplica solo a esto.
