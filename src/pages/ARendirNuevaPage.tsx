@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { buscarDocumentoDuplicado, textoDocumentoDuplicado } from '../features/solicitud/services/documentoDuplicadoService'
 import {
   ChevronLeft, ChevronRight, Plus, Trash2, Upload, Loader2, CheckCircle2,
 } from 'lucide-react'
@@ -259,6 +260,14 @@ export default function ARendirNuevaPage() {
   }
 
   // ── Step 2: cada fila se guarda de inmediato en la BD — nada vive solo en memoria ──
+  // Aviso (no bloquea) si el N° de documento ya está registrado en otro lugar del sistema
+  async function avisarDocDuplicado(numero: string, savedId: number | null) {
+    try {
+      const d = await buscarDocumentoDuplicado(numero, 'arendir', savedId, solicitudCreada?.codigo)
+      if (d.length) toast('⚠ Este N° ya está registrado: ' + d.map(textoDocumentoDuplicado).join(' · '), { duration: 9000 })
+    } catch { /* es solo un aviso */ }
+  }
+
   function updateRow(tempId: number, field: keyof DetalleRow, value: string | number | File | null) {
     setRows(prev => prev.map(r => r.tempId === tempId ? { ...r, [field]: value } : r))
   }
@@ -762,6 +771,7 @@ export default function ARendirNuevaPage() {
                           type="text"
                           value={row.numero_documento}
                           onChange={e => updateRow(row.tempId, 'numero_documento', e.target.value)}
+                          onBlur={e => { if (e.target.value.trim()) avisarDocDuplicado(e.target.value, row.savedId) }}
                           placeholder="N° doc"
                           className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-[#003D7D]/40"
                         />

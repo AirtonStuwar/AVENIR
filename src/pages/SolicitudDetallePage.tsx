@@ -9,7 +9,7 @@ import {
   observarSolicitud, reenviarAContabilidad,
   getArchivosBySolicitud, getArchivoUrl,
   updateSolicitud, duplicarSolicitud, uploadFirma, getUsuarioById, marcarDetraccionPagada,
-  getPlanContable, checkNumeroFacturaDuplicado, registrarDatosFactura, getNombresUsuarios,
+  getPlanContable, registrarDatosFactura, getNombresUsuarios,
 } from '../features/solicitud/services/solicitudService'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
@@ -18,6 +18,8 @@ import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import EvaluarModal from '../features/solicitud/components/EvaluarModal'
 import PagoModal from '../features/solicitud/components/PagoModal'
+import { useDocumentoDuplicado } from '../features/solicitud/services/documentoDuplicadoService'
+import AlertaDocumentoDuplicado from '../features/solicitud/components/AlertaDocumentoDuplicado'
 import CorreccionModal from '../features/solicitud/components/CorreccionModal'
 import { registrarCorreccion } from '../features/solicitud/services/correccionService'
 import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
@@ -181,7 +183,6 @@ export default function SolicitudDetallePage() {
   const [fechaVencimientoFactura, setFechaVencimientoFactura] = useState('')
   const [montoFondoGarantia,   setMontoFondoGarantia]   = useState('')
   const [savingFactura,        setSavingFactura]        = useState(false)
-  const [facturaDuplicada,     setFacturaDuplicada]     = useState<string[]>([])
 
   // Plan contable (editable en Pendiente)
   const [planContableEditOpciones, setPlanContableEditOpciones] = useState<PlanContable[]>([])
@@ -283,16 +284,9 @@ export default function SolicitudDetallePage() {
     getNombresUsuarios([...ids]).then(setNombresFactura).catch(() => {})
   }, [archivosSubidos, solicitud?.factura_datos_usuario])
 
-  // Alerta de N° de factura duplicado
-  useEffect(() => {
-    if (!numeroFactura.trim() || numeroFactura === (solicitud?.numero_factura ?? '')) { setFacturaDuplicada([]); return }
-    const timer = setTimeout(() => {
-      checkNumeroFacturaDuplicado(numeroFactura, solicitud?.id)
-        .then(rows => setFacturaDuplicada(rows.map(r => r.codigo)))
-        .catch(() => {})
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [numeroFactura, solicitud?.id, solicitud?.numero_factura])
+  // Alerta de N° de factura ya registrado (en Solicitudes, Caja Chica, A Rendir o Reembolso); solo si se está cambiando
+  const facturaDuplicada = useDocumentoDuplicado(
+    numeroFactura === (solicitud?.numero_factura ?? '') ? '' : numeroFactura, 'solicitud', solicitud?.id)
 
   // Consumo de presupuesto (partida o proyecto)
   useEffect(() => {
@@ -1340,11 +1334,7 @@ export default function SolicitudDetallePage() {
                         placeholder="Ej: F001-00123"
                         className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]"
                       />
-                      {facturaDuplicada.length > 0 && (
-                        <p className="mt-1 text-xs text-amber-600 font-medium">
-                          ⚠ Este N° de factura ya está registrado en: {facturaDuplicada.join(', ')}
-                        </p>
-                      )}
+                      <AlertaDocumentoDuplicado duplicados={facturaDuplicada} nombre="factura" />
                     </div>
                     <div>
                       <label className={LABEL}>Motivo de la factura</label>

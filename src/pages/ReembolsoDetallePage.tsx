@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { useDocumentoDuplicado } from '../features/solicitud/services/documentoDuplicadoService'
+import AlertaDocumentoDuplicado from '../features/solicitud/components/AlertaDocumentoDuplicado'
 import { pdf } from '@react-pdf/renderer'
 import ExcelJS from 'exceljs'
 import {
@@ -209,6 +211,8 @@ export default function ReembolsoDetallePage() {
   const [detProv,     setDetProv]     = useState('')
   const [detTipoDoc,  setDetTipoDoc]  = useState('FACTURA')
   const [detNumDoc,   setDetNumDoc]   = useState('')
+  // N° de documento ya registrado en otro lugar (solo aviso)
+  const docDuplicado = useDocumentoDuplicado(detFormOpen ? detNumDoc : '', 'reembolso', detEditId, solicitud?.codigo)
   const [detConcepto, setDetConcepto] = useState('')
   const [detImporte,  setDetImporte]  = useState('')
   const [detSaving,   setDetSaving]   = useState(false)
@@ -866,6 +870,7 @@ export default function ReembolsoDetallePage() {
                 <label className="text-[10px] font-semibold text-gray-500 uppercase">N° Doc</label>
                 <input className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
                   value={detNumDoc} onChange={e => setDetNumDoc(e.target.value)} />
+                <AlertaDocumentoDuplicado duplicados={docDuplicado} />
               </div>
               <div className="col-span-2">
                 <label className="text-[10px] font-semibold text-gray-500 uppercase">Concepto *</label>

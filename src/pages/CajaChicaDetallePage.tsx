@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { useDocumentoDuplicado } from '../features/solicitud/services/documentoDuplicadoService'
+import AlertaDocumentoDuplicado from '../features/solicitud/components/AlertaDocumentoDuplicado'
 import {
   ArrowLeft, Plus, Trash2, Pencil, Send, CheckCircle, Ban, RotateCcw,
   Upload, Loader2, AlertCircle, Wallet, Download, ExternalLink, ShieldAlert,
@@ -87,6 +89,8 @@ export default function CajaChicaDetallePage() {
   const [proveedor, setProveedor] = useState('')
   const [tipoDoc, setTipoDoc] = useState('FACTURA')
   const [numDoc, setNumDoc] = useState('')
+  // N° de documento ya registrado en otro lugar (solo aviso)
+  const docDuplicado = useDocumentoDuplicado(formOpen ? numDoc : '', 'caja_chica', editId, cc?.codigo)
   const [detalle, setDetalle] = useState('')
   const [monto, setMonto] = useState('')
   const [archivo, setArchivo] = useState<File | null>(null)
@@ -783,6 +787,7 @@ export default function CajaChicaDetallePage() {
                 <div>
                   <label className="text-[10px] font-semibold text-gray-500 uppercase">N° Doc</label>
                   <input className={INPUT} value={numDoc} onChange={e => setNumDoc(e.target.value)} />
+                  <AlertaDocumentoDuplicado duplicados={docDuplicado} />
                 </div>
                 <div className="col-span-2">
                   <label className="text-[10px] font-semibold text-gray-500 uppercase">Detalle *</label>
