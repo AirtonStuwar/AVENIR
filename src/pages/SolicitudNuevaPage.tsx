@@ -116,6 +116,7 @@ export default function SolicitudNuevaPage() {
   const [fecha_vencimiento_rxh,   setFechaVencimientoRxh]    = useState('')
   const [aplica_suspension, setAplicaSuspension] = useState<boolean | null>(null)
   const [aplica_igv,        setAplicaIgv]        = useState(true)
+  const [exoneradoTxt,      setExoneradoTxt]     = useState('')   // operacion exonerada (opcional, solo pagos a proveedores)
   const [tipoCambio,        setTipoCambio]       = useState<number | null>(null)
   const [motivoLiberalidad, setMotivoLiberalidad] = useState('')
   const [montoBrutoLiberalidad, setMontoBrutoLiberalidad] = useState('')
@@ -376,7 +377,16 @@ export default function SolicitudNuevaPage() {
 
   const subtotal     = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
   const igv          = isRxH || !aplica_igv ? 0 : subtotal * 0.18
-  const totalGeneral = subtotal + igv
+  // Operacion exonerada: solo "Pago a proveedores" con IGV; el usuario la escribe a mano cuando la factura la trae
+  const esPagoProveedores = tipoNombreSeleccionado === 'PAGO A PROVEEDORES'
+  const exonerado    = esPagoProveedores && aplica_igv ? Math.max(0, parseFloat(exoneradoTxt) || 0) : 0
+  const totalGeneral = subtotal + igv + exonerado
+
+  const guardarExonerado = async () => {
+    if (!solicitudId || !esPagoProveedores) return
+    try { await updateSolicitud(solicitudId, { monto_exonerado: exonerado }) }
+    catch { toast.error('No se pudo guardar la operación exonerada') }
+  }
 
   const inp = (err?: string) => (err ? INPUT_ERR : INPUT)
 
@@ -946,6 +956,19 @@ export default function SolicitudNuevaPage() {
                           <td />
                         </tr>
                       )}
+                      {esPagoProveedores && aplica_igv && (
+                        <tr>
+                          <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">
+                            Op. exonerada <span className="text-gray-300">(opcional, solo si la factura la trae)</span>
+                          </td>
+                          <td className="px-5 py-2 text-right">
+                            <input type="number" min="0" step="0.01" value={exoneradoTxt} placeholder="0.00"
+                              onChange={e => setExoneradoTxt(e.target.value)} onBlur={guardarExonerado}
+                              className="w-32 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]" />
+                          </td>
+                          <td />
+                        </tr>
+                      )}
                       <tr className="border-t border-gray-200">
                         <td colSpan={4} className="px-5 py-3 text-right text-sm font-semibold text-gray-600">
                           {isRxH ? 'Total:' : 'Total general:'}
@@ -981,7 +1004,8 @@ export default function SolicitudNuevaPage() {
           const subtotal = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
           const subtotalEnSoles = moneda === 'USD' && tipoCambio ? subtotal * tipoCambio : subtotal
           const superaUmbral = isRxH && subtotalEnSoles >= 1500
-          const totalConIgvEnSoles = subtotalEnSoles * 1.18
+          const exoneradoEnSoles = moneda === 'USD' && tipoCambio ? exonerado * tipoCambio : exonerado
+          const totalConIgvEnSoles = subtotalEnSoles * 1.18 + exoneradoEnSoles
           const requiereContrato = !isRxH && !isLiberalidad && !isOtros && aplica_igv && totalConIgvEnSoles >= 3500
 
           const tiposVisiblesRxH = aplica_suspension === true

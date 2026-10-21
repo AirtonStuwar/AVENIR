@@ -178,6 +178,7 @@ export default function SolicitudDetallePage() {
 
   // Datos de factura
   const [numeroFactura,        setNumeroFactura]        = useState('')
+  const [exoneradoTxt,         setExoneradoTxt]         = useState('')   // operacion exonerada (solo pagos a proveedores)
   const [motivoFactura,        setMotivoFactura]        = useState('')
   const [fechaEmisionFactura,  setFechaEmisionFactura]  = useState('')
   const [fechaVencimientoFactura, setFechaVencimientoFactura] = useState('')
@@ -257,7 +258,8 @@ export default function SolicitudDetallePage() {
     setFechaEmisionFactura(solicitud?.fecha_emision_factura ?? '')
     setFechaVencimientoFactura(solicitud?.fecha_vencimiento_factura ?? '')
     setMontoFondoGarantia(solicitud?.monto_fondo_garantia != null ? String(solicitud.monto_fondo_garantia) : '')
-  }, [solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura, solicitud?.monto_fondo_garantia])
+    setExoneradoTxt(Number(solicitud?.monto_exonerado ?? 0) > 0 ? String(solicitud?.monto_exonerado) : '')
+  }, [solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura, solicitud?.monto_fondo_garantia, solicitud?.monto_exonerado])
 
   // Nombres de quien subio la factura / registro sus datos (para la Bitacora)
   const [nombresFactura, setNombresFactura] = useState<Record<string, string>>({})
@@ -862,7 +864,25 @@ export default function SolicitudDetallePage() {
   const retencionPct   = solicitud?.porcentaje_retencion ?? 0
   const retencion      = isRxH || isLiberalidad || isOtros ? (solicitud?.monto_retencion ?? subtotal * retencionPct / 100) : 0
   const igv            = isRxH || isLiberalidad || isOtros || sinIgv ? 0 : subtotal * 0.18
-  const totalConIgv    = isRxH || isLiberalidad || isOtros ? subtotal - retencion : subtotal + igv
+  // Operacion exonerada (solo "PAGO A PROVEEDORES"): no paga IGV y se suma al total. 0 en el resto y en las facturas antiguas.
+  const exonerado      = isRxH || isLiberalidad || isOtros ? 0 : Number(solicitud?.monto_exonerado ?? 0)
+  const esPagoProveedores = solicitud?.solicitud_tipo?.nombre === 'PAGO A PROVEEDORES'
+  // Editable solo en Pendiente: el monto total se recalcula al enviar a revisión
+  const canEditExonerado = esPagoProveedores && !sinIgv && isPendiente && canEdit
+  const totalConIgv    = isRxH || isLiberalidad || isOtros ? subtotal - retencion : subtotal + igv + exonerado
+
+  const handleGuardarExonerado = async () => {
+    if (!solicitud?.id || !id || !canEditExonerado) return
+    const nuevo = Math.max(0, parseFloat(exoneradoTxt) || 0)
+    if (nuevo === Number(solicitud.monto_exonerado ?? 0)) return
+    try {
+      await updateSolicitud(solicitud.id, { monto_exonerado: nuevo })
+      toast.success('Operación exonerada guardada')
+      await reload(id)
+    } catch {
+      toast.error('No se pudo guardar la operación exonerada')
+    }
+  }
 
   // ── Loading / not found ───────────────────────────────────────
   if (loadingSol) {
@@ -1252,6 +1272,21 @@ export default function SolicitudDetallePage() {
                     <tr>
                       <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">{sinIgv ? 'IGV (no aplica)' : 'IGV (18%)'}</td>
                       <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(igv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
+                      {canEdit && <td />}
+                    </tr>
+                  )}
+                  {!isRxH && !isLiberalidad && !isOtros && (canEditExonerado || exonerado > 0) && (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">
+                        Op. exonerada {canEditExonerado && <span className="text-gray-300">(opcional, solo si la factura la trae)</span>}
+                      </td>
+                      <td className="px-5 py-2 text-right text-sm text-gray-600">
+                        {canEditExonerado ? (
+                          <input type="number" min="0" step="0.01" value={exoneradoTxt} placeholder="0.00"
+                            onChange={e => setExoneradoTxt(e.target.value)} onBlur={handleGuardarExonerado}
+                            className="w-32 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]" />
+                        ) : fmtMoney(exonerado, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}
+                      </td>
                       {canEdit && <td />}
                     </tr>
                   )}

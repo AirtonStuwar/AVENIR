@@ -98,7 +98,8 @@ function montoSolicitudes(sols: SolicitudRow[], detalles: { solicitud_id: number
     const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
     const isLiberalidad = s.solicitud_tipo?.nombre === 'Liberalidad'
     const isOtros = s.solicitud_tipo?.nombre === 'Otros'
-    return sum + (isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? subtotal : subtotal * 1.18)
+    const exonerado = isRxH || isLiberalidad || isOtros ? 0 : Number(s.monto_exonerado ?? 0)
+    return sum + (isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? subtotal : subtotal * 1.18) + exonerado
   }, 0)
 }
 
@@ -207,7 +208,8 @@ function AdminDashboard() {
       const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
       const isLiberalidad = s.solicitud_tipo?.nombre === 'Liberalidad'
       const isOtros = s.solicitud_tipo?.nombre === 'Otros'
-      map[nombre] = (map[nombre] ?? 0) + (isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? subtotal : subtotal * 1.18)
+      const exonerado = isRxH || isLiberalidad || isOtros ? 0 : Number(s.monto_exonerado ?? 0)
+      map[nombre] = (map[nombre] ?? 0) + (isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? subtotal : subtotal * 1.18) + exonerado
     }
     return Object.entries(map).filter(([, v]) => v > 0).sort(([, a], [, b]) => b - a).slice(0, 5).map(([name, monto]) => ({
       name: name.length > 22 ? name.slice(0, 22) + '…' : name,

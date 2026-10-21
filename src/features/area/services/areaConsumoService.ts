@@ -52,11 +52,11 @@ export async function getConsumoByAreas(): Promise<AreaConsumo[]> {
   if (estadoIds.length) {
     const { data: solData } = await supabase
       .from('solicitud')
-      .select('id, usuario_creador, moneda, aplica_igv, solicitud_tipo:tipo_id(nombre)')
+      .select('id, usuario_creador, moneda, aplica_igv, monto_exonerado, solicitud_tipo:tipo_id(nombre)')
       .in('estado_id', estadoIds)
 
     const sols = (solData ?? []) as unknown as {
-      id: number; usuario_creador: string | null; moneda: string | null; aplica_igv: boolean
+      id: number; usuario_creador: string | null; moneda: string | null; aplica_igv: boolean; monto_exonerado: number | null
       solicitud_tipo: { nombre: string } | null
     }[]
 
@@ -81,7 +81,8 @@ export async function getConsumoByAreas(): Promise<AreaConsumo[]> {
         const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
         const isLiberalidad = s.solicitud_tipo?.nombre === 'Liberalidad'
         const isOtros = s.solicitud_tipo?.nombre === 'Otros'
-        const total = isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? subtotal : subtotal * 1.18
+        const exonerado = isRxH || isLiberalidad || isOtros ? 0 : Number(s.monto_exonerado ?? 0)
+        const total = (isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? subtotal : subtotal * 1.18) + exonerado
         const isPEN = (s.moneda ?? 'PEN') === 'PEN'
         if (isRxH) {
           if (isPEN) a.rxh_pen += total; else a.rxh_usd += total

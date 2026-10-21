@@ -15,6 +15,7 @@ interface SolRow {
   id: number
   moneda: string | null
   aplica_igv: boolean
+  monto_exonerado: number | null
   estado_soli: { nombre: string } | null
   solicitud_tipo: { nombre: string } | null
   plan_contable: {
@@ -57,7 +58,7 @@ export async function getGastoPorPlanContable(userId?: string): Promise<GastoPla
   // ── Solicitudes (OC / RxH / Liberalidad) ────────────────────────
   let qSol = supabase
     .from('solicitud')
-    .select('id, moneda, aplica_igv, estado_soli:estado_id(nombre), solicitud_tipo:tipo_id(nombre), plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)')
+    .select('id, moneda, aplica_igv, monto_exonerado, estado_soli:estado_id(nombre), solicitud_tipo:tipo_id(nombre), plan_contable:plan_contable_brash!solicitud_plan_contable_id_fkey(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal)')
     .not('plan_contable_id', 'is', null)
   if (userId) qSol = qSol.eq('usuario_creador', userId)
   const { data: solData, error: solErr } = await qSol
@@ -85,7 +86,8 @@ export async function getGastoPorPlanContable(userId?: string): Promise<GastoPla
       const isRxH = s.solicitud_tipo?.nombre === 'Recibo por Honorarios'
       const isLiberalidad = s.solicitud_tipo?.nombre === 'Liberalidad'
       const isOtros = s.solicitud_tipo?.nombre === 'Otros'
-      const total = isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? subtotal : subtotal * 1.18
+      const exonerado = isRxH || isLiberalidad || isOtros ? 0 : Number(s.monto_exonerado ?? 0)
+      const total = (isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? subtotal : subtotal * 1.18) + exonerado
       const entry = ensurePlan(byPlan, plan)
       entry.cantidad += 1
       if ((s.moneda ?? 'PEN') === 'USD') entry.usd += total

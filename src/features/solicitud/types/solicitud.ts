@@ -88,6 +88,8 @@ export interface Solicitud {
   detraccion_id:    number | null
   monto_detraccion: number | null
   monto_fondo_garantia: number | null
+  // Operacion exonerada (sin IGV) que se suma al total ademas de base + IGV. Solo "PAGO A PROVEEDORES"; 0 en el resto y en las facturas antiguas
+  monto_exonerado?: number | null
   proyecto_partida_id: number | null
   fecha_pago: string | null
   cuenta_pago_id: number | null

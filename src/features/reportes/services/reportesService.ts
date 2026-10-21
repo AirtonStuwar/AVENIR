@@ -132,7 +132,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     .select([
       'id, codigo, tipo_id, usuario_creador, razon_social, ruc, moneda, aplica_igv',
       'numero_factura, numero_rxh, porcentaje_retencion, monto_retencion',
-      'detraccion_id, monto_detraccion, monto_fondo_garantia, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura, fecha_pago',
+      'detraccion_id, monto_detraccion, monto_fondo_garantia, monto_exonerado, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura, fecha_pago',
       'cuenta_pago_id, fecha_pago_detraccion, cuenta_pago_detraccion_id',
       'proyecto_id, proyecto_partida_id',
       'banco, numero_cuenta, cuenta_detracciones, contacto_correo',
@@ -156,7 +156,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     razon_social: string | null; ruc: string | null; moneda: string | null; aplica_igv: boolean
     numero_factura: string | null; numero_rxh: string | null
     porcentaje_retencion: number | null; monto_retencion: number | null
-    monto_detraccion: number | null; monto_fondo_garantia: number | null; fecha_aprobacion: string | null
+    monto_detraccion: number | null; monto_fondo_garantia: number | null; monto_exonerado: number | null; fecha_aprobacion: string | null
     fecha_creacion: string | null; fecha_requerida: string | null; fecha_emision_factura: string | null; fecha_pago: string | null
     cuenta_pago_id: number | null; fecha_pago_detraccion: string | null; cuenta_pago_detraccion_id: number | null
     banco: string | null; numero_cuenta: string | null; cuenta_detracciones: string | null; contacto_correo: string | null
@@ -217,7 +217,9 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     const det      = detallesMap[s.id] ?? []
     const subtotal = det.reduce((sum, d) => sum + d.valor_total, 0)
     const igv      = isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? 0 : subtotal * 0.18
-    const total    = subtotal + igv
+    // Operacion exonerada: se suma al total sin IGV (solo pagos a proveedores; 0 en el resto)
+    const exonerado = isRxH || isLiberalidad || isOtros ? 0 : Number(s.monto_exonerado ?? 0)
+    const total    = subtotal + igv + exonerado
     const detrac   = s.monto_detraccion ?? 0
     const reten    = s.monto_retencion ?? 0
     const fondoGarantia = s.monto_fondo_garantia ?? 0

@@ -398,7 +398,8 @@ export function OrdenCompraPDF({
   const retencionPct = isRxH || isLiberalidad || isOtros ? (solicitud.porcentaje_retencion ?? 0) : 0
   const retencion    = isRxH || isLiberalidad || isOtros ? (solicitud.monto_retencion ?? subtotal * retencionPct / 100) : 0
   const igv          = isRxH || isLiberalidad || isOtros || solicitud.aplica_igv === false ? 0 : subtotal * 0.18
-  const total        = isRxH || isLiberalidad || isOtros ? subtotal - retencion : subtotal + igv
+  const exonerado    = isRxH || isLiberalidad || isOtros ? 0 : Number(solicitud.monto_exonerado ?? 0)
+  const total        = isRxH || isLiberalidad || isOtros ? subtotal - retencion : subtotal + igv + exonerado
 
   const proyecto    = solicitud.proyecto
   const hoy         = new Intl.DateTimeFormat('es-PE', { dateStyle: 'short' }).format(new Date())
@@ -531,6 +532,12 @@ export function OrdenCompraPDF({
                   <Text style={S.totalLabel}>{solicitud.aplica_igv === false ? 'IGV (no aplica)' : 'IGV (18%)'}</Text>
                   <Text style={S.totalValue}>{fmtMoney(igv, moneda)}</Text>
                 </View>
+                {exonerado > 0 && (
+                  <View style={S.totalRow}>
+                    <Text style={S.totalLabel}>Op. exonerada</Text>
+                    <Text style={S.totalValue}>{fmtMoney(exonerado, moneda)}</Text>
+                  </View>
+                )}
               </>
             )}
             <View style={S.totalFinal}>
