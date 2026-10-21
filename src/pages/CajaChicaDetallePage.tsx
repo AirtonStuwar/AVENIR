@@ -175,6 +175,9 @@ export default function CajaChicaDetallePage() {
   const canEvaluar = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canAprobar = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canMarcarPagado = isAutorizado && !cc.fecha_pago && (userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN)
+  // ADMIN puede adjuntar/reemplazar el documento sustento de una caja chica ya Autorizada/pagada (olvido del usuario).
+  // Solo el archivo: pasa por la corrección controlada (queda en correccion_log, visible en Reportes > Correcciones).
+  const canSustentoPostPago = userRole === ROLES.ADMIN && isAutorizado && !canEdit
   const canShowPDF = detalles.length > 0
 
   // ── Bitácora (timeline de solo lectura) ─────────────────────────
@@ -431,7 +434,12 @@ export default function CajaChicaDetallePage() {
     setUploadingSustento(true)
     try {
       const path = await uploadSustentoCajaChica(file, cc.id)
-      await updateCajaChica(cc.id, { documento_sustento_path: path })
+      if (canSustentoPostPago && user?.id) {
+        await registrarCorreccion('caja_chica', cc.id, 'documento_sustento_path', cc.documento_sustento_path ?? null, path,
+          'Otro', 'Documento sustento adjuntado/reemplazado después del pago', user.id)
+      } else {
+        await updateCajaChica(cc.id, { documento_sustento_path: path })
+      }
       toast.success('Documento sustento subido')
       await loadData()
     } catch {
@@ -919,7 +927,7 @@ export default function CajaChicaDetallePage() {
                 className="flex items-center gap-1.5 text-sm text-[#003D7D] font-semibold hover:underline">
                 <ExternalLink size={14} /> Ver documento
               </button>
-              {canEdit && (
+              {(canEdit || canSustentoPostPago) && (
                 <label className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#003D7D] cursor-pointer">
                   {uploadingSustento
                     ? <Loader2 size={13} className="animate-spin" />
@@ -930,7 +938,7 @@ export default function CajaChicaDetallePage() {
                 </label>
               )}
             </div>
-          ) : canEdit ? (
+          ) : (canEdit || canSustentoPostPago) ? (
             <label className="flex items-center gap-2 w-fit px-4 py-2 rounded-xl border border-dashed border-gray-300 text-sm text-gray-500 hover:text-[#003D7D] hover:border-[#003D7D]/40 cursor-pointer transition-colors">
               {uploadingSustento
                 ? <Loader2 size={14} className="animate-spin" />
