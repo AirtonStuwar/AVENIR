@@ -230,6 +230,7 @@ export async function marcarEvaluadoCajaChica(id: number, planContableId: number
       estado: 'Evaluado',
       plan_contable_id: planContableId,
       usuario_evaluador: evaluadorId,
+      fecha_evaluacion: new Date().toISOString(),
     } as Partial<CajaChica>)
     .eq('id', id)
     .eq('estado', 'En Revision')
@@ -240,7 +241,7 @@ export async function marcarEvaluadoCajaChica(id: number, planContableId: number
 }
 
 export async function devolverDesdeRevisionCajaChica(id: number, comentario: string): Promise<void> {
-  await updateCajaChica(id, { estado: 'Devuelto', comentario } as Partial<CajaChica>)
+  await updateCajaChica(id, { estado: 'Devuelto', comentario, fecha_devolucion_evaluador: new Date().toISOString() } as Partial<CajaChica>)
 }
 
 export async function autorizarCajaChica(id: number, aprobadorId: string): Promise<void> {
@@ -261,7 +262,7 @@ export async function rechazarCajaChica(id: number, aprobadorId: string, comenta
 }
 
 export async function devolverCajaChica(id: number, comentario: string): Promise<void> {
-  await updateCajaChica(id, { estado: 'Devuelto', comentario } as Partial<CajaChica>)
+  await updateCajaChica(id, { estado: 'Devuelto', comentario, fecha_devolucion_evaluador: new Date().toISOString() } as Partial<CajaChica>)
 }
 
 /** VISUALIZADOR/ADMIN: encontró un error antes de pagar → estado Observado */

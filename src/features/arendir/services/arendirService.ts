@@ -105,7 +105,7 @@ export async function enviarARevisionARendir(id: number): Promise<void> {
 /** EVALUADOR/ADMIN: revisó el adelanto y lo pasa al aprobador → Evaluado */
 export async function marcarEvaluadoARendir(id: number, usuarioId: string): Promise<void> {
   const { data, error } = await supabase.from('solicitud_arendir')
-    .update({ estado: 'Evaluado', usuario_evaluador: usuarioId })
+    .update({ estado: 'Evaluado', usuario_evaluador: usuarioId, fecha_evaluacion: new Date().toISOString() })
     .eq('id', id)
     .eq('estado', 'En Evaluación')
     .select()
@@ -117,7 +117,7 @@ export async function marcarEvaluadoARendir(id: number, usuarioId: string): Prom
 /** EVALUADOR/ADMIN: encontró un error antes de pasarlo al aprobador → Devuelto */
 export async function devolverDesdeEvaluacionARendir(id: number, comentario: string): Promise<void> {
   const { error } = await supabase.from('solicitud_arendir')
-    .update({ estado: 'Devuelto', comentario, usuario_evaluador: null })
+    .update({ estado: 'Devuelto', comentario, usuario_evaluador: null, fecha_devolucion_evaluador: new Date().toISOString() })
     .eq('id', id)
   if (error) throw error
 }

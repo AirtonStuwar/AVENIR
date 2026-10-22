@@ -418,6 +418,7 @@ export default function SolicitudDetallePage() {
     if (isPendiente && solicitud.comentario_gerencia) {
       pasos.push({
         titulo: 'Devuelta por el evaluador',
+        fecha: (solicitud.fecha_devolucion_evaluador ? fmtDateHora(solicitud.fecha_devolucion_evaluador) : null),
         detalle: `${solicitud.evaluador_nombre ? `${solicitud.evaluador_nombre} — ` : ''}${solicitud.comentario_gerencia}`,
         estado: 'warn',
       })
@@ -426,6 +427,7 @@ export default function SolicitudDetallePage() {
     } else if (!isPendiente && !isCancelado) {
       pasos.push({
         titulo: 'Evaluada',
+        fecha: (solicitud.fecha_evaluacion ? fmtDateHora(solicitud.fecha_evaluacion) : null),
         detalle: solicitud.evaluador_nombre ? `Por ${solicitud.evaluador_nombre}${solicitud.plan_contable?.nombre_cuenta_contable ? ` — Plan contable: ${solicitud.plan_contable.nombre_cuenta_contable}` : ''}` : null,
         estado: 'done',
       })

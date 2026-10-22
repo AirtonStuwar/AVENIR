@@ -474,6 +474,7 @@ export default function DevolucionDetallePage() {
     if (isDevueltoSt) {
       pasos.push({
         titulo: 'Devuelta por el evaluador',
+        fecha: (dev.fecha_devolucion_evaluador ? fmtDateHora(dev.fecha_devolucion_evaluador) : null),
         detalle: `${dev.evaluador_nombre ? `${dev.evaluador_nombre} — ` : ''}${dev.comentario ?? ''}`,
         estado: 'warn',
       })
@@ -482,6 +483,7 @@ export default function DevolucionDetallePage() {
     } else if (!isPend && !isCanceladoSt) {
       pasos.push({
         titulo: 'Evaluada',
+        fecha: (dev.fecha_evaluacion ? fmtDateHora(dev.fecha_evaluacion) : null),
         detalle: dev.evaluador_nombre ? `Por ${dev.evaluador_nombre}` : null,
         estado: 'done',
       })

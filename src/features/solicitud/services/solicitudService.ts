@@ -12,7 +12,7 @@ const SOL_SEL = [
   'condiciones, motivo_factura, fecha_emision_factura, fecha_vencimiento_factura',
   'fecha_pedido, fecha_requerida, estado_id, fecha_creacion',
   'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
-  'numero_factura, monto_total, plan_contable_id, usuario_evaluador, moneda',
+  'numero_factura, monto_total, plan_contable_id, usuario_evaluador, fecha_evaluacion, fecha_devolucion_evaluador, moneda',
   'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
   'detraccion_id, monto_detraccion, monto_fondo_garantia, monto_exonerado, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, monto_pagado, detraccion_pagada, fecha_pago_detraccion, cuenta_pago_detraccion_id, aplica_igv, factura_datos_usuario, factura_datos_fecha',
   'proyecto:proyecto_id(id,nombre,ruc,direccion,presupuesto)',
@@ -276,6 +276,7 @@ export async function marcarEvaluado(
       estado_id: evaluadoId,
       plan_contable_id: planContableId,
       usuario_evaluador: userId,
+      fecha_evaluacion: new Date().toISOString(),
       ...(porcentajeRetencion !== undefined && { porcentaje_retencion: porcentajeRetencion, monto_retencion: montoRetencion ?? null }),
       ...(detraccionId !== undefined
         ? { detraccion_id: detraccionId, monto_detraccion: montoDetraccion ?? null }
@@ -322,6 +323,7 @@ export async function devolverSolicitud(id: number, comentario: string, usuarioI
   return updateSolicitud(id, {
     estado_id: estadoId,
     comentario_gerencia: comentario,
+    fecha_devolucion_evaluador: new Date().toISOString(),
     ...(usuarioId ? { usuario_evaluador: usuarioId } : {}),
   })
 }

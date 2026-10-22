@@ -80,6 +80,9 @@ export interface Solicitud {
   moneda: string | null
   plan_contable_id: number | null
   usuario_evaluador: string | null
+  // Cuándo evaluó el evaluador y cuándo devolvió (columnas nuevas; null en lo evaluado/devuelto antes de agregarlas)
+  fecha_evaluacion?: string | null
+  fecha_devolucion_evaluador?: string | null
   numero_rxh: string | null
   periodo_servicio: string | null
   porcentaje_retencion: number | null

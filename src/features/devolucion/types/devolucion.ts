@@ -29,6 +29,9 @@ export interface DevolucionCliente {
   usuario_pago: string | null
   plan_contable_id: number | null
   usuario_evaluador: string | null
+  // Cuándo evaluó el evaluador y cuándo devolvió (columnas nuevas; null en lo evaluado/devuelto antes de agregarlas)
+  fecha_evaluacion?: string | null
+  fecha_devolucion_evaluador?: string | null
 
   // Joins
   proyecto?: { id: number; nombre: string } | null

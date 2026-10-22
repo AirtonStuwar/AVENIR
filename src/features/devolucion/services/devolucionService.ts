@@ -99,7 +99,7 @@ export async function marcarEvaluadoDevolucion(
   evaluadorId: string,
 ): Promise<void> {
   const { data, error } = await supabase.from('devolucion_cliente')
-    .update({ estado: 'Evaluado', plan_contable_id: planContableId, usuario_evaluador: evaluadorId })
+    .update({ estado: 'Evaluado', plan_contable_id: planContableId, usuario_evaluador: evaluadorId, fecha_evaluacion: new Date().toISOString() })
     .eq('id', id)
     .eq('estado', 'En Revision')
     .select()
@@ -111,7 +111,7 @@ export async function marcarEvaluadoDevolucion(
 /** EVALUADOR/ADMIN: devuelve desde revisión con comentario */
 export async function devolverDesdeRevisionDevolucion(id: number, comentario: string): Promise<void> {
   const { error } = await supabase.from('devolucion_cliente')
-    .update({ estado: 'Devuelto', comentario }).eq('id', id)
+    .update({ estado: 'Devuelto', comentario, fecha_devolucion_evaluador: new Date().toISOString() }).eq('id', id)
   if (error) throw error
 }
 

@@ -102,7 +102,7 @@ export async function marcarEvaluadoReembolso(
   evaluadorId: string,
 ): Promise<void> {
   const { data, error } = await supabase.from('solicitud_reembolso')
-    .update({ estado: 'Evaluado', plan_contable_id: planContableId, usuario_evaluador: evaluadorId })
+    .update({ estado: 'Evaluado', plan_contable_id: planContableId, usuario_evaluador: evaluadorId, fecha_evaluacion: new Date().toISOString() })
     .eq('id', id)
     .eq('estado', 'En Revision')
     .select()
@@ -113,7 +113,7 @@ export async function marcarEvaluadoReembolso(
 
 export async function devolverDesdeRevisionReembolso(id: number, comentario: string): Promise<void> {
   const { error } = await supabase.from('solicitud_reembolso')
-    .update({ estado: 'Devuelto', comentario }).eq('id', id)
+    .update({ estado: 'Devuelto', comentario, fecha_devolucion_evaluador: new Date().toISOString() }).eq('id', id)
   if (error) throw error
 }
 
@@ -132,7 +132,7 @@ export async function rechazarReembolso(id: number, comentario: string): Promise
 
 export async function devolverReembolso(id: number, comentario: string): Promise<void> {
   const { error } = await supabase.from('solicitud_reembolso')
-    .update({ estado: 'Devuelto', comentario }).eq('id', id)
+    .update({ estado: 'Devuelto', comentario, fecha_devolucion_evaluador: new Date().toISOString() }).eq('id', id)
   if (error) throw error
 }
 

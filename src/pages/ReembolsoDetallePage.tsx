@@ -326,6 +326,7 @@ export default function ReembolsoDetallePage() {
     if (isDevueltoSt) {
       pasos.push({
         titulo: 'Devuelto por el evaluador',
+        fecha: (solicitud.fecha_devolucion_evaluador ? fmtDateHora(solicitud.fecha_devolucion_evaluador) : null),
         detalle: `${solicitud.evaluador_nombre ? `${solicitud.evaluador_nombre} — ` : ''}${solicitud.comentario ?? ''}`,
         estado: 'warn',
       })
@@ -334,6 +335,7 @@ export default function ReembolsoDetallePage() {
     } else if (!isPend && !isCanceladoSt) {
       pasos.push({
         titulo: 'Evaluado',
+        fecha: (solicitud.fecha_evaluacion ? fmtDateHora(solicitud.fecha_evaluacion) : null),
         detalle: solicitud.evaluador_nombre ? `Por ${solicitud.evaluador_nombre}` : null,
         estado: 'done',
       })

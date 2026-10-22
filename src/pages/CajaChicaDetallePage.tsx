@@ -194,6 +194,7 @@ export default function CajaChicaDetallePage() {
     if (isDevuelto) {
       pasos.push({
         titulo: 'Devuelta por el evaluador/aprobador',
+        fecha: (cc.fecha_devolucion_evaluador ? fmtDateHora(cc.fecha_devolucion_evaluador) : null),
         detalle: `${cc.evaluador_nombre ? `${cc.evaluador_nombre} — ` : ''}${cc.comentario ?? ''}`,
         estado: 'warn',
       })
@@ -202,6 +203,7 @@ export default function CajaChicaDetallePage() {
     } else if (!isPendiente && !isCancelado) {
       pasos.push({
         titulo: 'Evaluada',
+        fecha: (cc.fecha_evaluacion ? fmtDateHora(cc.fecha_evaluacion) : null),
         detalle: cc.evaluador_nombre ? `Por ${cc.evaluador_nombre}` : null,
         estado: 'done',
       })
