@@ -202,6 +202,8 @@ Cada función de servicio en `dashboardService.ts` hace sus propias queries opti
 
 `onConfirm` callback: `(planContableId, porcentajeRetencion?, detraccionId?, montoDetraccion?) => Promise<void>`. When the dropdown is open, the modal body adds `pb-64` to avoid clipping the list. No `overflow-hidden` on the modal wrapper; `rounded-t-2xl`/`rounded-b-2xl` on header/footer individually.
 
+**EVALUADOR ve también lo evaluado por otros (2026-10):** sin filtro, `getSolicitudes` le muestra En Revision + Evaluado + Aprobado + Rechazado + Observado de cualquier evaluador (las pagadas son Aprobado con `fecha_pago`) + lo que él evaluó/devolvió en cualquier estado; el filtro "Evaluado" ahora es global (antes solo lo suyo). Solo cambia la consulta del cliente: RLS ya permitía leer todo al rol 8. Las Pendiente de otros usuarios siguen sin verse.
+
 **EVALUADOR list visibility:** In `getSolicitudes`, when `role === ROLES.EVALUADOR`, the query uses `.or(`estado_id.eq.${enRevisionId},usuario_evaluador.eq.${userId}`)` so the evaluator sees both *all* "En Revision" solicitudes and *their own* previously evaluated ones (any state). Bulk "Evaluar" action was removed from `SolicitudesPage` — plan contable selection makes per-row evaluation mandatory.
 
 **PostgREST FK join pattern:** When adding a foreign key to an existing table and joining it in `SOL_SEL`, use the explicit constraint hint to avoid schema cache ambiguity:

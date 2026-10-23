@@ -162,16 +162,17 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
       const [id] = await resolveEstadoIds(['En Revision'])
       query = id ? query.eq('estado_id', id) : query.eq('id', -1)
     } else if (estadoNombre === 'Evaluado') {
-      // Filtro explícito: solo las que él mismo ya evaluó
+      // Filtro explícito: todas las evaluadas (por él o por otros evaluadores)
       const [id] = await resolveEstadoIds(['Evaluado'])
-      query = id ? query.eq('estado_id', id).eq('usuario_evaluador', userId) : query.eq('id', -1)
+      query = id ? query.eq('estado_id', id) : query.eq('id', -1)
     } else if (estadoNombre === 'Todas') {
       // Sin restricción de estado: ve todas las solicitudes del sistema
     } else {
-      // Sin filtro: ve "En Revision" (cualquiera) + solicitudes que él mismo evaluó (cualquier estado)
-      const [enRevisionId] = await resolveEstadoIds(['En Revision'])
-      if (enRevisionId) {
-        query = query.or(`estado_id.eq.${enRevisionId},usuario_evaluador.eq.${userId}`)
+      // Sin filtro: "En Revision" (cola) + las ya evaluadas por cualquier evaluador (Evaluado, Aprobado, Rechazado,
+      // Observado; las pagadas son Aprobado con fecha_pago) + las que él mismo evaluó o devolvió (cualquier estado)
+      const ids = (await resolveEstadoIds(['En Revision', 'Evaluado', 'Aprobado', 'Rechazado', 'Observado'])).filter(Boolean)
+      if (ids.length > 0) {
+        query = query.or(`estado_id.in.(${ids.join(',')}),usuario_evaluador.eq.${userId}`)
       }
     }
   } else if (role && role !== ROLES.ADMIN) {
