@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Menu, Bell } from 'lucide-react'
+import { Menu } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import UserProfileModal from './UserProfileModal'
+import NotificacionesBell from '../../features/notificaciones/components/NotificacionesBell'
 
 const routeNames: Record<string, string> = {
   '/dashboard':   'Dashboard',
@@ -24,10 +25,9 @@ function getInitials(name: string | null | undefined, email: string | null | und
 
 interface TopbarProps {
   onMenuClick: () => void
-  notificationCount?: number
 }
 
-export const Topbar = ({ onMenuClick, notificationCount = 0 }: TopbarProps) => {
+export const Topbar = ({ onMenuClick }: TopbarProps) => {
   const { pathname }      = useLocation()
   const title             = routeNames[pathname] ?? 'AVENIR'
   const { usuarioProfile, user } = useAuthStore()
@@ -56,14 +56,7 @@ export const Topbar = ({ onMenuClick, notificationCount = 0 }: TopbarProps) => {
         <div className="flex items-center gap-2">
 
           {/* Notificaciones */}
-          <button className="relative w-9 h-9 flex items-center justify-center rounded-lg
-            text-slate-500 hover:bg-slate-100 transition-colors">
-            <Bell size={18} />
-            {notificationCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full
-                bg-[#F65740] border-2 border-white" />
-            )}
-          </button>
+          <NotificacionesBell />
 
           {/* Avatar — abre modal de perfil */}
           <button

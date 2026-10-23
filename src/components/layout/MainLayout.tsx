@@ -11,7 +11,7 @@ export const MainLayout = () => {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="lg:ml-64 flex flex-col min-h-screen">
-        <Topbar onMenuClick={() => setSidebarOpen(true)} notificationCount={3} />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 p-4 lg:p-8">
           <div className="max-w-7xl mx-auto">
             <Outlet />
