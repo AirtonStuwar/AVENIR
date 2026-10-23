@@ -178,6 +178,7 @@ export default function SolicitudDetallePage() {
 
   // Datos de factura
   const [numeroFactura,        setNumeroFactura]        = useState('')
+  const [numeroRxhTxt,          setNumeroRxhTxt]          = useState('')   // N° del recibo por honorarios (editable mientras se puede editar)
   const [exoneradoTxt,         setExoneradoTxt]         = useState('')   // operacion exonerada (solo pagos a proveedores)
   const [motivoFactura,        setMotivoFactura]        = useState('')
   const [fechaEmisionFactura,  setFechaEmisionFactura]  = useState('')
@@ -259,7 +260,8 @@ export default function SolicitudDetallePage() {
     setFechaVencimientoFactura(solicitud?.fecha_vencimiento_factura ?? '')
     setMontoFondoGarantia(solicitud?.monto_fondo_garantia != null ? String(solicitud.monto_fondo_garantia) : '')
     setExoneradoTxt(Number(solicitud?.monto_exonerado ?? 0) > 0 ? String(solicitud?.monto_exonerado) : '')
-  }, [solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura, solicitud?.monto_fondo_garantia, solicitud?.monto_exonerado])
+    setNumeroRxhTxt(solicitud?.numero_rxh ?? '')
+  }, [solicitud?.numero_rxh, solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura, solicitud?.monto_fondo_garantia, solicitud?.monto_exonerado])
 
   // Nombres de quien subio la factura / registro sus datos (para la Bitacora)
   const [nombresFactura, setNombresFactura] = useState<Record<string, string>>({})
@@ -873,6 +875,20 @@ export default function SolicitudDetallePage() {
   const canEditExonerado = esPagoProveedores && !sinIgv && isPendiente && canEdit
   const totalConIgv    = isRxH || isLiberalidad || isOtros ? subtotal - retencion : subtotal + igv + exonerado
 
+  const handleGuardarNumeroRxh = async () => {
+    if (!solicitud?.id || !id) return
+    const nuevo = numeroRxhTxt.replace(/\s+/g, '')
+    if (!nuevo) { toast.error('Escribe el N° del recibo por honorarios'); return }
+    if (nuevo === (solicitud.numero_rxh ?? '')) return
+    try {
+      await updateSolicitud(solicitud.id, { numero_rxh: nuevo })
+      toast.success('N° de recibo guardado')
+      await reload(id)
+    } catch {
+      toast.error('No se pudo guardar el N° de recibo')
+    }
+  }
+
   const handleGuardarExonerado = async () => {
     if (!solicitud?.id || !id || !canEditExonerado) return
     const nuevo = Math.max(0, parseFloat(exoneradoTxt) || 0)
@@ -1052,7 +1068,26 @@ export default function SolicitudDetallePage() {
             <InfoField label="Fecha requerida" value={fmtDate(solicitud.fecha_requerida)} />
             <InfoField label="Forma de pago"   value={solicitud.solicitud_forma_pago?.nombre ?? solicitud.forma_pago} />
             <InfoField label="Moneda"          value={solicitud.moneda === 'USD' ? '$ Dólares (USD)' : 'S/ Soles (PEN)'} />
-            {isRxH && <InfoField label="N° Recibo (RxH)" value={solicitud.numero_rxh} />}
+            {isRxH && (canEdit ? (
+              <div>
+                <p className={LABEL}>N° Recibo (RxH)</p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={numeroRxhTxt}
+                    onChange={e => setNumeroRxhTxt(e.target.value.replace(/\s+/g, ''))}
+                    onKeyDown={e => { if (e.key === 'Enter') handleGuardarNumeroRxh() }}
+                    placeholder="E001-165"
+                    className="w-full min-w-0 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20"
+                  />
+                  <button
+                    onClick={handleGuardarNumeroRxh}
+                    disabled={numeroRxhTxt.replace(/\s+/g, '') === (solicitud.numero_rxh ?? '')}
+                    className="px-3 rounded-lg bg-[#003D7D] text-white text-xs font-medium hover:bg-[#002D5C] disabled:opacity-40 transition-colors"
+                  >Guardar</button>
+                </div>
+              </div>
+            ) : <InfoField label="N° Recibo (RxH)" value={solicitud.numero_rxh} />)}
             {isRxH && <InfoField label="Período de servicio" value={solicitud.periodo_servicio ? new Intl.DateTimeFormat('es-PE', { month: 'long', year: 'numeric' }).format(new Date(solicitud.periodo_servicio + 'T00:00:00')) : null} />}
             {isRxH && <InfoField label="Fecha de emisión"     value={fmtDate(solicitud.fecha_emision_factura)} />}
             {isRxH && <InfoField label="Fecha de vencimiento" value={fmtDate(solicitud.fecha_vencimiento_factura)} />}

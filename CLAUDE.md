@@ -720,6 +720,8 @@ Las tablas y vistas de Supabase son accesibles directamente. Power BI puede leer
 
 **`SolicitudesTable`:** La columna se llama **"Vencimiento"** (era "Venc. Factura") — aplica a OC (fecha vencimiento factura) y RxH (fecha vencimiento recibo).
 
+**N° de recibo editable desde el detalle (2026-10):** antes `numero_rxh` solo se podía escribir en el wizard; si se olvidaba y el evaluador devolvía la solicitud, no había dónde corregirlo (el botón Editar y la tarjeta de factura no lo incluyen para RxH). Ahora, en la ficha del detalle, el campo "N° Recibo (RxH)" es un input con botón Guardar mientras `canEdit` (Pendiente/Observado, dueño o ADMIN); quita espacios igual que el wizard.
+
 **Campos RxH — `fecha_emision_factura` y `fecha_vencimiento_factura`:** Se capturan en Step 1 del wizard para RxH. El `createSolicitud` en Step 1 NO debe sobrescribir estos campos con null — se pasan desde el payload directamente. En `SolicitudDetallePage` se muestran con `InfoField` solo cuando `isRxH`.
 
 **Bug corregido (setiembre 2026) — `numero_rxh` se guardaba con espacios:** el input "N° de Recibo (RxH)" en `SolicitudNuevaPage.tsx` no recortaba espacios (ej. `"E001- 165"` en vez de `"E001-165"`), y esos espacios se veían tal cual en el reporte de Excel y en el detalle — no era un bug del reporte, el dato ya venía así guardado. Corregido: el `onChange` del input y el payload al guardar ahora aplican `.replace(/\s+/g, '')` (quita todos los espacios, no solo al inicio/fin — mismo patrón que ya usan los campos de cuenta bancaria con `.replace(/\D/g, '')`). Se limpiaron también los 13 registros existentes que ya tenían el espacio guardado.
