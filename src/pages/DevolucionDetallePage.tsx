@@ -31,7 +31,8 @@ import type { TipoArchivoDevolucion } from '../features/devolucion/services/devo
 import { getPlanContable } from '../features/solicitud/services/solicitudService'
 import type { DevolucionCliente } from '../features/devolucion/types/devolucion'
 import type { PlanContable } from '../features/solicitud/types/solicitud'
-import BitacoraCard, { fmtDateHora } from '../features/solicitud/components/Bitacora'
+import BitacoraEventos from '../features/solicitud/components/BitacoraEventos'
+import { fmtDateHora } from '../features/solicitud/components/Bitacora'
 import type { PasoBitacora } from '../features/solicitud/components/Bitacora'
 
 function fmtMoney(val: number | null, moneda = 'PEN') {
@@ -921,7 +922,7 @@ export default function DevolucionDetallePage() {
       )}
 
       {/* Bitácora */}
-      <BitacoraCard pasos={bitacoraPasos} />
+      <BitacoraEventos modulo="devolucion" registroId={dev.id} marker={`${dev.estado}|${dev.fecha_pago}`} fallback={bitacoraPasos} />
 
       {/* Modal pago */}
       <PagoModal

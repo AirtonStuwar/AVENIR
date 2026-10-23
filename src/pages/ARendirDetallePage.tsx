@@ -47,7 +47,8 @@ import type { PlanContable } from '../features/solicitud/types/solicitud'
 import { tipoDocBeneficiario } from '../features/arendir/utils/documento'
 import { ARendirPDF } from '../features/arendir/components/ARendirPDF'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
-import BitacoraCard, { fmtDateHora } from '../features/solicitud/components/Bitacora'
+import BitacoraEventos from '../features/solicitud/components/BitacoraEventos'
+import { fmtDateHora } from '../features/solicitud/components/Bitacora'
 import type { PasoBitacora } from '../features/solicitud/components/Bitacora'
 import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import logoUrl from '../assets/avenir-logo.png'
@@ -1190,7 +1191,7 @@ export default function ARendirDetallePage() {
       )}
 
       {/* Bitácora */}
-      <BitacoraCard pasos={bitacoraPasos} />
+      <BitacoraEventos modulo="arendir" registroId={solicitud.id} marker={`${solicitud.estado}|${solicitud.fecha_pago}|${solicitud.comentario_rendicion}`} fallback={bitacoraPasos} />
 
       {/* Modal aprobar adelanto */}
       {aprobarOpen && (

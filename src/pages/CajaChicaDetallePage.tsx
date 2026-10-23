@@ -33,7 +33,8 @@ import { CajaChicaPDF } from '../features/caja-chica/components/CajaChicaPDF'
 import PagoModal from '../features/solicitud/components/PagoModal'
 import RechazoModal from '../features/solicitud/components/RechazoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
-import BitacoraCard, { fmtDateHora } from '../features/solicitud/components/Bitacora'
+import BitacoraEventos from '../features/solicitud/components/BitacoraEventos'
+import { fmtDateHora } from '../features/solicitud/components/Bitacora'
 import type { PasoBitacora } from '../features/solicitud/components/Bitacora'
 import logoUrl from '../assets/avenir-logo.png'
 
@@ -956,7 +957,7 @@ export default function CajaChicaDetallePage() {
       </div>
 
       {/* Bitácora */}
-      <BitacoraCard pasos={bitacoraPasos} />
+      <BitacoraEventos modulo="caja_chica" registroId={cc.id} marker={`${cc.estado}|${cc.fecha_pago}`} fallback={bitacoraPasos} />
 
       {/* Modals */}
       <PagoModal

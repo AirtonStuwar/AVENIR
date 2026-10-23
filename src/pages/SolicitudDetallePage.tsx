@@ -1,7 +1,8 @@
+import BitacoraEventos from '../features/solicitud/components/BitacoraEventos'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown, Search, ShieldAlert, History } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown, Search, ShieldAlert } from 'lucide-react'
 import { pdf } from '@react-pdf/renderer'
 import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
@@ -69,23 +70,6 @@ interface PasoBitacora {
   fecha?: string | null
   detalle?: string | null
   estado: 'done' | 'current' | 'warn'
-}
-
-function BitacoraPaso({ paso, esUltimo }: { paso: PasoBitacora; esUltimo: boolean }) {
-  const dot = paso.estado === 'done'
-    ? 'bg-green-500'
-    : paso.estado === 'warn'
-      ? 'bg-amber-500'
-      : 'bg-blue-500'
-  return (
-    <div className="relative pl-7 pb-6 last:pb-0">
-      {!esUltimo && <span className="absolute left-[7px] top-4 bottom-0 w-px bg-gray-200" />}
-      <span className={`absolute left-0 top-1 w-3.5 h-3.5 rounded-full ring-4 ring-white ${dot}`} />
-      <p className="text-sm font-semibold text-gray-900">{paso.titulo}</p>
-      {paso.fecha && <p className="text-xs text-gray-400 mt-0.5">{paso.fecha}</p>}
-      {paso.detalle && <p className="text-sm text-gray-600 mt-1">{paso.detalle}</p>}
-    </div>
-  )
 }
 
 function fmtDate(d: string | null) {
@@ -1722,17 +1706,9 @@ export default function SolicitudDetallePage() {
         )}
 
         {/* ── BITÁCORA ── */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
-            <History size={15} className="text-gray-500" />
-            <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Bitácora</h2>
-          </div>
-          <div className="px-6 py-5">
-            {bitacoraPasos.map((paso, i) => (
-              <BitacoraPaso key={i} paso={paso} esUltimo={i === bitacoraPasos.length - 1} />
-            ))}
-          </div>
-        </div>
+        <BitacoraEventos modulo="solicitud" registroId={solicitud.id}
+          marker={`${solicitud.estado_id}|${solicitud.fecha_pago}|${solicitud.monto_pagado}|${solicitud.factura_datos_fecha}|${archivosSubidos.length}`}
+          fallback={bitacoraPasos} />
 
         {/* ── ENCUESTA PROVEEDOR ── */}
         {canEncuestar && (

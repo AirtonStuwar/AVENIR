@@ -42,7 +42,8 @@ import type { SolicitudReembolso, ReembolsoDetalle } from '../features/reembolso
 import type { PlanContable } from '../features/solicitud/types/solicitud'
 import { ReembolsoPDF } from '../features/reembolso/components/ReembolsoPDF'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
-import BitacoraCard, { fmtDateHora } from '../features/solicitud/components/Bitacora'
+import BitacoraEventos from '../features/solicitud/components/BitacoraEventos'
+import { fmtDateHora } from '../features/solicitud/components/Bitacora'
 import type { PasoBitacora } from '../features/solicitud/components/Bitacora'
 import logoUrl from '../assets/avenir-logo.png'
 
@@ -981,7 +982,7 @@ export default function ReembolsoDetallePage() {
       )}
 
       {/* Bitácora */}
-      <BitacoraCard pasos={bitacoraPasos} />
+      <BitacoraEventos modulo="reembolso" registroId={solicitud.id} marker={`${solicitud.estado}|${solicitud.fecha_pago}`} fallback={bitacoraPasos} />
 
       {/* Modales */}
       <PagoModal
