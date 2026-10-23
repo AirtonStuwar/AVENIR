@@ -337,7 +337,7 @@ export default function SolicitudNuevaPage() {
   }, [step, moneda])
 
   // N° de factura ya registrado en Solicitudes, Caja Chica, A Rendir o Reembolso (solo aviso)
-  const facturaDuplicada = useDocumentoDuplicado(step === 'factura' ? numeroFactura : '', 'solicitud', solicitudId ?? undefined)
+  const facturaDuplicada = useDocumentoDuplicado(step === 'factura' ? numeroFactura : '', 'solicitud', solicitudId ?? undefined, null, razon_social)
 
   useEffect(() => {
     if (step !== 'factura') return

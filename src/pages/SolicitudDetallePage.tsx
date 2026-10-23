@@ -288,7 +288,7 @@ export default function SolicitudDetallePage() {
 
   // Alerta de N° de factura ya registrado (en Solicitudes, Caja Chica, A Rendir o Reembolso); solo si se está cambiando
   const facturaDuplicada = useDocumentoDuplicado(
-    numeroFactura === (solicitud?.numero_factura ?? '') ? '' : numeroFactura, 'solicitud', solicitud?.id)
+    numeroFactura === (solicitud?.numero_factura ?? '') ? '' : numeroFactura, 'solicitud', solicitud?.id, null, solicitud?.razon_social)
 
   // Consumo de presupuesto (partida o proyecto)
   useEffect(() => {

@@ -185,9 +185,9 @@ export default function ReembolsoNuevaPage() {
 
   // ── Step 2 ────────────────────────────────────────────────────
   // Aviso (no bloquea) si el N° de documento ya está registrado en otro lugar del sistema
-  async function avisarDocDuplicado(numero: string, savedId: number | null) {
+  async function avisarDocDuplicado(numero: string, savedId: number | null, proveedor?: string) {
     try {
-      const d = await buscarDocumentoDuplicado(numero, 'reembolso', savedId, solicitudCreada?.codigo)
+      const d = await buscarDocumentoDuplicado(numero, 'reembolso', savedId, solicitudCreada?.codigo, proveedor)
       if (d.length) toast('⚠ Este N° ya está registrado: ' + d.map(textoDocumentoDuplicado).join(' · '), { duration: 9000 })
     } catch { /* es solo un aviso */ }
   }
@@ -547,7 +547,7 @@ export default function ReembolsoNuevaPage() {
                       <td className="px-2 py-1.5">
                         <input type="text" value={row.numero_documento} placeholder="N° doc"
                           onChange={e => updateRow(row.tempId, 'numero_documento', e.target.value)}
-                          onBlur={e => { if (e.target.value.trim()) avisarDocDuplicado(e.target.value, row.savedId) }}
+                          onBlur={e => { if (e.target.value.trim()) avisarDocDuplicado(e.target.value, row.savedId, row.proveedor) }}
                           className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-[#003D7D]/40"
                         />
                       </td>

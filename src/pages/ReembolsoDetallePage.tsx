@@ -212,7 +212,7 @@ export default function ReembolsoDetallePage() {
   const [detTipoDoc,  setDetTipoDoc]  = useState('FACTURA')
   const [detNumDoc,   setDetNumDoc]   = useState('')
   // N° de documento ya registrado en otro lugar (solo aviso)
-  const docDuplicado = useDocumentoDuplicado(detFormOpen ? detNumDoc : '', 'reembolso', detEditId, solicitud?.codigo)
+  const docDuplicado = useDocumentoDuplicado(detFormOpen ? detNumDoc : '', 'reembolso', detEditId, solicitud?.codigo, detProv)
   const [detConcepto, setDetConcepto] = useState('')
   const [detImporte,  setDetImporte]  = useState('')
   const [detSaving,   setDetSaving]   = useState(false)

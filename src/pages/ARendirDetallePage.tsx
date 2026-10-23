@@ -113,7 +113,7 @@ export default function ARendirDetallePage() {
   const [detTipoDoc,  setDetTipoDoc]  = useState('FACTURA')
   const [detNumDoc,   setDetNumDoc]   = useState('')
   // N° de documento ya registrado en otro lugar (solo aviso)
-  const docDuplicado = useDocumentoDuplicado(detFormOpen ? detNumDoc : '', 'arendir', detEditId, solicitud?.codigo)
+  const docDuplicado = useDocumentoDuplicado(detFormOpen ? detNumDoc : '', 'arendir', detEditId, solicitud?.codigo, detProv)
   const [detConcepto, setDetConcepto] = useState('')
   const [detImporte,  setDetImporte]  = useState('')
   const [detArchivo,  setDetArchivo]  = useState<File | null>(null)

@@ -90,7 +90,7 @@ export default function CajaChicaDetallePage() {
   const [tipoDoc, setTipoDoc] = useState('FACTURA')
   const [numDoc, setNumDoc] = useState('')
   // N° de documento ya registrado en otro lugar (solo aviso)
-  const docDuplicado = useDocumentoDuplicado(formOpen ? numDoc : '', 'caja_chica', editId, cc?.codigo)
+  const docDuplicado = useDocumentoDuplicado(formOpen ? numDoc : '', 'caja_chica', editId, cc?.codigo, proveedor)
   const [detalle, setDetalle] = useState('')
   const [monto, setMonto] = useState('')
   const [archivo, setArchivo] = useState<File | null>(null)
