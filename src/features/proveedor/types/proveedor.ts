@@ -5,6 +5,10 @@ export interface Proveedor {
   estado_sunat:        string | null
   fecha_creacion:      string | null
   fecha_actualizacion: string | null
+  // Contacto fijo que registra el ADMIN; se autocompleta en las solicitudes
+  contacto_nombre?:    string | null
+  contacto_telefono?:  string | null
+  contacto_correo?:    string | null
 }
 
 export interface ProveedorConMetricas extends Proveedor {

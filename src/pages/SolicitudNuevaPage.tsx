@@ -27,6 +27,7 @@ import type { SolicitudDetalle, SolicitudFormaPago, PlanContable, SolicitudUpdat
 import { buscarRuc, getTipoCambioUSD } from '../features/solicitud/services/rucService'
 import { BANCOS, labelNumeroCuenta, maxLengthNumeroCuenta, placeholderNumeroCuenta, esCuentaRecaudadora } from '../features/solicitud/constants/bancos'
 import { getCuentasByProveedor } from '../features/proveedor/services/proveedorCuentaService'
+import { getProveedorByRuc } from '../features/proveedor/services/proveedorService'
 import type { ProveedorCuenta } from '../features/proveedor/types/proveedor'
 
 const INPUT =
@@ -183,8 +184,16 @@ export default function SolicitudNuevaPage() {
     Promise.all([
       buscarRuc(ruc),
       getCuentasByProveedor(ruc).catch(() => [] as ProveedorCuenta[]),
-    ]).then(([sunatData, cuentas]) => {
+      getProveedorByRuc(ruc).catch(() => null),
+    ]).then(([sunatData, cuentas, prov]) => {
       if (cancelled) return
+      // Contacto fijo registrado por el ADMIN: si el proveedor lo tiene, se rellena (sigue siendo editable)
+      if (prov && (prov.contacto_nombre || prov.contacto_telefono || prov.contacto_correo)) {
+        setContactoNombre(prov.contacto_nombre ?? '')
+        setContactoTelefono(prov.contacto_telefono ?? '')
+        setContactoCorreo(prov.contacto_correo ?? '')
+        setErrors((x) => ({ ...x, contacto_nombre: '', contacto_telefono: '', contacto_correo: '' }))
+      }
       setRazonSocial(sunatData.razon_social)
       setDireccion(sunatData.direccion)
       setRucAutoFilled(true)

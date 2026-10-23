@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Users, Star, ThumbsUp, ThumbsDown, RefreshCw, Search, CreditCard } from 'lucide-react'
+import { Users, Star, ThumbsUp, ThumbsDown, RefreshCw, Search, CreditCard, Plus, Pencil } from 'lucide-react'
 import { getProveedoresConMetricas } from '../features/proveedor/services/proveedorService'
 import type { ProveedorConMetricas } from '../features/proveedor/types/proveedor'
 import { useAuthStore } from '../store/authStore'
 import ProveedorCuentasPanel from '../features/proveedor/components/ProveedorCuentasPanel'
+import ProveedorFormModal from '../features/proveedor/components/ProveedorFormModal'
 
 function StarDisplay({ value }: { value: number | null }) {
   if (value === null) return <span className="text-xs text-gray-300">Sin evaluar</span>
@@ -41,6 +42,7 @@ export default function ProveedoresPage() {
   const [loading, setLoading] = useState(true)
   const [search,  setSearch]  = useState('')
   const [cuentasProveedor, setCuentasProveedor] = useState<ProveedorConMetricas | null>(null)
+  const [formProveedor, setFormProveedor] = useState<{ proveedor: ProveedorConMetricas | null } | null>(null)
 
   const load = async () => {
     setLoading(true)
@@ -76,10 +78,18 @@ export default function ProveedoresPage() {
           <h1 className="text-xl font-bold text-[#003D7D]">Proveedores</h1>
           <p className="text-sm text-gray-400">{data.length} proveedores registrados</p>
         </div>
-        <button onClick={load} disabled={loading}
-          className="h-9 w-9 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50">
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button onClick={() => setFormProveedor({ proveedor: null })}
+              className="h-9 flex items-center gap-1.5 px-3 rounded-xl bg-[#003D7D] text-white text-sm font-medium hover:bg-[#002D5C]">
+              <Plus size={15} /> Nuevo proveedor
+            </button>
+          )}
+          <button onClick={load} disabled={loading}
+            className="h-9 w-9 flex items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 hover:bg-gray-50">
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -134,7 +144,8 @@ export default function ProveedoresPage() {
                   {['RUC', 'Razón social', 'Solicitudes', 'Evaluaciones', 'Puntuación', '% Recomendado', 'Última solicitud'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
-                  {isAdmin && <th className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide">Cuentas</th>}
+                  {isAdmin && <th className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide">Contacto</th>}
+                  {isAdmin && <th className="px-4 py-3 text-left text-xs font-semibold text-[#003D7D]/60 uppercase tracking-wide">Acciones</th>}
                 </tr>
               </thead>
               <tbody>
@@ -187,7 +198,21 @@ export default function ProveedoresPage() {
                       {fmtDate(p.ultima_solicitud)}
                     </td>
                     {isAdmin && (
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 text-xs text-gray-500 max-w-[180px]">
+                        {p.contacto_nombre || p.contacto_telefono || p.contacto_correo
+                          ? <><p className="truncate text-gray-700">{p.contacto_nombre ?? '—'}</p><p className="truncate">{[p.contacto_telefono, p.contacto_correo].filter(Boolean).join(' · ')}</p></>
+                          : <span className="text-gray-300">Sin contacto</span>}
+                      </td>
+                    )}
+                    {isAdmin && (
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <button
+                          onClick={e => { e.stopPropagation(); setFormProveedor({ proveedor: p }) }}
+                          className="h-7 w-7 inline-flex items-center justify-center rounded-lg hover:bg-[#003D7D]/10 text-[#003D7D]/50 hover:text-[#003D7D] transition-colors"
+                          title="Editar datos y contacto"
+                        >
+                          <Pencil size={14} />
+                        </button>
                         <button
                           onClick={e => { e.stopPropagation(); setCuentasProveedor(p) }}
                           className="h-7 w-7 flex items-center justify-center rounded-lg hover:bg-[#003D7D]/10 text-[#003D7D]/50 hover:text-[#003D7D] transition-colors"
@@ -204,6 +229,14 @@ export default function ProveedoresPage() {
           </div>
         )}
       </div>
+
+      {formProveedor && (
+        <ProveedorFormModal
+          proveedor={formProveedor.proveedor}
+          onClose={() => setFormProveedor(null)}
+          onSaved={() => { setFormProveedor(null); load() }}
+        />
+      )}
 
       {cuentasProveedor && (
         <ProveedorCuentasPanel

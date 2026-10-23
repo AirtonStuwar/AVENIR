@@ -184,6 +184,8 @@ Order of cards in detail page: **Info general → Presupuesto (ADMIN+APROBADOR) 
 
 Cada función de servicio en `dashboardService.ts` hace sus propias queries optimizadas y devuelve solo los datos relevantes al rol.
 
+**Proveedores registrados por el ADMIN, con contacto fijo (2026-10):** `proveedor.contacto_nombre/contacto_telefono/contacto_correo` (nuevas, nullable). En `/proveedores` el ADMIN tiene "Nuevo proveedor" y un lápiz por fila (`ProveedorFormModal`): RUC (11 dígitos, con botón SUNAT que trae razón social y dirección), razón social, dirección y contacto; las cuentas bancarias siguen en su panel (ícono de tarjeta). Al escribir el RUC en una solicitud (`SolicitudNuevaPage`), si el proveedor tiene contacto guardado se rellena nombre/teléfono/correo (editable); `buscarRuc()` usa primero la razón social/dirección locales, así que lo que corrige el ADMIN prevalece sobre SUNAT. Lo que se corrige a mano en una solicitud NO actualiza al proveedor (el contacto solo lo cambia el ADMIN). La RLS de `proveedor` sigue abierta a INSERT/UPDATE (pendiente de seguridad ya documentado).
+
 **Módulo Proveedores** (`/proveedores`) — visible para ADMIN (1) y USUARIO (11):
 - Lista de proveedores con métricas agregadas (promedio general, calidad, tiempo, precio, comunicación, % recomienda, total encuestas).
 - Datos provienen de `proveedor` + `encuesta_proveedor` via `getProveedorConMetricas()` en `proveedorService.ts`.
