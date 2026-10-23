@@ -21,9 +21,21 @@ import { sanitizeBBVA } from '../features/solicitud/constants/bancos'
 import type { Solicitud } from '../features/solicitud/types/solicitud'
 import { montoAGirar, montoPendientePago, esPagoParcial } from '../features/solicitud/utils/montoAGirar'
 
+const ESTADOS_USUARIO = [
+  { value: '', label: 'Todos los estados' },
+  { value: 'Pendiente', label: 'Pendiente' },
+  { value: 'En Revision', label: 'En Revision' },
+  { value: 'Evaluado', label: 'Evaluado' },
+  { value: 'Aprobado', label: 'Aprobado' },
+  { value: 'Observado', label: 'Observado' },
+  { value: 'Rechazado', label: 'Rechazado' },
+  { value: 'Cancelado', label: 'Cancelado' },
+]
+
 export default function SolicitudesPage() {
   const navigate = useNavigate()
   const { userRole, user } = useAuthStore()
+  const isUsuario = userRole === ROLES.USUARIO
 
   // ── Filtros persistentes (sobreviven a navegar a un detalle y volver) ──
   const {
@@ -37,7 +49,7 @@ export default function SolicitudesPage() {
   const {
     data, total, page, pageSize, totalPages, loading, setPage, setSearch,
     setProyectoFilter, setMesAprobacion, setPagoFilter, setMonedaFilter, setAreaFilter, setOrdenVencimiento, setEstadoNombre, refresh,
-  } = useSolicitudes({ proyecto_id: proyectoFilter, areaId: areaFilter, mes_aprobacion: mesAprobacion, pagoFilter: pagoLocal, monedaFilter: monedaLocal, ordenVencimiento, estadoNombre, search: searchQuery })
+  } = useSolicitudes({ proyecto_id: proyectoFilter, areaId: isUsuario ? null : areaFilter, mes_aprobacion: mesAprobacion, pagoFilter: pagoLocal, monedaFilter: monedaLocal, ordenVencimiento, estadoNombre, search: searchQuery })
 
   const handleSearchChange = (q: string) => {
     setSearchStore(q)
@@ -83,7 +95,7 @@ export default function SolicitudesPage() {
     setOrdenVencimiento(activo)
   }
 
-  const hasFiltrosActivos = !!(proyectoFilter || areaFilter || mesAprobacion || pagoLocal || monedaLocal || ordenVencimiento || estadoNombre)
+  const hasFiltrosActivos = !!(proyectoFilter || (!isUsuario && areaFilter) || mesAprobacion || pagoLocal || monedaLocal || ordenVencimiento || estadoNombre)
   const handleClearFiltros = () => {
     clearFiltrosStore()
     setProyectoFilter(null)
@@ -429,10 +441,11 @@ export default function SolicitudesPage() {
         onMonedaFilterChange={isVisualizador ? handleMonedaChange : undefined}
         showMontoPago={canMarcarPago}
         showMontoTotal={canVerMontoTotal}
-        areaFilter={areaFilter}
-        onAreaFilterChange={handleAreaChange}
-        estadoFilter={isEvaluador ? estadoNombre : undefined}
-        onEstadoFilterChange={isEvaluador ? handleEstadoChange : undefined}
+        areaFilter={isUsuario ? undefined : areaFilter}
+        onAreaFilterChange={isUsuario ? undefined : handleAreaChange}
+        estadoFilter={isEvaluador || isUsuario ? estadoNombre : undefined}
+        onEstadoFilterChange={isEvaluador || isUsuario ? handleEstadoChange : undefined}
+        estadoOpciones={isUsuario ? ESTADOS_USUARIO : undefined}
         ordenVencimiento={ordenVencimiento}
         onOrdenVencimientoChange={handleOrdenVencimientoChange}
         hasFiltrosActivos={hasFiltrosActivos}

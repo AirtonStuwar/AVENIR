@@ -87,6 +87,8 @@ interface Props {
   onClearFilters?: () => void
   estadoFilter?: string | null
   onEstadoFilterChange?: (v: string | null) => void
+  /** Opciones propias del filtro de estado (si no se pasan, las del evaluador) */
+  estadoOpciones?: { value: string; label: string }[]
   showMontoPago?: boolean
   showMontoTotal?: boolean
 }
@@ -98,7 +100,7 @@ export default function SolicitudesTable({
   proyectoFilter, onProyectoFilterChange, pagoFilter, onPagoFilterChange,
   monedaFilter, onMonedaFilterChange,
   areaFilter, onAreaFilterChange, ordenVencimiento, onOrdenVencimientoChange,
-  hasFiltrosActivos, onClearFilters, estadoFilter, onEstadoFilterChange,
+  hasFiltrosActivos, onClearFilters, estadoFilter, onEstadoFilterChange, estadoOpciones,
   showMontoPago, showMontoTotal, initialSearch,
 }: Props) {
   const [searchVal, setSearchVal] = useState(initialSearch ?? '')
@@ -271,10 +273,16 @@ export default function SolicitudesTable({
               onChange={e => onEstadoFilterChange(e.target.value || null)}
               className="h-9 flex-1 sm:flex-none rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 min-w-0"
             >
-              <option value="">Por defecto</option>
-              <option value="En Revision">En Revision</option>
-              <option value="Evaluado">Evaluado</option>
-              <option value="Todas">Todas las solicitudes</option>
+              {estadoOpciones ? estadoOpciones.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              )) : (
+                <>
+                  <option value="">Por defecto</option>
+                  <option value="En Revision">En Revision</option>
+                  <option value="Evaluado">Evaluado</option>
+                  <option value="Todas">Todas las solicitudes</option>
+                </>
+              )}
             </select>
           )}
 

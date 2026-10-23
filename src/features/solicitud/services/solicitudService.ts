@@ -156,6 +156,10 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
     } else {
       query = query.eq('usuario_creador', userId)
     }
+    if (estadoNombre && estadoNombre !== 'Todas') {
+      const [id] = await resolveEstadoIds([estadoNombre])
+      query = id ? query.eq('estado_id', id) : query.eq('id', -1)
+    }
   } else if (role === ROLES.EVALUADOR && userId) {
     if (estadoNombre === 'En Revision') {
       // Filtro explícito: solo las que están en cola por evaluar
