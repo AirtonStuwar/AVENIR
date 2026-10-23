@@ -216,11 +216,26 @@ export default function EvaluarModal({ open, codigoSolicitud, isRxH, isOtros, is
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
                 Retención IR (Renta 4ta Cat.)
               </label>
-              <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl border border-[#003D7D]/30 bg-[#003D7D]/[0.04]">
-                <span className="text-sm font-semibold text-[#003D7D]">{RETENCION_FIJA_OTROS}% fija</span>
+              <div className="flex gap-2">
+                {OPCIONES_RETENCION.filter(op => op.value === 0 || op.value === RETENCION_FIJA_OTROS).map(op => (
+                  <button
+                    key={op.value}
+                    type="button"
+                    onClick={() => setRetencion(op.value)}
+                    className={`flex-1 py-2 rounded-xl border text-sm font-medium transition-all ${
+                      retencion === op.value
+                        ? 'bg-[#003D7D] text-white border-[#003D7D]'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#003D7D]/40'
+                    }`}
+                  >
+                    {op.label}
+                  </button>
+                ))}
               </div>
               <p className="mt-1.5 text-xs text-gray-500">
-                Se retendrá el {RETENCION_FIJA_OTROS}% del monto bruto (Renta 4ta categoría) — tasa fija para este tipo de solicitud.
+                {retencion === 0
+                  ? 'Sin retención — por ejemplo, cuando se paga a una empresa y no a una persona natural.'
+                  : `Se retendrá el ${RETENCION_FIJA_OTROS}% del monto bruto (Renta 4ta categoría).`}
               </p>
             </div>
           )}
