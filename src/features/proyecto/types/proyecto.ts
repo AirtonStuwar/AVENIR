@@ -27,6 +27,13 @@ export interface Proyecto {
   fecha_creacion: string | null
   usuario_creador: string | null
   moby_project_id: number | null
+  // Datos fijos para el dashboard "Status de Proyecto" (los carga el ADMIN)
+  meta_proyectada?: number | null
+  stock_inicial?: number | null
+  pisos?: number | null
+  sotanos?: number | null
+  total_estacionamientos?: number | null
+  total_depositos?: number | null
 }
 
 export type ProyectoInsert = Omit<Proyecto, 'id' | 'fecha_creacion' | 'moby_project_id'>
