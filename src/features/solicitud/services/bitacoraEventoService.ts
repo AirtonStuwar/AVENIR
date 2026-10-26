@@ -7,7 +7,7 @@ export type ModuloBitacora = 'solicitud' | 'arendir' | 'reembolso' | 'caja_chica
 
 export interface BitacoraEvento {
   id: number
-  tipo: 'creacion' | 'estado' | 'pago' | 'pago_parcial' | 'factura_archivo' | 'factura_datos'
+  tipo: 'creacion' | 'estado' | 'pago' | 'pago_anulado' | 'pago_parcial' | 'factura_archivo' | 'factura_datos'
   estado_anterior: string | null
   estado_nuevo: string | null
   usuario_id: string | null
@@ -87,6 +87,7 @@ export function pasosDesdeEventos(modulo: ModuloBitacora, eventos: BitacoraEvent
     switch (e.tipo) {
       case 'creacion': titulo = 'Creada'; break
       case 'pago': titulo = modulo === 'arendir' ? 'Dinero entregado' : 'Pagada'; break
+      case 'pago_anulado': titulo = 'Pago anulado (marcado por error)'; warn = true; break
       case 'pago_parcial': titulo = 'Pago parcial registrado'; break
       case 'factura_archivo': titulo = 'Factura XML/PDF adjuntada'; break
       case 'factura_datos': titulo = 'Datos de factura registrados'; break
@@ -95,7 +96,7 @@ export function pasosDesdeEventos(modulo: ModuloBitacora, eventos: BitacoraEvent
     const partes: string[] = []
     if (e.tipo === 'factura_archivo' && e.detalle) partes.push(e.detalle)
     if (e.tipo === 'factura_datos' && e.detalle) partes.push(`N° ${e.detalle}`)
-    if (e.tipo === 'pago_parcial' && e.detalle) partes.push(e.detalle)
+    if ((e.tipo === 'pago_parcial' || e.tipo === 'pago_anulado') && e.detalle) partes.push(e.detalle)
     if (quien) partes.push(e.tipo === 'creacion' || e.tipo === 'estado' ? `Por ${quien}` : `Registrado por ${quien}`)
     if (e.comentario) partes.push(`Motivo: ${e.comentario}`)
     return {
