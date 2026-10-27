@@ -27,6 +27,48 @@ interface MobyContrato {
 type Conteo = { promesado: number; reservado: number }
 const vacio = (): Conteo => ({ promesado: 0, reservado: 0 })
 
+// Bien del inventario (assets/all-assets)
+interface MobyAsset {
+  assetTypeValue?: string
+  status?: string
+  floor?: number
+  saleValue?: number
+  weightedArea?: number
+}
+type StockTipo = { total: number; disponible: number; promesado: number; reservado: number }
+type Stock = {
+  deptos: StockTipo
+  estacionamientos: StockTipo
+  depositos: StockTipo
+  disponiblesPorPiso: Record<string, number>
+  precioM2Ponderado: number | null   // venta de deptos con minuta ÷ su área ponderada
+}
+const vacioStock = (): StockTipo => ({ total: 0, disponible: 0, promesado: 0, reservado: 0 })
+
+function resumirStock(assets: MobyAsset[]): Stock {
+  const deptos = vacioStock(), estacionamientos = vacioStock(), depositos = vacioStock()
+  const disponiblesPorPiso: Record<string, number> = {}
+  let venta = 0, area = 0
+  for (const a of assets) {
+    const tipo = (a.assetTypeValue ?? '').toUpperCase()
+    const dest = tipo === 'DEPARTAMENTO' ? deptos : tipo === 'ESTACIONAMIENTO' ? estacionamientos : tipo === 'DEPOSITO' ? depositos : null
+    if (!dest) continue
+    dest.total++
+    const st = (a.status ?? '').toUpperCase()
+    if (st === 'DISPONIBLE') dest.disponible++
+    else if (st === 'PROMESADO') dest.promesado++
+    else if (st === 'RESERVADO') dest.reservado++
+    if (tipo === 'DEPARTAMENTO') {
+      if (st === 'DISPONIBLE') {
+        const piso = String(a.floor ?? 's/d').padStart(2, '0')
+        disponiblesPorPiso[piso] = (disponiblesPorPiso[piso] ?? 0) + 1
+      }
+      if (st === 'PROMESADO' && a.saleValue && a.weightedArea) { venta += a.saleValue; area += a.weightedArea }
+    }
+  }
+  return { deptos, estacionamientos, depositos, disponiblesPorPiso, precioM2Ponderado: area ? venta / area : null }
+}
+
 async function getToken(host: string, clientId: string, clientSecret: string): Promise<string> {
   const body = new URLSearchParams({ grant_type: 'client_credentials', client_id: clientId, client_secret: clientSecret })
   const res = await fetch(`${host}/oauth/token`, { method: 'POST', body })
@@ -69,6 +111,18 @@ export default async function handler(req: Request): Promise<Response> {
     })
     if (!res.ok) return Response.json({ error: `Mobysuite respondió ${res.status}` }, { status: 502 })
     const contratos = (await res.json()) as MobyContrato[]
+
+    // Stock real: todos los bienes del proyecto, vendidos o no (si falla, el resto del resumen sigue funcionando)
+    let stock: Stock | null = null
+    try {
+      const ra = await fetch(`${MOBY_HOST}/v1/api/integrations/assets/all-assets?projectId=${encodeURIComponent(mobyProjectId)}`, {
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      })
+      if (ra.ok) {
+        const j = (await ra.json()) as MobyAsset[] | { content?: MobyAsset[] }
+        stock = resumirStock(Array.isArray(j) ? j : j.content ?? [])
+      }
+    } catch { /* sin stock */ }
 
     const contratosPorEstado: Record<string, number> = {}
     const deptos = vacio(), estacionamientos = vacio(), depositos = vacio()
@@ -128,6 +182,7 @@ export default async function handler(req: Request): Promise<Response> {
       },
       porDormitorios, porPiso,
       cobrado, valorContratos,
+      stock,
     })
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : 'Error desconocido' }, { status: 500 })

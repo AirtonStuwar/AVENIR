@@ -3,7 +3,19 @@ import { authFetch } from '../../../api/authFetch'
 export interface Conteo { promesado: number; reservado: number }
 
 /** Resumen comercial de un proyecto, ya agregado en el servidor (sin datos de clientes). */
+export interface StockTipo { total: number; disponible: number; promesado: number; reservado: number }
+
+/** Inventario real del proyecto (assets de Mobysuite). */
+export interface StockMobysuite {
+  deptos: StockTipo
+  estacionamientos: StockTipo
+  depositos: StockTipo
+  disponiblesPorPiso: Record<string, number>
+  precioM2Ponderado: number | null
+}
+
 export interface StatusMobysuite {
+  stock: StockMobysuite | null
   totalContratos: number
   contratosPorEstado: Record<string, number>
   deptos: Conteo

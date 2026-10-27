@@ -42,8 +42,11 @@ function Tarjeta({ titulo, children }: { titulo: string; children: React.ReactNo
 function derivar(p: Proyecto, s: StatusMobysuite) {
   const vendidas = s.deptos.promesado
   const separadas = s.deptos.reservado
-  const stock = p.stock_inicial ?? null
-  const disponibles = stock != null ? Math.max(0, stock - vendidas - separadas) : null
+  // El stock sale del inventario de Mobysuite; solo si no se pudo leer se usa el stock inicial cargado a mano
+  const stock = s.stock?.deptos.total ?? p.stock_inicial ?? null
+  const disponibles = s.stock
+    ? s.stock.deptos.disponible
+    : stock != null ? Math.max(0, stock - vendidas - separadas) : null
   const meta = p.meta_proyectada ?? null
   const venta = s.venta.promesado
   return {
@@ -56,11 +59,8 @@ function derivar(p: Proyecto, s: StatusMobysuite) {
 // ── Modal de datos fijos (solo ADMIN) ─────────────────────────────────
 const CAMPOS: Array<{ campo: keyof Proyecto; label: string }> = [
   { campo: 'meta_proyectada', label: 'Meta proyectada de venta (S/)' },
-  { campo: 'stock_inicial', label: 'Stock inicial (departamentos)' },
   { campo: 'pisos', label: 'Pisos' },
   { campo: 'sotanos', label: 'Sótanos' },
-  { campo: 'total_estacionamientos', label: 'Estacionamientos (total)' },
-  { campo: 'total_depositos', label: 'Depósitos (total)' },
 ]
 
 function DatosFijosModal({ proyecto, onClose, onSaved }: { proyecto: Proyecto; onClose: () => void; onSaved: () => void }) {
@@ -100,7 +100,7 @@ function DatosFijosModal({ proyecto, onClose, onSaved }: { proyecto: Proyecto; o
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20" />
             </div>
           ))}
-          <p className="text-xs text-gray-400">Estos datos no vienen de Mobysuite. Déjalos vacíos si aún no los tienes.</p>
+          <p className="text-xs text-gray-400">Estos datos no vienen de Mobysuite. Déjalos vacíos si aún no los tienes. El stock, los estacionamientos y los depósitos ya se leen de Mobysuite.</p>
         </div>
         <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-100">
           <button onClick={onClose} className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">Cancelar</button>
@@ -189,8 +189,8 @@ export default function StatusProyectoPage() {
       <div className="flex gap-2 rounded-xl bg-blue-50 border border-blue-100 px-4 py-3 text-xs text-blue-900">
         <Info size={14} className="shrink-0 mt-0.5" />
         <p>
-          Cifras en vivo de Mobysuite (departamentos con minuta = vendidos; con separación = separaciones activas). Aún no se muestra la evolución
-          mes a mes ni las caídas: la consulta actual no entrega ese historial; se incorporará al conectar la base de datos de Mobysuite.
+          Cifras en vivo de Mobysuite (departamentos con minuta = vendidos; con separación = separaciones activas; el stock sale del inventario).
+          Aún no se muestra la evolución mes a mes ni las caídas: Mobysuite no entrega los contratos caídos; ese historial se irá armando con fotos periódicas.
         </p>
       </div>
 
@@ -267,15 +267,17 @@ export default function StatusProyectoPage() {
                     </div>
                   ) : 'Incluye estacionamientos y depósitos'}
                 </Tile>
-                <Tile label="Departamentos vendidos (minuta)" value={fmtN(d.vendidas)}>{d.stock ? `de ${fmtN(d.stock)} del stock inicial` : ''}</Tile>
+                <Tile label="Departamentos vendidos (minuta)" value={fmtN(d.vendidas)}>{d.stock ? `de ${fmtN(d.stock)} departamentos` : ''}</Tile>
                 <Tile label="Separaciones activas" value={fmtN(d.separadas)}>{fmtS(s.venta.reservado)} en separaciones</Tile>
-                <Tile label="Unidades disponibles" value={d.disponibles != null ? fmtN(d.disponibles) : '—'}>{d.disponibles != null ? 'Stock inicial − vendidas − separadas' : 'Falta el stock inicial'}</Tile>
+                <Tile label="Departamentos disponibles" value={d.disponibles != null ? fmtN(d.disponibles) : '—'}>
+                  {s.stock ? 'Inventario real de Mobysuite' : d.disponibles != null ? 'Stock inicial − vendidas − separadas' : 'No se pudo leer el inventario'}
+                </Tile>
                 <Tile label="Precio por m² (minutas)" value={s.precioM2.minutas ? fmtS(s.precioM2.minutas) : '—'}>
-                  {s.precioM2.todos ? `${fmtS(s.precioM2.todos)} incluyendo separaciones` : ''}
+                  {s.stock?.precioM2Ponderado ? `${fmtS(s.stock.precioM2Ponderado)} sobre área ponderada` : s.precioM2.todos ? `${fmtS(s.precioM2.todos)} incluyendo separaciones` : ''}
                 </Tile>
                 <Tile label="Cobrado acumulado" value={fmtS(s.cobrado)}>{d.cobradoPct != null ? `${pct(d.cobradoPct)} del valor de los contratos` : ''}</Tile>
                 <Tile label="Estac. y depósitos con contrato" value={fmtN(s.estacionamientos.promesado + s.estacionamientos.reservado + s.depositos.promesado + s.depositos.reservado)}>
-                  {fmtN(s.estacionamientos.promesado + s.estacionamientos.reservado)} estac. · {fmtN(s.depositos.promesado + s.depositos.reservado)} dep.
+                  {fmtN(s.estacionamientos.promesado + s.estacionamientos.reservado)} estac.{s.stock ? ` de ${fmtN(s.stock.estacionamientos.total)}` : ''} · {fmtN(s.depositos.promesado + s.depositos.reservado)} dep.{s.stock ? ` de ${fmtN(s.stock.depositos.total)}` : ''}
                 </Tile>
               </div>
 
