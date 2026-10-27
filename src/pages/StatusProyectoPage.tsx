@@ -190,7 +190,7 @@ export default function StatusProyectoPage() {
         <Info size={14} className="shrink-0 mt-0.5" />
         <p>
           Cifras en vivo de Mobysuite (departamentos con minuta = vendidos; con separación = separaciones activas). Aún no se muestra la evolución
-          mes a mes ni las caídas: las fechas que entrega Mobysuite no son confiables para eso (hubo una carga masiva) y las caídas no vienen marcadas.
+          mes a mes ni las caídas: la consulta actual no entrega ese historial; se incorporará al conectar la base de datos de Mobysuite.
         </p>
       </div>
 
