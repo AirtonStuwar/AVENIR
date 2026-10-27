@@ -200,12 +200,14 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
   // Enrich users
   const userMap = await enrichUsers(aprobadas.map(s => s.usuario_creador))
   // Facturas con valorizacion pagadas en partes: la columna de cuenta lista todas las cuentas usadas
-  const { data: pagosParcRes } = await supabase.from('solicitud_pago').select('solicitud_id, cuenta_pago_id').in('solicitud_id', ids).order('id')
-  const pagosParc = (pagosParcRes ?? []) as { solicitud_id: number; cuenta_pago_id: number }[]
+  const { data: pagosParcRes } = await supabase.from('solicitud_pago').select('solicitud_id, cuenta_pago_id, medio_pago, confirming_entidad').in('solicitud_id', ids).order('id')
+  const pagosParc = (pagosParcRes ?? []) as { solicitud_id: number; cuenta_pago_id: number | null; medio_pago: string; confirming_entidad: string | null }[]
   const cuentaMap = await enrichCuentas([...aprobadas.flatMap(s => [s.cuenta_pago_id, s.cuenta_pago_detraccion_id]), ...pagosParc.map(p => p.cuenta_pago_id)])
   const cuentasPorSol: Record<number, string> = {}
   for (const sid of new Set(pagosParc.map(p => p.solicitud_id))) {
-    const etiquetas = [...new Set(pagosParc.filter(p => p.solicitud_id === sid).map(p => cuentaMap[p.cuenta_pago_id]).filter(Boolean))]
+    // Un pago por confirming no tiene cuenta de la empresa: se lista como "Confirming (entidad)"
+    const etiquetas = [...new Set(pagosParc.filter(p => p.solicitud_id === sid).map(p =>
+      p.medio_pago === 'Confirming' ? `Confirming (${p.confirming_entidad})` : cuentaMap[p.cuenta_pago_id as number]).filter(Boolean))]
     cuentasPorSol[sid] = etiquetas.join(' + ')
   }
 

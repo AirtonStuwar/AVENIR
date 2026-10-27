@@ -24,7 +24,7 @@ import AlertaDocumentoDuplicado from '../features/solicitud/components/AlertaDoc
 import CorreccionModal from '../features/solicitud/components/CorreccionModal'
 import { registrarCorreccion } from '../features/solicitud/services/correccionService'
 import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
-import { marcarPagado, registrarPagoSolicitud, getPagosSolicitud } from '../features/solicitud/services/cuentaBancariaService'
+import { marcarPagado, registrarPagoSolicitud, registrarPagoConfirming, marcarConfirmingPagado, getPagosSolicitud } from '../features/solicitud/services/cuentaBancariaService'
 import type { PagoSolicitud } from '../features/solicitud/services/cuentaBancariaService'
 import { montoAGirar, montoPendientePago, esPagoParcial } from '../features/solicitud/utils/montoAGirar'
 import { getTipoCambioUSD } from '../features/solicitud/services/rucService'
@@ -253,12 +253,17 @@ export default function SolicitudDetallePage() {
   // Pagos en partes (solo Factura con Valorización): se recargan junto con la solicitud
   const [pagos, setPagos] = useState<PagoSolicitud[]>([])
   const [nombresPago, setNombresPago] = useState<Record<string, string>>({})
+  const [pagosTick, setPagosTick] = useState(0)   // fuerza recargar los pagos (ej. al registrar que se repuso un confirming)
+  // Confirming: pago que Contabilidad está marcando como repuesto, y su fecha
+  const [confirmingRepoId, setConfirmingRepoId] = useState<number | null>(null)
+  const [confirmingRepoFecha, setConfirmingRepoFecha] = useState('')
+  const [confirmingRepoSaving, setConfirmingRepoSaving] = useState(false)
   useEffect(() => {
     if (!solicitud?.id || solicitud.solicitud_tipo?.nombre !== 'Factura con Valorización') { setPagos([]); return }
     getPagosSolicitud(solicitud.id).then(setPagos).catch(() => setPagos([]))
-  }, [solicitud?.id, solicitud?.solicitud_tipo?.nombre, solicitud?.monto_pagado, solicitud?.fecha_pago])
+  }, [solicitud?.id, solicitud?.solicitud_tipo?.nombre, solicitud?.monto_pagado, solicitud?.fecha_pago, pagosTick])
   useEffect(() => {
-    const ids = [...new Set(pagos.map(p => p.usuario_id).filter(Boolean))] as string[]
+    const ids = [...new Set(pagos.flatMap(p => [p.usuario_id, p.confirming_pagado_usuario]).filter(Boolean))] as string[]
     if (ids.length === 0) return
     getNombresUsuarios(ids).then(setNombresPago).catch(() => {})
   }, [pagos])
@@ -445,7 +450,9 @@ export default function SolicitudDetallePage() {
     if (pagos.length > 0) {
       const sym = solicitud.moneda === 'USD' ? '$ ' : 'S/ '
       pagos.forEach((p, i) => {
-        const cuenta = p.cuenta ? `${p.cuenta.banco} ${p.cuenta.numero_cuenta}` : null
+        const cuenta = p.medio_pago === 'Confirming'
+          ? `Confirming (${p.confirming_entidad}, vence ${fmtDate(p.confirming_vencimiento)})`
+          : p.cuenta ? `${p.cuenta.banco} ${p.cuenta.numero_cuenta}` : null
         pasos.push({
           titulo: `Pago ${i + 1} — ${sym}${p.monto.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           fecha: fmtDate(p.fecha_pago),
@@ -687,10 +694,14 @@ export default function SolicitudDetallePage() {
   }
 
 
-  const handleConfirmPago = async (cuentaId: number, fechaPago: string, _cheque?: { numero: string } | null, monto?: number) => {
+  const handleConfirmPago = async (cuentaId: number, fechaPago: string, _cheque?: { numero: string } | null, monto?: number, confirming?: { entidad: string; vencimiento: string } | null) => {
     if (!solicitud?.id || !user?.id) return
     try {
-      if (isValorizacion && monto != null) {
+      if (isValorizacion && monto != null && confirming) {
+        // Pago por confirming: no sale dinero de una cuenta de la empresa, no lleva cuenta
+        const falta = await registrarPagoConfirming(solicitud.id, monto, confirming.entidad, confirming.vencimiento, fechaPago)
+        toast.success(falta > 0 ? `Pago por confirming registrado. Falta pagar ${fmtMoney(falta, (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}` : 'Solicitud pagada por completo (confirming)')
+      } else if (isValorizacion && monto != null) {
         // Factura con Valorización: se puede pagar en partes (con distintas cuentas)
         const falta = await registrarPagoSolicitud(solicitud.id, monto, cuentaId, fechaPago)
         toast.success(falta > 0 ? `Pago parcial registrado. Falta pagar ${fmtMoney(falta, (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}` : 'Solicitud pagada por completo')
@@ -702,6 +713,22 @@ export default function SolicitudDetallePage() {
       await reload(id!)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'No se pudo registrar el pago')
+    }
+  }
+
+  const handleConfirmingRepuesto = async () => {
+    if (confirmingRepoId == null) return
+    if (!confirmingRepoFecha) { toast.error('Ingresa la fecha en que se pagó el confirming'); return }
+    setConfirmingRepoSaving(true)
+    try {
+      await marcarConfirmingPagado(confirmingRepoId, confirmingRepoFecha)
+      toast.success('Confirming marcado como pagado')
+      setConfirmingRepoId(null)
+      setPagosTick(t => t + 1)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'No se pudo registrar el pago del confirming')
+    } finally {
+      setConfirmingRepoSaving(false)
     }
   }
 
@@ -945,6 +972,7 @@ export default function SolicitudDetallePage() {
           {solicitud?.fecha_pago && (
             <span className="flex items-center gap-1 h-8 px-3 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-200">
               Pagado {fmtDate(solicitud.fecha_pago)}
+              {pagos.some(p => p.medio_pago === 'Confirming') ? ' · Confirming' : ''}
             </span>
           )}
           {solicitud && esPagoParcial(solicitud) && (
@@ -1685,7 +1713,30 @@ export default function SolicitudDetallePage() {
                     <tr key={p.id} className="border-b border-gray-50 last:border-0">
                       <td className="px-6 py-2 text-gray-500">{i + 1}</td>
                       <td className="px-3 py-2 text-gray-800">{fmtDate(p.fecha_pago)}</td>
-                      <td className="px-3 py-2 text-gray-800">{p.cuenta ? `${p.cuenta.banco} · ${p.cuenta.numero_cuenta}` : '—'}</td>
+                      <td className="px-3 py-2 text-gray-800">
+                        {p.medio_pago === 'Confirming' ? (
+                          <div className="space-y-0.5">
+                            <span className="inline-flex items-center rounded-md bg-violet-50 border border-violet-200 px-1.5 py-0.5 text-[11px] font-semibold text-violet-700">
+                              Confirming · {p.confirming_entidad}
+                            </span>
+                            <p className="text-[11px] text-gray-500">Vence {fmtDate(p.confirming_vencimiento)}</p>
+                            {p.confirming_pagado_fecha ? (
+                              <p className="text-[11px] text-emerald-700 font-medium">
+                                Repuesto {fmtDate(p.confirming_pagado_fecha)}
+                                {p.confirming_pagado_usuario && nombresPago[p.confirming_pagado_usuario] ? ` · ${nombresPago[p.confirming_pagado_usuario]}` : ''}
+                              </p>
+                            ) : (userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN) ? (
+                              <button type="button"
+                                onClick={() => { setConfirmingRepoId(p.id); setConfirmingRepoFecha(new Date().toLocaleDateString('en-CA')) }}
+                                className="text-[11px] font-semibold text-[#003D7D] hover:underline">
+                                Marcar confirming pagado
+                              </button>
+                            ) : (
+                              <p className="text-[11px] text-amber-700">Pendiente de reposición</p>
+                            )}
+                          </div>
+                        ) : (p.cuenta ? `${p.cuenta.banco} · ${p.cuenta.numero_cuenta}` : '—')}
+                      </td>
                       <td className="px-3 py-2 text-right font-semibold text-gray-900">{fmtMoney(p.monto, (solicitud.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                       <td className="px-6 py-2 text-gray-500">{p.usuario_id ? (nombresPago[p.usuario_id] ?? '—') : '—'}</td>
                     </tr>
@@ -1701,6 +1752,29 @@ export default function SolicitudDetallePage() {
                   </tr>
                 </tfoot>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Modal: fecha en que se repuso un confirming */}
+        {confirmingRepoId != null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !confirmingRepoSaving && setConfirmingRepoId(null)} />
+            <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 space-y-4">
+              <h2 className="text-sm font-semibold text-gray-800">Marcar confirming pagado</h2>
+              <p className="text-sm text-gray-600">Registra la fecha en que la empresa pagó (repuso) este confirming.</p>
+              <input type="date" value={confirmingRepoFecha} onChange={e => setConfirmingRepoFecha(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50 focus:bg-white" />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setConfirmingRepoId(null)} disabled={confirmingRepoSaving}
+                  className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button onClick={handleConfirmingRepuesto} disabled={confirmingRepoSaving}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-50">
+                  {confirmingRepoSaving ? 'Guardando…' : 'Confirmar'}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -1755,7 +1829,8 @@ export default function SolicitudDetallePage() {
         proyectoId={solicitud?.proyecto_id ?? null}
         montoPendiente={isValorizacion && solicitud ? montoPendientePago(solicitud) : undefined}
         simbolo={solicitud?.moneda === 'USD' ? '$ ' : 'S/ '}
-        description={isValorizacion ? 'Elige la cuenta desde la que se paga. Esta factura puede pagarse en partes con distintas cuentas.' : undefined}
+        permitirConfirming={isValorizacion}
+        description={isValorizacion ? 'Elige la cuenta desde la que se paga, o confirming si no sale dinero de una cuenta de la empresa. Esta factura puede pagarse en partes.' : undefined}
         onConfirm={handleConfirmPago}
         onCancel={() => setPagoOpen(false)}
       />

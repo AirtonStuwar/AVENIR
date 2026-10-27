@@ -11,14 +11,16 @@ interface Props {
   description?: string
   // cheque solo llega cuando permitirCheque=true y Contabilidad eligio "Cheque de gerencia"
   // monto solo llega cuando se paso montoPendiente (Factura con Valorizacion: se puede pagar en partes)
-  onConfirm: (cuentaId: number, fechaPago: string, cheque?: { numero: string } | null, monto?: number) => Promise<void>
+  // confirming solo llega cuando permitirConfirming=true y Contabilidad eligio "Confirming": en ese caso cuentaId viene en 0 (no hay cuenta)
+  onConfirm: (cuentaId: number, fechaPago: string, cheque?: { numero: string } | null, monto?: number, confirming?: { entidad: string; vencimiento: string } | null) => Promise<void>
   onCancel: () => void
   permitirCheque?: boolean   // solo Devolucion de Cliente por ahora
+  permitirConfirming?: boolean   // solo Factura con Valorizacion
   montoPendiente?: number    // si viene, pide el monto de ESTE pago (por defecto todo lo pendiente) y permite pagar en partes
   simbolo?: string           // simbolo de moneda para mostrar el monto pendiente
 }
 
-export default function PagoModal({ open, proyectoId, title, description, onConfirm, onCancel, permitirCheque, montoPendiente, simbolo }: Props) {
+export default function PagoModal({ open, proyectoId, title, description, onConfirm, onCancel, permitirCheque, permitirConfirming, montoPendiente, simbolo }: Props) {
   const [cuentas, setCuentas]     = useState<CuentaBancaria[]>([])
   const [loading, setLoading]     = useState(false)
   const [saving, setSaving]       = useState(false)
@@ -31,6 +33,9 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
   const [esCheque, setEsCheque]       = useState(false)
   const [numeroCheque, setNumeroCheque] = useState('')
   const [montoTxt, setMontoTxt]       = useState('')
+  const [esConfirming, setEsConfirming] = useState(false)
+  const [entidad, setEntidad]           = useState('')
+  const [vencimiento, setVencimiento]   = useState('')
   const pedirMonto = montoPendiente != null
   const fmtM = (n: number) => n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -40,6 +45,9 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
     setFechaPago(localToday())
     setEsCheque(false)
     setNumeroCheque('')
+    setEsConfirming(false)
+    setEntidad('')
+    setVencimiento('')
     setMontoTxt(montoPendiente != null ? String(Math.round(montoPendiente * 100) / 100) : '')
     setLoading(true)
     getCuentasByProyecto(proyectoId)
@@ -52,8 +60,11 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
   if (!open) return null
 
   const handleConfirm = async () => {
-    if (!cuentaId) { toast.error('Selecciona una cuenta bancaria'); return }
+    const confirming = permitirConfirming && esConfirming
+    if (!confirming && !cuentaId) { toast.error('Selecciona una cuenta bancaria'); return }
     if (!fechaPago) { toast.error('Ingresa la fecha de pago'); return }
+    if (confirming && !entidad.trim()) { toast.error('Indica quién financia el confirming'); return }
+    if (confirming && !vencimiento) { toast.error('Ingresa la fecha de vencimiento del confirming'); return }
     if (permitirCheque && esCheque && !numeroCheque.trim()) { toast.error('Ingresa el número de cheque'); return }
     const monto = pedirMonto ? Math.round(parseFloat(montoTxt) * 100) / 100 : undefined
     if (pedirMonto) {
@@ -62,7 +73,12 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
     }
     setSaving(true)
     try {
-      await onConfirm(cuentaId, fechaPago, permitirCheque && esCheque ? { numero: numeroCheque.trim() } : null, monto)
+      await onConfirm(
+        confirming ? 0 : cuentaId!, fechaPago,
+        permitirCheque && esCheque ? { numero: numeroCheque.trim() } : null,
+        monto,
+        confirming ? { entidad: entidad.trim(), vencimiento } : null,
+      )
     } finally {
       setSaving(false)
     }
@@ -126,6 +142,47 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
             </div>
           )}
 
+          {/* Medio de pago (solo Factura con Valorizacion): transferencia o confirming */}
+          {permitirConfirming && (
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Medio de pago
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {[{ v: false, t: 'Transferencia' }, { v: true, t: 'Confirming' }].map(o => (
+                  <button key={o.t} type="button" onClick={() => setEsConfirming(o.v)}
+                    className={`px-3 py-2 rounded-xl border text-sm font-medium transition-all ${
+                      esConfirming === o.v
+                        ? 'bg-[#003D7D] text-white border-[#003D7D]'
+                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#003D7D]/40'
+                    }`}>
+                    {o.t}
+                  </button>
+                ))}
+              </div>
+              {esConfirming && (
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                      Quién financia el confirming <span className="text-red-500">*</span>
+                    </label>
+                    <input className={INPUT} value={entidad} onChange={e => setEntidad(e.target.value)}
+                      placeholder="Ej. BBVA, BCP, Interbank…" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                      Fecha de vencimiento <span className="text-red-500">*</span>
+                    </label>
+                    <input type="date" className={INPUT} value={vencimiento} onChange={e => setVencimiento(e.target.value)} />
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    Con confirming no sale dinero de una cuenta de la empresa ese día, por eso no se elige cuenta. Cuando se reponga, podrás registrar la fecha de pago desde el detalle.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Monto de este pago (solo Factura con Valorizacion) */}
           {pedirMonto && (
             <div>
@@ -142,13 +199,14 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
           {/* Fecha de pago */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-              {permitirCheque && esCheque ? 'Fecha de emisión del cheque' : 'Fecha de pago'} <span className="text-red-500">*</span>
+              {permitirCheque && esCheque ? 'Fecha de emisión del cheque' : permitirConfirming && esConfirming ? 'Fecha en que se pagó al proveedor' : 'Fecha de pago'} <span className="text-red-500">*</span>
             </label>
             <input type="date" className={INPUT} value={fechaPago}
               onChange={e => setFechaPago(e.target.value)} />
           </div>
 
-          {/* Cuenta bancaria */}
+          {/* Cuenta bancaria (no aplica a confirming) */}
+          {!(permitirConfirming && esConfirming) && (
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
               Cuenta bancaria <span className="text-red-500">*</span>
@@ -205,6 +263,7 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -213,7 +272,7 @@ export default function PagoModal({ open, proyectoId, title, description, onConf
             className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50 transition-all">
             Cancelar
           </button>
-          <button onClick={handleConfirm} disabled={saving || !cuentaId}
+          <button onClick={handleConfirm} disabled={saving || (!cuentaId && !(permitirConfirming && esConfirming))}
             className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-medium flex items-center gap-2 hover:bg-emerald-700 disabled:opacity-40 transition-all">
             {saving
               ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> Guardando…</>

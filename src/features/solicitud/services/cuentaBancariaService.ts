@@ -67,9 +67,14 @@ export interface PagoSolicitud {
   solicitud_id: number
   monto: number
   fecha_pago: string
-  cuenta_pago_id: number
+  cuenta_pago_id: number | null   // null cuando se pagó con confirming (no sale dinero de una cuenta de la empresa)
   usuario_id: string | null
   fecha_creacion: string
+  medio_pago: 'Transferencia' | 'Confirming'
+  confirming_entidad: string | null
+  confirming_vencimiento: string | null
+  confirming_pagado_fecha: string | null
+  confirming_pagado_usuario: string | null
   cuenta?: { banco: string; numero_cuenta: string; moneda: string } | null
 }
 
@@ -77,7 +82,7 @@ export interface PagoSolicitud {
 export async function getPagosSolicitud(solicitudId: number): Promise<PagoSolicitud[]> {
   const { data, error } = await supabase
     .from('solicitud_pago')
-    .select('id, solicitud_id, monto, fecha_pago, cuenta_pago_id, usuario_id, fecha_creacion, cuenta:cuenta_pago_id(banco,numero_cuenta,moneda)')
+    .select('id, solicitud_id, monto, fecha_pago, cuenta_pago_id, usuario_id, fecha_creacion, medio_pago, confirming_entidad, confirming_vencimiento, confirming_pagado_fecha, confirming_pagado_usuario, cuenta:cuenta_pago_id(banco,numero_cuenta,moneda)')
     .eq('solicitud_id', solicitudId)
     .order('id', { ascending: true })
   if (error) throw error
@@ -95,6 +100,25 @@ export async function registrarPagoSolicitud(solicitudId: number, monto: number,
   })
   if (error) throw new Error(error.message)
   return Number(data ?? 0)
+}
+
+/**
+ * Registra un pago (total o parcial) por CONFIRMING de una Factura con Valorización: ese día no sale dinero de ninguna
+ * cuenta de la empresa, así que no lleva cuenta. `entidad` es quien financia (banco u otro) y `vencimiento` cuándo
+ * hay que reponerlo. Devuelve lo que aún queda por pagar (0 = pagada por completo).
+ */
+export async function registrarPagoConfirming(solicitudId: number, monto: number, entidad: string, vencimiento: string, fechaPago: string): Promise<number> {
+  const { data, error } = await supabase.rpc('registrar_pago_confirming', {
+    p_solicitud_id: solicitudId, p_monto: monto, p_entidad: entidad, p_vencimiento: vencimiento, p_fecha: fechaPago,
+  })
+  if (error) throw new Error(error.message)
+  return Number(data ?? 0)
+}
+
+/** Registra la fecha en que la empresa repuso el confirming. */
+export async function marcarConfirmingPagado(pagoId: number, fecha: string): Promise<void> {
+  const { error } = await supabase.rpc('marcar_confirming_pagado', { p_pago_id: pagoId, p_fecha: fecha })
+  if (error) throw new Error(error.message)
 }
 
 export async function marcarPagado(
