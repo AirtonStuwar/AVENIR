@@ -9,6 +9,7 @@ export interface ReembolsoDetalle {
   importe: number
   archivo_path: string | null
   fecha_creacion: string | null
+  cuenta_referencia_id?: number | null   // cuenta contable de referencia, solo informativa
 }
 
 export type ReembolsoDetalleInsert = Omit<ReembolsoDetalle, 'id' | 'fecha_creacion'>

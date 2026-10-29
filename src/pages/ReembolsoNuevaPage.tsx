@@ -27,6 +27,9 @@ import { getUltimaCuentaBancariaPersonal } from '../features/solicitud/services/
 import { ReembolsoPDF } from '../features/reembolso/components/ReembolsoPDF'
 import FirmaModal from '../features/solicitud/components/FirmaModal'
 import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
+import CuentaContableSelect from '../features/solicitud/components/CuentaContableSelect'
+import { getPlanContable } from '../features/solicitud/services/solicitudService'
+import type { PlanContable } from '../features/solicitud/types/solicitud'
 import { supabase } from '../api/supabase'
 import logoUrl from '../assets/avenir-logo.png'
 
@@ -40,6 +43,7 @@ interface DetalleRow {
   importe: string
   savedId: number | null
   archivo_path: string | null
+  cuenta_referencia_id: number | null   // solo de referencia, no afecta ningún cálculo ni reporte
 }
 
 const TIPOS_DOC = ['RECIBO', 'FACTURA', 'BOLETA', 'RXH', 'PLLA-MOV', 'TICKET', 'OTRO']
@@ -55,7 +59,7 @@ function newRow(): DetalleRow {
     tempId: nextTempId++,
     fecha_documento: localToday(), proveedor: '', tipo_documento: '',
     numero_documento: '', concepto: '', importe: '',
-    savedId: null, archivo_path: null,
+    savedId: null, archivo_path: null, cuenta_referencia_id: null,
   }
 }
 
@@ -83,6 +87,8 @@ export default function ReembolsoNuevaPage() {
 
   // Step 2
   const [rows, setRows] = useState<DetalleRow[]>([newRow()])
+  const [planOpciones, setPlanOpciones] = useState<PlanContable[]>([])
+  useEffect(() => { getPlanContable().then(setPlanOpciones).catch(() => {}) }, [])
 
   // Firma
   const [firmaOpen, setFirmaOpen] = useState(false)
@@ -195,6 +201,9 @@ export default function ReembolsoNuevaPage() {
   function updateRow(tempId: number, field: keyof DetalleRow, value: string | File | null) {
     setRows(prev => prev.map(r => r.tempId === tempId ? { ...r, [field]: value } : r))
   }
+  function setCuentaRow(tempId: number, id: number | null) {
+    setRows(prev => prev.map(r => r.tempId === tempId ? { ...r, cuenta_referencia_id: id } : r))
+  }
   function addRow() { setRows(prev => [...prev, newRow()]) }
   function removeRow(tempId: number) {
     setRows(prev => prev.length > 1 ? prev.filter(r => r.tempId !== tempId) : prev)
@@ -229,6 +238,7 @@ export default function ReembolsoNuevaPage() {
           concepto: row.concepto || null,
           importe: parseFloat(row.importe) || 0,
           archivo_path: null,
+          cuenta_referencia_id: row.cuenta_referencia_id,
         })
         savedDetalles.push(det)
       }
@@ -516,6 +526,7 @@ export default function ReembolsoNuevaPage() {
                     <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-32">Tipo Doc.</th>
                     <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-28">N° Doc.</th>
                     <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide">Concepto</th>
+                    <th className="text-left px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-52" title="Opcional, solo de referencia para tu Excel">Cuenta contable (ref.)</th>
                     <th className="text-right px-3 py-2.5 font-semibold text-gray-500 uppercase tracking-wide w-24">Importe</th>
                     <th className="w-8" />
                   </tr>
@@ -558,6 +569,15 @@ export default function ReembolsoNuevaPage() {
                         />
                       </td>
                       <td className="px-2 py-1.5">
+                        <CuentaContableSelect
+                          compact
+                          value={row.cuenta_referencia_id}
+                          onChange={id => setCuentaRow(row.tempId, id)}
+                          opciones={planOpciones}
+                          placeholder="Buscar cuenta…"
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
                         <input type="number" value={row.importe} placeholder="0.00" min="0" step="0.01"
                           onChange={e => updateRow(row.tempId, 'importe', e.target.value)}
                           className="w-full h-8 px-2 rounded-lg border border-gray-200 text-xs text-right focus:outline-none focus:ring-1 focus:ring-[#003D7D]/40"
@@ -575,7 +595,7 @@ export default function ReembolsoNuevaPage() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-[#003D7D]/[0.04] border-t-2 border-[#003D7D]/20">
-                    <td colSpan={5} className="px-3 py-2.5 text-xs font-bold text-gray-700 text-right uppercase">
+                    <td colSpan={6} className="px-3 py-2.5 text-xs font-bold text-gray-700 text-right uppercase">
                       Total a reembolsar:
                     </td>
                     <td className="px-3 py-2.5 text-right font-bold text-[#003D7D] text-sm">
