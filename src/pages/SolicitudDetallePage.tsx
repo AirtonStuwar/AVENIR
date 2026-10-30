@@ -2,7 +2,7 @@ import BitacoraEventos from '../features/solicitud/components/BitacoraEventos'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown, Search, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, Pencil, Plus, Trash2, AlertCircle, CheckCircle, Ban, Send, RotateCcw, ThumbsUp, Copy, FileDown, Search, ShieldAlert, CalendarClock } from 'lucide-react'
 import { pdf } from '@react-pdf/renderer'
 import {
   getSolicitudById, createDetalle, updateDetalle, deleteDetalle,
@@ -11,7 +11,10 @@ import {
   getArchivosBySolicitud, getArchivoUrl,
   updateSolicitud, duplicarSolicitud, uploadFirma, getUsuarioById, marcarDetraccionPagada,
   getPlanContable, registrarDatosFactura, getNombresUsuarios,
+  programarAprobacion, quitarProgramacion,
 } from '../features/solicitud/services/solicitudService'
+import ProgramarAprobacionModal from '../features/solicitud/components/ProgramarAprobacionModal'
+import { estaProgramada, etiquetaMes } from '../features/solicitud/utils/programacion'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
 import SolicitudModal from '../features/solicitud/components/SolicitudModal'
@@ -130,7 +133,7 @@ const ESTADO_COLOR: Record<string, string> = {
 }
 
 // Tipos de acción para el modal de confirmación
-type ActionKey = 'cancelar' | { deleteDetId: number }
+type ActionKey = 'cancelar' | 'aprobarAntes' | { deleteDetId: number }
 
 interface ConfirmCfg {
   title: string
@@ -176,6 +179,10 @@ export default function SolicitudDetallePage() {
   const [planContableEditSearch,   setPlanContableEditSearch]   = useState('')
   const [planContableEditDropOpen, setPlanContableEditDropOpen] = useState(false)
   const [savingPlanContable,       setSavingPlanContable]       = useState(false)
+
+  // Aprobación programada (APROBADOR/ADMIN sobre una solicitud Evaluada)
+  const [programarOpen,  setProgramarOpen]  = useState(false)
+  const [nombreProgramador, setNombreProgramador] = useState<string | null>(null)
 
   // Modales
   const [rechazoOpen,    setRechazoOpen]    = useState(false)
@@ -267,6 +274,12 @@ export default function SolicitudDetallePage() {
     if (ids.length === 0) return
     getNombresUsuarios(ids).then(setNombresPago).catch(() => {})
   }, [pagos])
+  // Quién programó la aprobación (para mostrarlo en el aviso)
+  useEffect(() => {
+    const uid = solicitud?.programacion_usuario
+    if (!uid) { setNombreProgramador(null); return }
+    getNombresUsuarios([uid]).then(n => setNombreProgramador(n[uid] ?? null)).catch(() => setNombreProgramador(null))
+  }, [solicitud?.programacion_usuario])
   useEffect(() => {
     const ids = new Set<string>()
     for (const a of archivosSubidos) {
@@ -383,6 +396,8 @@ export default function SolicitudDetallePage() {
   const canDevolver  = (userRole === ROLES.EVALUADOR || userRole === ROLES.ADMIN) && isEnRevision
   const canAprobar   = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
   const canRechazar  = (userRole === ROLES.APROBADOR || userRole === ROLES.ADMIN) && isEvaluado
+  const canProgramar = canAprobar
+  const programada   = !!solicitud && estaProgramada(solicitud)
   const canEncuestar    = isAprobado && !isRxH && ((userRole === ROLES.USUARIO && isOwnSolicitud) || userRole === ROLES.ADMIN)
   const canMarcarPagado        = isAprobado && !solicitud?.fecha_pago && (userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN)
   const canMarcarDetraccionPag = isAprobado && !!solicitud?.detraccion_id && !solicitud?.detraccion_pagada
@@ -515,6 +530,13 @@ export default function SolicitudDetallePage() {
     const action = pendingAction
     const solId  = solicitud?.id
     if (!action || !solId || !id) { setPendingAction(null); return }
+
+    if (action === 'aprobarAntes') {
+      // Aprobar una solicitud programada para otro mes: ya confirmó, sigue el flujo normal de firma
+      setPendingAction(null)
+      await executeWithFirma('aprobar')
+      return
+    }
 
     setPendingAction(null)
     setActioning(true)
@@ -746,7 +768,43 @@ export default function SolicitudDetallePage() {
 
   const handleAprobar = () => {
     if (!solicitud) return
+    if (programada) {
+      // Estaba programada para otro mes: se puede aprobar antes, pero con confirmación
+      openConfirm('aprobarAntes', {
+        title: 'Aprobar antes del mes programado',
+        message: `Esta solicitud está programada para aprobarse desde ${etiquetaMes(solicitud.aprobar_desde)}. ¿Quieres aprobarla ahora de todos modos?`,
+        confirmLabel: 'Aprobar ahora',
+        variant: 'blue',
+      })
+      return
+    }
     executeWithFirma('aprobar')
+  }
+
+  const handleProgramar = async (mes: string, motivo: string) => {
+    if (!solicitud || !id) return
+    try {
+      await programarAprobacion(solicitud.id, mes, motivo || null)
+      toast.success(`Aprobación programada para ${etiquetaMes(mes)}`)
+      await reload(id)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al programar')
+      throw err
+    }
+  }
+
+  const handleQuitarProgramacion = async () => {
+    if (!solicitud || !id) return
+    setActioning(true)
+    try {
+      await quitarProgramacion(solicitud.id)
+      toast.success('Programación quitada: vuelve a tu cola de aprobación')
+      await reload(id)
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : 'Error al quitar la programación')
+    } finally {
+      setActioning(false)
+    }
   }
 
   const handleDevolver = async (comentario: string) => {
@@ -1030,6 +1088,13 @@ export default function SolicitudDetallePage() {
               <ThumbsUp size={13} /> Aprobar
             </button>
           )}
+          {canProgramar && (
+            <button onClick={() => setProgramarOpen(true)} disabled={actioning}
+              title="Dejarla para aprobarla en otro mes, sin rechazarla"
+              className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-[#003D7D] text-white text-xs font-semibold hover:bg-[#002D5C] disabled:opacity-50 transition-colors">
+              <CalendarClock size={13} /> {programada ? 'Reprogramar' : 'Programar'}
+            </button>
+          )}
           {canRechazar && (
             <button onClick={() => setRechazoOpen(true)} disabled={actioning}
               className="flex items-center gap-1.5 h-8 px-3.5 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
@@ -1048,6 +1113,32 @@ export default function SolicitudDetallePage() {
             <p className="text-sm text-amber-800">{solicitud.comentario_gerencia}</p>
             {canReenviarConta && (
               <p className="text-xs text-amber-600 mt-1">Corrige lo indicado (documentos, factura, detalles) y haz clic en "Reenviar a contabilidad" — no pasa de nuevo por aprobación. Los datos bancarios no se pueden modificar.</p>
+            )}
+          </div>
+        )}
+
+        {/* Aprobación programada para otro mes (la ve cualquiera que abra la solicitud) */}
+        {programada && solicitud.aprobar_desde && (
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4 flex items-start justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <CalendarClock size={18} className="text-[#003D7D] mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-semibold text-[#003D7D] uppercase mb-1">
+                  Aprobación programada para {etiquetaMes(solicitud.aprobar_desde)}
+                </p>
+                {solicitud.programacion_motivo && <p className="text-sm text-blue-900">{solicitud.programacion_motivo}</p>}
+                <p className="text-xs text-blue-700 mt-1">
+                  {nombreProgramador ? `Programada por ${nombreProgramador}` : 'Programada'}
+                  {solicitud.programacion_fecha ? ` el ${fmtDateHora(solicitud.programacion_fecha)}` : ''}.
+                  {' '}Sigue Evaluada y volverá sola a la cola de aprobación en esa fecha.
+                </p>
+              </div>
+            </div>
+            {canProgramar && (
+              <button onClick={handleQuitarProgramacion} disabled={actioning}
+                className="shrink-0 h-8 px-3 rounded-xl border border-blue-200 bg-white text-[#003D7D] text-xs font-semibold hover:bg-blue-50 disabled:opacity-50 transition-colors">
+                Quitar programación
+              </button>
             )}
           </div>
         )}
@@ -1888,6 +1979,15 @@ export default function SolicitudDetallePage() {
         codigo={solicitud.codigo ?? null}
         onClose={() => setRechazoOpen(false)}
         onConfirm={handleRechazar}
+      />
+
+      <ProgramarAprobacionModal
+        open={programarOpen}
+        codigo={solicitud.codigo ?? null}
+        actual={programada ? solicitud.aprobar_desde : null}
+        motivoActual={programada ? solicitud.programacion_motivo : null}
+        onClose={() => setProgramarOpen(false)}
+        onConfirm={handleProgramar}
       />
 
       <FirmaModal

@@ -14,7 +14,7 @@ const SOL_SEL = [
   'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
   'numero_factura, monto_total, plan_contable_id, usuario_evaluador, fecha_evaluacion, fecha_devolucion_evaluador, moneda',
   'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
-  'detraccion_id, monto_detraccion, monto_fondo_garantia, monto_exonerado, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, monto_pagado, detraccion_pagada, fecha_pago_detraccion, cuenta_pago_detraccion_id, aplica_igv, factura_datos_usuario, factura_datos_fecha',
+  'detraccion_id, monto_detraccion, monto_fondo_garantia, monto_exonerado, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, monto_pagado, detraccion_pagada, fecha_pago_detraccion, cuenta_pago_detraccion_id, aplica_igv, factura_datos_usuario, factura_datos_fecha, aprobar_desde, programacion_motivo, programacion_usuario, programacion_fecha',
   'proyecto:proyecto_id(id,nombre,ruc,direccion,presupuesto)',
   'proyecto_partida:proyecto_partida_id(id,nombre,presupuesto_pen,presupuesto_usd)',
   'detraccion:detraccion_id(id,codigo,concepto,porcentaje,monto_minimo)',
@@ -131,6 +131,10 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
     .from(TABLE)
     .select(SOL_SEL, { count: 'exact' })
     .range(from, to)
+
+  // Al aprobador las solicitudes con aprobación programada para otro mes le van al final de la lista
+  // (aprobar_desde nulo primero), sin importar el orden elegido; dentro de las programadas, el mes más cercano primero.
+  if (role === ROLES.APROBADOR) query = query.order('aprobar_desde', { ascending: true, nullsFirst: true })
 
   // "Más urgentes": por vencimiento de la factura (la más antigua primero, las sin fecha al final); la fecha de
   // creación desempata para que la paginación sea estable.
@@ -377,6 +381,31 @@ export async function rechazarSolicitud(id: number, comentario: string): Promise
   const [estadoId] = await resolveEstadoIds(['Rechazado'])
   if (!estadoId) throw new Error('Estado "Rechazado" no encontrado en BD')
   return updateSolicitud(id, { estado_id: estadoId, comentario_gerencia: comentario })
+}
+
+/**
+ * APROBADOR/ADMIN: deja una solicitud Evaluada para aprobarla recién desde un mes posterior (`mes` = YYYY-MM-01).
+ * No cambia el estado. La BD valida el rol, que siga Evaluada y que el mes sea posterior al actual.
+ */
+export async function programarAprobacion(id: number, mes: string, motivo: string | null): Promise<void> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({ aprobar_desde: mes, programacion_motivo: motivo?.trim() || null })
+    .eq('id', id)
+    .select('id')
+  if (error) throw new Error(error.message)
+  if (!data?.length) throw new Error('No se pudo programar la aprobación. Recarga la página e inténtalo de nuevo.')
+}
+
+/** Quita la programación: la solicitud vuelve a la cola normal de aprobación. */
+export async function quitarProgramacion(id: number): Promise<void> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .update({ aprobar_desde: null })
+    .eq('id', id)
+    .select('id')
+  if (error) throw new Error(error.message)
+  if (!data?.length) throw new Error('No se pudo quitar la programación. Recarga la página e inténtalo de nuevo.')
 }
 
 export async function getFormasPago(): Promise<SolicitudFormaPago[]> {

@@ -448,7 +448,7 @@ export default function SolicitudesPage() {
         estadoOpciones={isUsuario ? ESTADOS_USUARIO : undefined}
         ordenVencimiento={ordenVencimiento}
         ordenVencimientoTitulo={
-          userRole === ROLES.APROBADOR ? 'Solo las evaluadas por aprobar, de la factura que venció primero a la que vence después'
+          userRole === ROLES.APROBADOR ? 'Solo las evaluadas por aprobar, de la factura que venció primero a la que vence después (las programadas para otro mes van al final)'
           : isEvaluador ? 'Solo las que faltan evaluar, de la factura que venció primero a la que vence después'
           : undefined
         }

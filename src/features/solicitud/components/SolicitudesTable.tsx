@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Search, RefreshCw, FolderOpen, FileText, XCircle, ChevronRight, ArrowDownWideNarrow } from 'lucide-react'
 import { montoAGirar, montoPendientePago, esPagoParcial } from '../utils/montoAGirar'
+import { estaProgramada, etiquetaMes } from '../utils/programacion'
 import type { Solicitud } from '../types/solicitud'
 import { getProyectos } from '../../proyecto/services/proyectoService'
 import { getAreas } from '../../usuario/services/usuarioService'
@@ -429,6 +430,12 @@ export default function SolicitudesTable({
                               ? <span className="text-[10px] font-semibold bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded-full border border-amber-200">Pago parcial</span>
                               : <span className="text-[10px] font-semibold bg-orange-50 text-orange-600 px-1.5 py-0.5 rounded-full border border-orange-200">Por pagar</span>
                         )}
+                        {estaProgramada(s) && (
+                          <span title={s.programacion_motivo ?? 'Aprobación programada'}
+                            className="text-[10px] font-semibold bg-blue-50 text-[#003D7D] px-1.5 py-0.5 rounded-full border border-blue-200 whitespace-nowrap">
+                            Programada · {etiquetaMes(s.aprobar_desde, true)}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-xs">
@@ -540,6 +547,11 @@ export default function SolicitudesTable({
                   </span>
                   <div className="ml-auto flex items-center gap-2">
                     <EstadoBadge nombre={s.estado_soli?.nombre} />
+                    {estaProgramada(s) && (
+                      <span className="text-[10px] font-semibold bg-blue-50 text-[#003D7D] px-1.5 py-0.5 rounded-full border border-blue-200 whitespace-nowrap">
+                        Programada · {etiquetaMes(s.aprobar_desde, true)}
+                      </span>
+                    )}
                     <ChevronRight size={15} className="text-gray-300" />
                   </div>
                 </div>

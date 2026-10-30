@@ -20,6 +20,7 @@ import {
   type ProveedorMetricasData, type ARendirRow, type ReembolsoRow, type DevolucionRow,
 } from '../features/dashboard/services/dashboardService'
 import { ROLES } from '../features/solicitud/types/solicitud'
+import { estaProgramada } from '../features/solicitud/utils/programacion'
 
 // ── constants ────────────────────────────────────────────────────
 const ESTADO_COLOR: Record<string, string> = {
@@ -413,7 +414,10 @@ function AprobadorDashboard() {
   const applyFilter = <T extends SolicitudRow>(list: T[]) =>
     proyectoFilter ? list.filter(s => s.proyecto_id === proyectoFilter) : list
 
-  const colaFiltrada      = applyFilter(enCola)
+  // Las solicitudes con aprobación programada para otro mes no cuentan como "en cola": se muestran aparte
+  const colaTodas         = applyFilter(enCola)
+  const colaFiltrada      = colaTodas.filter(s => !estaProgramada(s))
+  const colaProgramada    = colaTodas.filter(estaProgramada)
   const aprobadasFiltradas = applyFilter(aprobadas)
   const rechazadasFiltradas = applyFilter(rechazadas)
   const reembolsoPEN       = montoReembolso(reembolso, 'PEN')
@@ -536,8 +540,8 @@ function AprobadorDashboard() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <KpiCard label="En cola de aprobación" value={colaFiltrada.length} sub="esperando tu decisión" icon={<Hourglass size={18} />} color="amber" alert={colaFiltrada.length > 0} onClick={() => navigate('/solicitudes')} />
-          <KpiCard label="Monto en cola" value={fmtMoney(montoCola)} sub="pendiente de aprobación" icon={<DollarSign size={18} />} color="indigo" />
+          <KpiCard label="En cola de aprobación" value={colaFiltrada.length} sub={colaProgramada.length > 0 ? `esperando tu decisión · ${colaProgramada.length} programada${colaProgramada.length === 1 ? '' : 's'} para otro mes` : 'esperando tu decisión'} icon={<Hourglass size={18} />} color="amber" alert={colaFiltrada.length > 0} onClick={() => navigate('/solicitudes')} />
+          <KpiCard label="Monto en cola" value={fmtMoney(montoCola)} sub={colaProgramada.length > 0 ? `pendiente de aprobación · +${fmtMoney(montoSolicitudes(colaProgramada, detalles))} programado` : 'pendiente de aprobación'} icon={<DollarSign size={18} />} color="indigo" />
           <KpiCard label="Aprobadas este mes" value={aprobMes} sub={`${aprobMesAnterior} el mes anterior`} icon={<ThumbsUp size={18} />} color="green" />
           <KpiCard label="Aprobado S/" value={fmtMoney(montoAprobPEN, 'PEN')} sub={`${rechazadasFiltradas.length} rechazadas`} icon={<TrendingUp size={18} />} color="blue" />
           <KpiCard label="Aprobado $" value={fmtMoney(montoAprobUSD, 'USD')} sub="solicitudes en dólares" icon={<DollarSign size={18} />} color="green" />

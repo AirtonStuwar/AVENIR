@@ -106,6 +106,12 @@ export interface Solicitud {
   // Datos de factura registrados DESPUES de la aprobacion (via registrar_datos_factura); null si se registraron antes
   factura_datos_usuario?: string | null
   factura_datos_fecha?: string | null
+  // Aprobacion programada: el aprobador deja la solicitud Evaluada para aprobarla recien desde ese mes (primer dia del mes).
+  // Solo vale mientras siga Evaluada; la BD la limpia si cambia de estado y una tarea diaria la limpia cuando llega el mes.
+  aprobar_desde?: string | null
+  programacion_motivo?: string | null
+  programacion_usuario?: string | null
+  programacion_fecha?: string | null
   proyecto?: { id: number; nombre: string; ruc?: string | null; direccion?: string | null; presupuesto?: number | null } | null
   proyecto_partida?: { id: number; nombre: string; presupuesto_pen: number; presupuesto_usd: number } | null
   detraccion?: Detraccion | null
@@ -165,6 +171,10 @@ export type SolicitudInsert = Omit<
   | 'cuenta_pago_id'         // lo marca contabilidad
   | 'usuario_pago'           // lo marca contabilidad
   | 'monto_pagado'           // lo calcula registrar_pago_solicitud()
+  | 'aprobar_desde'          // lo programa el aprobador sobre una solicitud Evaluada
+  | 'programacion_motivo'
+  | 'programacion_usuario'
+  | 'programacion_fecha'
   | 'detraccion_pagada'      // lo marca contabilidad
   | 'fecha_pago_detraccion'  // lo marca contabilidad
   | 'cuenta_pago_detraccion_id' // lo marca contabilidad
