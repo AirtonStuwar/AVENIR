@@ -11,6 +11,8 @@ import {
   Plus, Trash2, Pencil, Upload, ShieldAlert,
 } from 'lucide-react'
 import { useAuthStore } from '../store/authStore'
+import { supabase } from '../api/supabase'
+import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
@@ -459,53 +461,29 @@ export default function ReembolsoDetallePage() {
     finally { setActionLoading(false) }
   }
 
+  // Autorizar: sube la firma del aprobador y autoriza. Ya no descarga el PDF solo (se baja con "Descargar PDF").
   async function handleAutorizar(blob: Blob) {
     if (!solicitud || !user?.id) return
     setActionLoading(true)
     try {
-      const firmaPath = await uploadFirmaReembolso(blob, solicitud.id, 'firma_aprobador')
-      let firmaAprobadorSrc: string | null = null
-      try { firmaAprobadorSrc = await getArchivoUrlReembolso(firmaPath) } catch { /* noop */ }
-
-      let firmaUsuarioSrc: string | null = null
-      try {
-        const { data } = await import('../api/supabase').then(m =>
-          m.supabase.storage.from('reembolso-documentos').list(`${solicitud.id}/firma_usuario`)
-        )
-        if (data && data.length > 0) {
-          firmaUsuarioSrc = await getArchivoUrlReembolso(`${solicitud.id}/firma_usuario/${data[0].name}`)
-        }
-      } catch { /* noop */ }
-
+      await uploadFirmaReembolso(blob, solicitud.id, 'firma_aprobador')
       await autorizarReembolso(solicitud.id, user.id)
-
-      const enriched: SolicitudReembolso = {
-        ...solicitud,
-        aprobador_nombre: usuarioProfile?.nombre_completo ?? null,
-      }
-
-      const pdfBlob = await pdf(
-        <ReembolsoPDF
-          solicitud={enriched}
-          detalles={detalles}
-          logoSrc={logoUrl}
-          firmaUsuarioSrc={firmaUsuarioSrc}
-          firmaAprobadorSrc={firmaAprobadorSrc}
-        />
-      ).toBlob()
-
-      const url = URL.createObjectURL(pdfBlob)
-      const a   = document.createElement('a')
-      a.href    = url
-      a.download = `${solicitud.codigo ?? `RMB-${solicitud.id}`}_autorizado.pdf`
-      a.click()
-      URL.revokeObjectURL(url)
-
       toast.success('Reembolso autorizado')
-      setSolicitud(prev => prev ? { ...prev, estado: 'Autorizado' } : prev)
+      setSolicitud(prev => prev ? { ...prev, estado: 'Autorizado', aprobador_nombre: usuarioProfile?.nombre_completo ?? prev.aprobador_nombre } : prev)
       setFirmaOpen(false)
     } catch { toast.error('Error al autorizar') }
     finally { setActionLoading(false) }
+  }
+
+  // Al pulsar "Autorizar": usa la firma guardada en el perfil del aprobador; solo abre la ventana de firma
+  // si no tiene firma guardada o no se pudo leer (igual que en Solicitudes).
+  async function handleIniciarAutorizar() {
+    if (usuarioProfile?.firma_path) {
+      let blob: Blob | null = null
+      try { blob = await getUserFirmaBlob(usuarioProfile.firma_path) } catch { /* sin firma legible: se pide en la ventana */ }
+      if (blob) { await handleAutorizar(blob); return }
+    }
+    setFirmaOpen(true)
   }
 
   async function handleRechazar(comentario: string) {
@@ -552,11 +530,24 @@ export default function ReembolsoDetallePage() {
     finally { setActionLoading(false) }
   }
 
+  // Última firma guardada de esta solicitud en el bucket (carpeta firma_usuario o firma_aprobador); null si no hay
+  async function urlUltimaFirma(carpeta: 'firma_usuario' | 'firma_aprobador'): Promise<string | null> {
+    if (!solicitud) return null
+    try {
+      const { data } = await supabase.storage.from('reembolso-documentos').list(`${solicitud.id}/${carpeta}`)
+      if (!data?.length) return null
+      const ultimo = [...data].sort((a, b) => b.name.localeCompare(a.name))[0]
+      return await getArchivoUrlReembolso(`${solicitud.id}/${carpeta}/${ultimo.name}`)
+    } catch { return null }
+  }
+
   async function handleDownloadPDF() {
     if (!solicitud) return
+    // El PDF lleva las firmas que ya existan (la del solicitante y, si ya se autorizó, la del aprobador)
+    const [firmaUsuarioSrc, firmaAprobadorSrc] = await Promise.all([urlUltimaFirma('firma_usuario'), urlUltimaFirma('firma_aprobador')])
     const pdfBlob = await pdf(
       <ReembolsoPDF solicitud={solicitud} detalles={detalles} logoSrc={logoUrl}
-        firmaUsuarioSrc={null} firmaAprobadorSrc={null} />
+        firmaUsuarioSrc={firmaUsuarioSrc} firmaAprobadorSrc={firmaAprobadorSrc} />
     ).toBlob()
     const url = URL.createObjectURL(pdfBlob)
     const a   = document.createElement('a')
@@ -750,7 +741,7 @@ export default function ReembolsoDetallePage() {
 
           {(isAprobador || isAdmin) && solicitud.estado === 'Evaluado' && (
             <>
-              <button onClick={() => setFirmaOpen(true)} disabled={actionLoading}
+              <button onClick={handleIniciarAutorizar} disabled={actionLoading}
                 className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-green-600 text-white text-xs font-semibold hover:bg-green-700 disabled:opacity-50 transition-colors">
                 <CheckCircle2 size={13} /> Autorizar
               </button>
