@@ -447,6 +447,11 @@ export default function SolicitudesPage() {
         onEstadoFilterChange={isEvaluador || isUsuario ? handleEstadoChange : undefined}
         estadoOpciones={isUsuario ? ESTADOS_USUARIO : undefined}
         ordenVencimiento={ordenVencimiento}
+        ordenVencimientoTitulo={
+          userRole === ROLES.APROBADOR ? 'Solo las evaluadas por aprobar, de la factura que venció primero a la que vence después'
+          : isEvaluador ? 'Solo las que faltan evaluar, de la factura que venció primero a la que vence después'
+          : undefined
+        }
         onOrdenVencimientoChange={handleOrdenVencimientoChange}
         hasFiltrosActivos={hasFiltrosActivos}
         onClearFilters={handleClearFiltros}

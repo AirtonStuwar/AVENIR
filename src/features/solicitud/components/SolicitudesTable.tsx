@@ -82,6 +82,7 @@ interface Props {
   areaFilter?: number | null
   onAreaFilterChange?: (id: number | null) => void
   ordenVencimiento?: boolean
+  ordenVencimientoTitulo?: string
   onOrdenVencimientoChange?: (activo: boolean) => void
   hasFiltrosActivos?: boolean
   onClearFilters?: () => void
@@ -99,7 +100,7 @@ export default function SolicitudesTable({
   selectedIds, onSelectionChange, mesAprobacion, onMesAprobacionChange,
   proyectoFilter, onProyectoFilterChange, pagoFilter, onPagoFilterChange,
   monedaFilter, onMonedaFilterChange,
-  areaFilter, onAreaFilterChange, ordenVencimiento, onOrdenVencimientoChange,
+  areaFilter, onAreaFilterChange, ordenVencimiento, ordenVencimientoTitulo, onOrdenVencimientoChange,
   hasFiltrosActivos, onClearFilters, estadoFilter, onEstadoFilterChange, estadoOpciones,
   showMontoPago, showMontoTotal, initialSearch,
 }: Props) {
@@ -302,7 +303,7 @@ export default function SolicitudesTable({
           {onOrdenVencimientoChange && (
             <button
               onClick={() => onOrdenVencimientoChange(!ordenVencimiento)}
-              title="Ordenar por vencimiento más próximo"
+              title={ordenVencimientoTitulo ?? 'Ordenar por vencimiento de la factura, la que venció primero arriba'}
               className={`h-9 flex-1 sm:flex-none flex items-center justify-center gap-1.5 rounded-xl border px-3 text-sm font-medium transition-colors shrink-0 ${
                 ordenVencimiento
                   ? 'bg-[#003D7D] border-[#003D7D] text-white'

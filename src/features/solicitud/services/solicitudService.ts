@@ -132,9 +132,15 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
     .select(SOL_SEL, { count: 'exact' })
     .range(from, to)
 
+  // "Más urgentes": por vencimiento de la factura (la más antigua primero, las sin fecha al final); la fecha de
+  // creación desempata para que la paginación sea estable.
   query = ordenVencimiento
-    ? query.order('fecha_vencimiento_factura', { ascending: true, nullsFirst: false })
+    ? query.order('fecha_vencimiento_factura', { ascending: true, nullsFirst: false }).order('fecha_creacion', { ascending: true })
     : query.order('fecha_creacion', { ascending: false })
+
+  // Para el Aprobador y el Evaluador, "Más urgentes" además deja solo lo que está esperando SU acción
+  // (Evaluado = por aprobar, En Revision = por evaluar), sin importar de qué mes sea la factura.
+  const soloPendientesDeMiAccion = !!ordenVencimiento && (role === ROLES.APROBADOR || role === ROLES.EVALUADOR)
 
   // ── Filtro por rol ──────────────────────────────────────────────
   if (role === ROLES.USUARIO && userId) {
@@ -161,7 +167,11 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
       query = id ? query.eq('estado_id', id) : query.eq('id', -1)
     }
   } else if (role === ROLES.EVALUADOR && userId) {
-    if (estadoNombre === 'En Revision') {
+    if (soloPendientesDeMiAccion) {
+      // "Más urgentes": solo la cola por evaluar (prevalece sobre el filtro de estado)
+      const [id] = await resolveEstadoIds(['En Revision'])
+      query = id ? query.eq('estado_id', id) : query.eq('id', -1)
+    } else if (estadoNombre === 'En Revision') {
       // Filtro explícito: solo las que están en cola por evaluar
       const [id] = await resolveEstadoIds(['En Revision'])
       query = id ? query.eq('estado_id', id) : query.eq('id', -1)
@@ -184,6 +194,11 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
     if (tipos.length > 0) {
       const ids = await resolveEstadoIds(tipos)
       query = ids.length > 0 ? query.in('estado_id', ids) : query.eq('id', -1)
+    }
+    if (soloPendientesDeMiAccion && role === ROLES.APROBADOR) {
+      // "Más urgentes": solo las evaluadas que esperan su aprobación
+      const [id] = await resolveEstadoIds(['Evaluado'])
+      query = id ? query.eq('estado_id', id) : query.eq('id', -1)
     }
   }
 
