@@ -948,6 +948,9 @@ export default function DevolucionDetallePage() {
         campos={[
           { campo: 'cliente_nombre', label: 'Cliente',        valorActual: dev?.cliente_nombre ?? null },
           { campo: 'cliente_dni',    label: 'DNI',             valorActual: dev?.cliente_dni ?? null },
+          { campo: 'moneda',         label: 'Moneda',          valorActual: dev?.moneda ?? null,
+            opciones: [{ value: 'PEN', label: 'Soles (PEN)' }, { value: 'USD', label: 'Dólares (USD)' }] },
+          { campo: 'monto',          label: 'Monto',           valorActual: dev?.monto != null ? String(dev.monto) : null, numerico: true },
           { campo: 'banco',          label: 'Banco',           valorActual: dev?.banco ?? null },
           { campo: 'numero_cuenta',  label: 'Número de cuenta / CCI', valorActual: dev?.numero_cuenta ?? null },
           ...(dev?.medio_pago === 'Cheque de gerencia' ? [{ campo: 'numero_cheque', label: 'N° de cheque', valorActual: dev.numero_cheque ?? null }] : []),

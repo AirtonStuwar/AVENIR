@@ -9,6 +9,10 @@ interface CampoOption {
   campo: string
   label: string
   valorActual: string | null
+  /** Si se indica, el valor nuevo se elige de esta lista en vez de escribirse. */
+  opciones?: { value: string; label: string }[]
+  /** El valor nuevo debe ser un número mayor que 0. */
+  numerico?: boolean
 }
 
 interface Props {
@@ -45,9 +49,14 @@ export default function CorreccionModal({ open, campos, onConfirm, onCancel }: P
 
   const handleConfirm = async () => {
     if (!valorNuevo.trim()) { toast.error('Ingresa el valor nuevo'); return }
+    if (campoActual?.numerico) {
+      const n = Number(valorNuevo.replace(',', '.'))
+      if (!Number.isFinite(n) || n <= 0) { toast.error('Ingresa un número válido mayor que 0'); return }
+    }
     setSaving(true)
     try {
-      await onConfirm(campoSel, campoActual?.valorActual ?? null, valorNuevo.trim(), categoria, motivo.trim())
+      const nuevo = campoActual?.numerico ? String(Number(valorNuevo.replace(',', '.'))) : valorNuevo.trim()
+      await onConfirm(campoSel, campoActual?.valorActual ?? null, nuevo, categoria, motivo.trim())
     } finally {
       setSaving(false)
     }
@@ -84,7 +93,13 @@ export default function CorreccionModal({ open, campos, onConfirm, onCancel }: P
 
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Valor nuevo <span className="text-red-500">*</span></label>
-            <input type="text" className={INPUT} value={valorNuevo} onChange={e => setValorNuevo(e.target.value)} />
+            {campoActual?.opciones ? (
+              <select className={INPUT} value={valorNuevo} onChange={e => setValorNuevo(e.target.value)}>
+                {campoActual.opciones.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            ) : (
+              <input type="text" inputMode={campoActual?.numerico ? 'decimal' : undefined} className={INPUT} value={valorNuevo} onChange={e => setValorNuevo(e.target.value)} />
+            )}
           </div>
 
           <div>
