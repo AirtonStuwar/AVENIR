@@ -58,7 +58,7 @@ const ESTADO_BADGE: Record<string, string> = {
   'Cancelado': 'bg-gray-100 text-gray-500',
 }
 
-const TIPOS_DOC = ['FACTURA', 'RECIBO', 'RECIBO POR HONORARIOS', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
+const TIPOS_DOC = ['FACTURA', 'INVOICE', 'RECIBO', 'RECIBO POR HONORARIOS', 'BOLETA', 'PLLA-MOV', 'TICKET', 'OTRO']
 
 const LABEL = 'block text-xs font-semibold text-[#003D7D]/50 uppercase tracking-wide mb-0.5'
 
