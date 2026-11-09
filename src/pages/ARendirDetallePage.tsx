@@ -39,6 +39,7 @@ import {
   uploadDetalleArchivo,
   uploadSustento,
   updateARendir,
+  registrarSustentoARendir,
 } from '../features/arendir/services/arendirService'
 import type { SolicitudARendir, ARendirDetalle } from '../features/arendir/types/arendir'
 import CuentaContableSelect from '../features/solicitud/components/CuentaContableSelect'
@@ -568,7 +569,8 @@ export default function ARendirDetallePage() {
     setUploadingSustento(true)
     try {
       const path = await uploadSustento(file, solicitud.id)
-      await updateARendir(solicitud.id, { documento_sustento_path: path })
+      if (solicitud.estado === 'Evaluado') await registrarSustentoARendir(solicitud.id, path)
+      else await updateARendir(solicitud.id, { documento_sustento_path: path })
       toast.success('Documento sustento actualizado')
       const sol = await getARendirById(Number(id))
       setSolicitud(sol); setDetalles(sol.detalles ?? [])
@@ -595,7 +597,7 @@ export default function ARendirDetallePage() {
   const canEditDet        = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
     ['Aprobado', 'Pagado', 'Observado'].includes(solicitud?.estado ?? '')
   const canEditSustento   = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
-    ['Pendiente', 'Aprobado', 'Pagado', 'Observado'].includes(solicitud?.estado ?? '')
+    ['Pendiente', 'Evaluado', 'Aprobado', 'Pagado', 'Observado'].includes(solicitud?.estado ?? '')
   const canReenviarConta  = solicitud?.estado === 'Observado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
   const canMarcarPagado   = solicitud?.estado === 'Aprobado' && (isVisualizador || isAdmin)
   const canEnviarRendicion = solicitud?.estado === 'Pagado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))

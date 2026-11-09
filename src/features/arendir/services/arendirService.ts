@@ -84,6 +84,15 @@ export async function updateARendir(id: number, payload: Partial<SolicitudARendi
   if (error) throw error
 }
 
+/**
+ * Guarda el documento sustento cuando la solicitud ya está Evaluada. La policy UPDATE no deja al dueño
+ * tocar la cabecera en ese estado, así que pasa por una función que solo modifica `documento_sustento_path`.
+ */
+export async function registrarSustentoARendir(id: number, path: string): Promise<void> {
+  const { error } = await supabase.rpc('registrar_sustento_arendir', { p_id: id, p_path: path })
+  if (error) throw error
+}
+
 // ── Estado helpers ─────────────────────────────────────────────
 
 /** USUARIO (dueño)/ADMIN: cancela el adelanto creado por error → Cancelado (solo desde Pendiente) */
