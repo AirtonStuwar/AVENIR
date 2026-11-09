@@ -15,6 +15,7 @@ import {
 } from '../features/solicitud/services/solicitudService'
 import ProgramarAprobacionModal from '../features/solicitud/components/ProgramarAprobacionModal'
 import { estaProgramada, etiquetaMes } from '../features/solicitud/utils/programacion'
+import { factorIgv, tasaIgv, porcentajeIgv, etiquetaIgv, textoPorcentajeIgv } from '../features/solicitud/utils/igv'
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
 import SolicitudModal from '../features/solicitud/components/SolicitudModal'
@@ -167,6 +168,7 @@ export default function SolicitudDetallePage() {
   const [numeroFactura,        setNumeroFactura]        = useState('')
   const [numeroRxhTxt,          setNumeroRxhTxt]          = useState('')   // N° del recibo por honorarios (editable mientras se puede editar)
   const [exoneradoTxt,         setExoneradoTxt]         = useState('')   // operacion exonerada (solo pagos a proveedores)
+  const [igvPctTxt,            setIgvPctTxt]            = useState('18') // % de IGV de la factura (18 por defecto)
   const [motivoFactura,        setMotivoFactura]        = useState('')
   const [fechaEmisionFactura,  setFechaEmisionFactura]  = useState('')
   const [fechaVencimientoFactura, setFechaVencimientoFactura] = useState('')
@@ -252,7 +254,8 @@ export default function SolicitudDetallePage() {
     setMontoFondoGarantia(solicitud?.monto_fondo_garantia != null ? String(solicitud.monto_fondo_garantia) : '')
     setExoneradoTxt(Number(solicitud?.monto_exonerado ?? 0) > 0 ? String(solicitud?.monto_exonerado) : '')
     setNumeroRxhTxt(solicitud?.numero_rxh ?? '')
-  }, [solicitud?.numero_rxh, solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura, solicitud?.monto_fondo_garantia, solicitud?.monto_exonerado])
+    setIgvPctTxt(textoPorcentajeIgv(porcentajeIgv(solicitud)))
+  }, [solicitud?.igv_porcentaje, solicitud?.numero_rxh,solicitud?.numero_factura, solicitud?.motivo_factura, solicitud?.fecha_emision_factura, solicitud?.fecha_vencimiento_factura, solicitud?.monto_fondo_garantia, solicitud?.monto_exonerado])
 
   // Nombres de quien subio la factura / registro sus datos (para la Bitacora)
   const [nombresFactura, setNombresFactura] = useState<Record<string, string>>({})
@@ -380,7 +383,7 @@ export default function SolicitudDetallePage() {
       : (() => {
           // subtotal se calcula abajo, pero aquí usamos detalles directamente
           const sub = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-          const totalIgvSoles = sub * 1.18 * _tc
+          const totalIgvSoles = sub * factorIgv(solicitud) * _tc
           return totalIgvSoles >= 3500
             ? ['Contrato', 'Cotizacion', 'Sustento']
             : ['Cotizacion', 'Sustento']
@@ -936,7 +939,7 @@ export default function SolicitudDetallePage() {
   const subtotal       = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
   const retencionPct   = solicitud?.porcentaje_retencion ?? 0
   const retencion      = isRxH || isLiberalidad || isOtros ? (solicitud?.monto_retencion ?? subtotal * retencionPct / 100) : 0
-  const igv            = isRxH || isLiberalidad || isOtros || sinIgv ? 0 : subtotal * 0.18
+  const igv            = isRxH || isLiberalidad || isOtros || sinIgv ? 0 : subtotal * tasaIgv(solicitud)
   // Operacion exonerada (solo "PAGO A PROVEEDORES"): no paga IGV y se suma al total. 0 en el resto y en las facturas antiguas.
   const exonerado      = isRxH || isLiberalidad || isOtros ? 0 : Number(solicitud?.monto_exonerado ?? 0)
   const esPagoProveedores = solicitud?.solicitud_tipo?.nombre === 'PAGO A PROVEEDORES'
@@ -955,6 +958,26 @@ export default function SolicitudDetallePage() {
       await reload(id)
     } catch {
       toast.error('No se pudo guardar el N° de recibo')
+    }
+  }
+
+  // El % de IGV se puede corregir mientras esté Pendiente: el monto total se recalcula al enviar a revisión
+  const canEditIgvPct = !isRxH && !isLiberalidad && !isOtros && !sinIgv && isPendiente && canEdit
+  const handleGuardarIgvPct = async () => {
+    if (!solicitud?.id || !id || !canEditIgvPct) return
+    const nuevo = parseFloat(igvPctTxt.replace(',', '.'))
+    if (!Number.isFinite(nuevo) || nuevo <= 0 || nuevo > 100) {
+      toast.error('Ingresa un porcentaje de IGV válido (mayor que 0 y hasta 100)')
+      setIgvPctTxt(textoPorcentajeIgv(porcentajeIgv(solicitud)))
+      return
+    }
+    if (nuevo === porcentajeIgv(solicitud)) return
+    try {
+      await updateSolicitud(solicitud.id, { igv_porcentaje: nuevo })
+      toast.success('Porcentaje de IGV guardado')
+      await reload(id)
+    } catch {
+      toast.error('No se pudo guardar el porcentaje de IGV')
     }
   }
 
@@ -1410,7 +1433,17 @@ export default function SolicitudDetallePage() {
                     </tr>
                   ) : (
                     <tr>
-                      <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">{sinIgv ? 'IGV (no aplica)' : 'IGV (18%)'}</td>
+                      <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">
+                        {sinIgv ? 'IGV (no aplica)' : canEditIgvPct ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            IGV
+                            <input type="text" inputMode="decimal" value={igvPctTxt}
+                              onChange={e => setIgvPctTxt(e.target.value.replace(/[^0-9.,]/g, ''))} onBlur={handleGuardarIgvPct}
+                              className="w-16 rounded-lg border border-gray-200 px-2 py-1 text-right text-xs focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]" />
+                            %
+                          </span>
+                        ) : etiquetaIgv(solicitud)}
+                      </td>
                       <td className="px-5 py-2 text-right text-sm text-gray-600">{fmtMoney(igv, (solicitud?.moneda as 'PEN' | 'USD') ?? 'PEN')}</td>
                       {canEdit && <td />}
                     </tr>

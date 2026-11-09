@@ -1,6 +1,7 @@
 import { supabase } from '../../../api/supabase'
 import type { Solicitud, SolicitudInsert, SolicitudUpdate, SolicitudFiltros, SolicitudPaginado, SolicitudDetalleInsert, SolicitudDetalle, SolicitudArchivo, SolicitudFormaPago, PlanContable, Detraccion, Usuario } from '../types/solicitud'
 import { ROLES } from '../types/solicitud'
+import { factorIgv } from '../utils/igv'
 
 const TABLE   = 'solicitud'
 const SOL_SEL = [
@@ -14,7 +15,7 @@ const SOL_SEL = [
   'usuario_creador, fecha_aprobacion, usuario_aprobador, comentario_gerencia',
   'numero_factura, monto_total, plan_contable_id, usuario_evaluador, fecha_evaluacion, fecha_devolucion_evaluador, moneda',
   'numero_rxh, periodo_servicio, porcentaje_retencion, monto_retencion, aplica_suspension',
-  'detraccion_id, monto_detraccion, monto_fondo_garantia, monto_exonerado, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, monto_pagado, detraccion_pagada, fecha_pago_detraccion, cuenta_pago_detraccion_id, aplica_igv, factura_datos_usuario, factura_datos_fecha, aprobar_desde, programacion_motivo, programacion_usuario, programacion_fecha',
+  'detraccion_id, monto_detraccion, monto_fondo_garantia, monto_exonerado, proyecto_partida_id, fecha_pago, cuenta_pago_id, usuario_pago, monto_pagado, detraccion_pagada, fecha_pago_detraccion, cuenta_pago_detraccion_id, aplica_igv, igv_porcentaje, factura_datos_usuario, factura_datos_fecha, aprobar_desde, programacion_motivo, programacion_usuario, programacion_fecha',
   'proyecto:proyecto_id(id,nombre,ruc,direccion,presupuesto)',
   'proyecto_partida:proyecto_partida_id(id,nombre,presupuesto_pen,presupuesto_usd)',
   'detraccion:detraccion_id(id,codigo,concepto,porcentaje,monto_minimo)',
@@ -256,10 +257,10 @@ export async function getSolicitudes(filtros: SolicitudFiltros = {}): Promise<So
 export async function enviarARevision(id: number): Promise<Solicitud> {
   const [{ data: detalles }, { data: sol }] = await Promise.all([
     supabase.from('solicitud_detalle').select('valor_total, cantidad, valor_unitario').eq('solicitud_id', id),
-    supabase.from('solicitud').select('aplica_igv, monto_retencion, monto_exonerado, solicitud_tipo:tipo_id(nombre)').eq('id', id).maybeSingle(),
+    supabase.from('solicitud').select('aplica_igv, igv_porcentaje, monto_retencion, monto_exonerado, solicitud_tipo:tipo_id(nombre)').eq('id', id).maybeSingle(),
   ])
 
-  const solTipada = sol as unknown as { aplica_igv: boolean; monto_retencion: number | null; monto_exonerado: number | null; solicitud_tipo: { nombre: string } | null } | null
+  const solTipada = sol as unknown as { aplica_igv: boolean; igv_porcentaje: number | null; monto_retencion: number | null; monto_exonerado: number | null; solicitud_tipo: { nombre: string } | null } | null
   const isRxH = solTipada?.solicitud_tipo?.nombre === 'Recibo por Honorarios'
   const isLiberalidad = solTipada?.solicitud_tipo?.nombre === 'Liberalidad'
   const isOtros = solTipada?.solicitud_tipo?.nombre === 'Otros'
@@ -270,7 +271,7 @@ export async function enviarARevision(id: number): Promise<Solicitud> {
   const exonerado = isRxH || isLiberalidad || isOtros ? 0 : Number(solTipada?.monto_exonerado ?? 0)
   const montoTotal = isLiberalidad
     ? subtotal - (solTipada?.monto_retencion ?? 0)
-    : isRxH || isOtros || !aplicaIgv ? subtotal + exonerado : +((subtotal * 1.18 + exonerado).toFixed(2))
+    : isRxH || isOtros || !aplicaIgv ? subtotal + exonerado : +((subtotal * factorIgv(solTipada) + exonerado).toFixed(2))
 
   const [estadoId] = await resolveEstadoIds(['En Revision'])
   if (!estadoId) throw new Error('Estado "En Revision" no encontrado en BD')
@@ -641,6 +642,7 @@ export async function duplicarSolicitud(id: number, userId: string): Promise<Sol
     fecha_pedido:                   original.fecha_pedido,
     fecha_requerida:                original.fecha_requerida,
     aplica_igv:                     original.aplica_igv,
+    igv_porcentaje:                 original.igv_porcentaje ?? 18,
     monto_exonerado:                original.monto_exonerado ?? 0,
     usuario_creador:                userId,
     detalles: (original.detalles ?? []).map(d => ({

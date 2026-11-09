@@ -19,6 +19,7 @@ import {
 import SolicitudDetalleModal from '../features/solicitud/components/SolicitudDetalleModal'
 import { useDocumentoDuplicado } from '../features/solicitud/services/documentoDuplicadoService'
 import AlertaDocumentoDuplicado from '../features/solicitud/components/AlertaDocumentoDuplicado'
+import { IGV_PORCENTAJE_DEFECTO, textoPorcentajeIgv } from '../features/solicitud/utils/igv'
 import SolicitudArchivos from '../features/solicitud/components/SolicitudArchivos'
 import type { SolicitudArchivo } from '../features/solicitud/types/solicitud'
 import { useAuthStore } from '../store/authStore'
@@ -117,6 +118,10 @@ export default function SolicitudNuevaPage() {
   const [fecha_vencimiento_rxh,   setFechaVencimientoRxh]    = useState('')
   const [aplica_suspension, setAplicaSuspension] = useState<boolean | null>(null)
   const [aplica_igv,        setAplicaIgv]        = useState(true)
+  const [igvPctTxt,         setIgvPctTxt]        = useState(String(IGV_PORCENTAJE_DEFECTO)) // % de IGV (18 por defecto; ej. 10.5)
+  const igvPctNum = (() => { const n = parseFloat(igvPctTxt.replace(',', '.')); return Number.isFinite(n) ? n : NaN })()
+  // Porcentaje que se usa en los cálculos del asistente: si el texto aún no es válido, cae a 18
+  const igvPct    = Number.isFinite(igvPctNum) && igvPctNum > 0 && igvPctNum <= 100 ? igvPctNum : IGV_PORCENTAJE_DEFECTO
   const [exoneradoTxt,      setExoneradoTxt]     = useState('')   // operacion exonerada (opcional, solo pagos a proveedores)
   const [tipoCambio,        setTipoCambio]       = useState<number | null>(null)
   const [motivoLiberalidad, setMotivoLiberalidad] = useState('')
@@ -233,6 +238,7 @@ export default function SolicitudNuevaPage() {
       if (porcentaje_acumulado_contrato === null) e.porcentaje_acumulado = 'Obligatorio'
       if (porcentaje_pendiente_contrato === null) e.porcentaje_pendiente = 'Obligatorio'
     }
+    if (!isRxH && !isLiberalidad && !isOtros && aplica_igv && !(igvPctNum > 0 && igvPctNum <= 100)) e.igv_porcentaje = 'Ingresa un % entre 0 y 100'
     if (isRxH && !numero_rxh.trim()) e.numero_rxh        = 'Obligatorio'
     if (isRxH && !periodo_servicio)  e.periodo_servicio  = 'Obligatorio'
     if (isLiberalidad) {
@@ -274,6 +280,7 @@ export default function SolicitudNuevaPage() {
         fecha_emision_factura: isRxH ? (fecha_emision_rxh || null) : null,
         fecha_vencimiento_factura: isRxH ? (fecha_vencimiento_rxh || null) : null,
         aplica_igv: isRxH || isLiberalidad || isOtros ? true : aplica_igv,
+        igv_porcentaje: isRxH || isLiberalidad || isOtros || !aplica_igv ? IGV_PORCENTAJE_DEFECTO : igvPct,
       }
 
       if (solicitudId) {
@@ -385,7 +392,7 @@ export default function SolicitudNuevaPage() {
   }
 
   const subtotal     = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
-  const igv          = isRxH || !aplica_igv ? 0 : subtotal * 0.18
+  const igv          = isRxH || !aplica_igv ? 0 : subtotal * (igvPct / 100)
   // Operacion exonerada: solo "Pago a proveedores" con IGV; el usuario la escribe a mano cuando la factura la trae
   const esPagoProveedores = tipoNombreSeleccionado === 'PAGO A PROVEEDORES'
   const exonerado    = esPagoProveedores && aplica_igv ? Math.max(0, parseFloat(exoneradoTxt) || 0) : 0
@@ -812,11 +819,28 @@ export default function SolicitudNuevaPage() {
                     <input type="checkbox" className="h-4 w-4 rounded border-gray-300 accent-[#003D7D] cursor-pointer"
                       checked={aplica_igv}
                       onChange={(e) => setAplicaIgv(e.target.checked)} />
-                    <span className="text-sm text-gray-700">Aplica IGV (18%)</span>
+                    <span className="text-sm text-gray-700">Aplica IGV</span>
                   </label>
+                  {aplica_igv && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <label className="text-xs text-gray-500">Porcentaje de IGV</label>
+                      <input type="text" inputMode="decimal" value={igvPctTxt}
+                        onChange={(e) => { setIgvPctTxt(e.target.value.replace(/[^0-9.,]/g, '')); setErrors((x) => ({ ...x, igv_porcentaje: '' })) }}
+                        className={`w-20 rounded-lg border px-2.5 py-1.5 text-right text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D] ${errors.igv_porcentaje ? 'border-red-300' : 'border-gray-200'}`} />
+                      <span className="text-sm text-gray-500">%</span>
+                      {igvPct !== IGV_PORCENTAJE_DEFECTO && (
+                        <button type="button" onClick={() => setIgvPctTxt(String(IGV_PORCENTAJE_DEFECTO))}
+                          className="text-xs text-[#003D7D] hover:underline">Volver a 18%</button>
+                      )}
+                    </div>
+                  )}
+                  {errors.igv_porcentaje && <p className="mt-1 text-xs text-red-500">{errors.igv_porcentaje}</p>}
+                  {aplica_igv && igvPct !== IGV_PORCENTAJE_DEFECTO && (
+                    <p className="mt-1 text-xs text-gray-400">Tasa distinta al 18% habitual: el total de esta factura usará {textoPorcentajeIgv(igvPct)}%.</p>
+                  )}
                   {!aplica_igv && (
                     <p className="mt-1 text-xs text-amber-600">
-                      El total no sumará el 18% de IGV, y Cotización/Sustento/Contrato serán opcionales al subir documentos.
+                      El total no sumará IGV, y Cotización/Sustento/Contrato serán opcionales al subir documentos.
                     </p>
                   )}
                 </div>
@@ -958,7 +982,7 @@ export default function SolicitudNuevaPage() {
                       </tr>
                       {!isRxH && (
                         <tr>
-                          <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV (18%)</td>
+                          <td colSpan={4} className="px-5 py-2 text-right text-xs text-gray-400">IGV ({textoPorcentajeIgv(igvPct)}%)</td>
                           <td className="px-5 py-2 text-right text-sm text-gray-600">
                             S/ {igv.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
@@ -1014,7 +1038,7 @@ export default function SolicitudNuevaPage() {
           const subtotalEnSoles = moneda === 'USD' && tipoCambio ? subtotal * tipoCambio : subtotal
           const superaUmbral = isRxH && subtotalEnSoles >= 1500
           const exoneradoEnSoles = moneda === 'USD' && tipoCambio ? exonerado * tipoCambio : exonerado
-          const totalConIgvEnSoles = subtotalEnSoles * 1.18 + exoneradoEnSoles
+          const totalConIgvEnSoles = subtotalEnSoles * (1 + igvPct / 100) + exoneradoEnSoles
           const requiereContrato = !isRxH && !isLiberalidad && !isOtros && aplica_igv && totalConIgvEnSoles >= 3500
 
           const tiposVisiblesRxH = aplica_suspension === true

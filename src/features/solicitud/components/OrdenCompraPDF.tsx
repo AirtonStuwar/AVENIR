@@ -1,5 +1,6 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 import type { Solicitud, SolicitudDetalle } from '../types/solicitud'
+import { tasaIgv, etiquetaIgv } from '../utils/igv'
 
 // ── Types ────────────────────────────────────────────────────────
 export interface OrdenCompraPDFProps {
@@ -397,7 +398,7 @@ export function OrdenCompraPDF({
   const subtotal     = detalles.reduce((s, d) => s + (d.valor_total ?? d.cantidad * d.valor_unitario), 0)
   const retencionPct = isRxH || isLiberalidad || isOtros ? (solicitud.porcentaje_retencion ?? 0) : 0
   const retencion    = isRxH || isLiberalidad || isOtros ? (solicitud.monto_retencion ?? subtotal * retencionPct / 100) : 0
-  const igv          = isRxH || isLiberalidad || isOtros || solicitud.aplica_igv === false ? 0 : subtotal * 0.18
+  const igv          = isRxH || isLiberalidad || isOtros || solicitud.aplica_igv === false ? 0 : subtotal * tasaIgv(solicitud)
   const exonerado    = isRxH || isLiberalidad || isOtros ? 0 : Number(solicitud.monto_exonerado ?? 0)
   const total        = isRxH || isLiberalidad || isOtros ? subtotal - retencion : subtotal + igv + exonerado
 
@@ -529,7 +530,7 @@ export function OrdenCompraPDF({
             ) : (
               <>
                 <View style={S.totalRow}>
-                  <Text style={S.totalLabel}>{solicitud.aplica_igv === false ? 'IGV (no aplica)' : 'IGV (18%)'}</Text>
+                  <Text style={S.totalLabel}>{solicitud.aplica_igv === false ? 'IGV (no aplica)' : etiquetaIgv(solicitud)}</Text>
                   <Text style={S.totalValue}>{fmtMoney(igv, moneda)}</Text>
                 </View>
                 {exonerado > 0 && (

@@ -103,6 +103,8 @@ export interface Solicitud {
   fecha_pago_detraccion: string | null
   cuenta_pago_detraccion_id: number | null
   aplica_igv: boolean
+  // % de IGV de la factura (18 por defecto; ej. 10.5 en restaurantes/hoteles). Solo se usa si aplica_igv es true.
+  igv_porcentaje?: number | null
   // Datos de factura registrados DESPUES de la aprobacion (via registrar_datos_factura); null si se registraron antes
   factura_datos_usuario?: string | null
   factura_datos_fecha?: string | null

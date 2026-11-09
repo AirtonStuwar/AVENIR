@@ -1,6 +1,7 @@
 import { supabase } from '../../../api/supabase'
 import ExcelJS from 'exceljs'
 import { sanitizeBBVA } from '../../solicitud/constants/bancos'
+import { tasaIgv } from '../../solicitud/utils/igv'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -130,7 +131,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
   let q = supabase
     .from('solicitud')
     .select([
-      'id, codigo, tipo_id, usuario_creador, razon_social, ruc, moneda, aplica_igv',
+      'id, codigo, tipo_id, usuario_creador, razon_social, ruc, moneda, aplica_igv, igv_porcentaje',
       'numero_factura, numero_rxh, porcentaje_retencion, monto_retencion',
       'detraccion_id, monto_detraccion, monto_fondo_garantia, monto_exonerado, fecha_aprobacion, fecha_creacion, fecha_requerida, fecha_emision_factura, fecha_pago',
       'cuenta_pago_id, fecha_pago_detraccion, cuenta_pago_detraccion_id',
@@ -153,7 +154,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
 
   const rows = (data ?? []) as unknown as {
     id: number; codigo: string | null; usuario_creador: string | null
-    razon_social: string | null; ruc: string | null; moneda: string | null; aplica_igv: boolean
+    razon_social: string | null; ruc: string | null; moneda: string | null; aplica_igv: boolean; igv_porcentaje: number | null
     numero_factura: string | null; numero_rxh: string | null
     porcentaje_retencion: number | null; monto_retencion: number | null
     monto_detraccion: number | null; monto_fondo_garantia: number | null; monto_exonerado: number | null; fecha_aprobacion: string | null
@@ -218,7 +219,7 @@ async function fetchSolicitudes(filtros: ReporteFiltros): Promise<ReporteRow[]> 
     const isOtros = s.solicitud_tipo?.nombre === 'Otros'
     const det      = detallesMap[s.id] ?? []
     const subtotal = det.reduce((sum, d) => sum + d.valor_total, 0)
-    const igv      = isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? 0 : subtotal * 0.18
+    const igv      = isRxH || isLiberalidad || isOtros || s.aplica_igv === false ? 0 : subtotal * tasaIgv(s)
     // Operacion exonerada: se suma al total sin IGV (solo pagos a proveedores; 0 en el resto)
     const exonerado = isRxH || isLiberalidad || isOtros ? 0 : Number(s.monto_exonerado ?? 0)
     const total    = subtotal + igv + exonerado
