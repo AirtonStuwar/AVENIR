@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { useDocumentoDuplicado } from '../features/solicitud/services/documentoDuplicadoService'
 import AlertaDocumentoDuplicado from '../features/solicitud/components/AlertaDocumentoDuplicado'
 import {
-  ArrowLeft, Plus, Trash2, Pencil, Send, CheckCircle, Ban, RotateCcw,
+  ArrowLeft, Plus, Trash2, Pencil, FilePen, Send, CheckCircle, Ban, RotateCcw,
   Upload, Loader2, AlertCircle, Wallet, Download, ExternalLink, ShieldAlert,
 } from 'lucide-react'
 import CorreccionModal from '../features/solicitud/components/CorreccionModal'
@@ -23,8 +23,11 @@ import {
   observarCajaChica, reenviarContabilidadCajaChica,
   getAreas, uploadSustentoCajaChica, getArchivoCajaChicaUrl, updateCajaChica,
   getAnexosCajaChica, agregarAnexoCajaChica, eliminarAnexoCajaChica,
+  getCambiosGastosCajaChica, corregirDocumentoGastoCajaChica,
 } from '../features/caja-chica/services/cajaChicaService'
-import type { CajaChicaAnexo } from '../features/caja-chica/services/cajaChicaService'
+import type { CajaChicaAnexo, CajaChicaGastoCambio } from '../features/caja-chica/services/cajaChicaService'
+import CorregirGastoModal from '../features/caja-chica/components/CorregirGastoModal'
+import type { GastoACorregir } from '../features/caja-chica/components/CorregirGastoModal'
 import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
 import { getPlanContable } from '../features/solicitud/services/solicitudService'
@@ -101,6 +104,8 @@ export default function CajaChicaDetallePage() {
   const [uploadingSustento, setUploadingSustento] = useState(false)
   const [anexos, setAnexos] = useState<CajaChicaAnexo[]>([])
   const [uploadingAnexo, setUploadingAnexo] = useState(false)
+  const [cambiosGasto, setCambiosGasto] = useState<CajaChicaGastoCambio[]>([])
+  const [gastoCorregir, setGastoCorregir] = useState<GastoACorregir | null>(null)
 
   // Modals
   const [rechazoOpen, setRechazoOpen] = useState(false)
@@ -126,6 +131,7 @@ export default function CajaChicaDetallePage() {
       setCc(data)
       setDetalles(data.detalles ?? [])
       cargarAnexos(data.id)
+      getCambiosGastosCajaChica(data.id).then(setCambiosGasto).catch(() => setCambiosGasto([]))
     } catch {
       toast.error('Error al cargar la caja chica')
     } finally {
@@ -191,6 +197,13 @@ export default function CajaChicaDetallePage() {
   const canSustentoPostPago = userRole === ROLES.ADMIN && isAutorizado && !canEdit
   // Anexos: dueño o ADMIN, en cualquier estado menos Rechazado/Cancelado (la BD lo exige igual)
   const canAgregarAnexo = (isOwner || userRole === ROLES.ADMIN) && cc.estado !== 'Rechazado' && cc.estado !== 'Cancelado'
+  // Corregir el tipo/N° de documento de un gasto cuando ya no se puede editar normalmente (la BD lo exige igual y deja historial)
+  const canCorregirGasto = (isOwner || userRole === ROLES.ADMIN) && cc.estado !== 'Rechazado' && cc.estado !== 'Cancelado' && !canEdit
+  const cambiosPorGasto = cambiosGasto.reduce<Record<number, CajaChicaGastoCambio[]>>((acc, c) => {
+    (acc[c.detalle_id] ??= []).push(c); return acc
+  }, {})
+  const textoCambio = (c: CajaChicaGastoCambio) =>
+    `${c.tipo_anterior ?? ''} ${c.numero_anterior || 's/n'} → ${c.tipo_nuevo} ${c.numero_nuevo || 's/n'}`.trim()
   const canShowPDF = detalles.length > 0
 
   // ── Bitácora (timeline de solo lectura) ─────────────────────────
@@ -461,6 +474,19 @@ export default function CajaChicaDetallePage() {
       toast.error('Error al subir el documento sustento')
     } finally {
       setUploadingSustento(false)
+    }
+  }
+
+  const handleCorregirGasto = async (tipo: string, numero: string, motivo: string) => {
+    if (!gastoCorregir) return
+    try {
+      await corregirDocumentoGastoCajaChica(gastoCorregir.id, tipo, numero, motivo)
+      toast.success('Documento corregido')
+      setGastoCorregir(null)
+      await loadData()
+    } catch (e) {
+      const msg = (e as { message?: string })?.message
+      toast.error(msg && !msg.startsWith('Failed') ? msg : 'No se pudo corregir el documento')
     }
   }
 
@@ -941,7 +967,15 @@ export default function CajaChicaDetallePage() {
                     </td>
                     <td className="px-3 py-2 text-gray-800 max-w-[140px] truncate">{d.proveedor}</td>
                     <td className="px-3 py-2 text-gray-600 text-xs">{d.tipo_documento}</td>
-                    <td className="px-3 py-2 text-gray-600 text-xs">{d.numero_documento ?? '—'}</td>
+                    <td className="px-3 py-2 text-gray-600 text-xs">
+                      {d.numero_documento ?? '—'}
+                      {cambiosPorGasto[d.id] && (
+                        <span title={cambiosPorGasto[d.id].map(c => `${textoCambio(c)} — ${c.usuario_nombre ?? ''}, ${fmtDateHora(c.fecha)}. Motivo: ${c.motivo}`).join('\n')}
+                          className="ml-1.5 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 align-middle cursor-help">
+                          Corregido
+                        </span>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-gray-700 max-w-[200px] truncate">{d.detalle}</td>
                     <td className="px-3 py-2 text-right font-mono font-semibold text-gray-800">{d.monto.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="px-3 py-2">
@@ -952,6 +986,14 @@ export default function CajaChicaDetallePage() {
                           </button>
                           <button onClick={() => handleDeleteDet(d.id)} className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
                             <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
+                      {canCorregirGasto && (
+                        <div className="flex justify-end">
+                          <button onClick={() => setGastoCorregir({ id: d.id, proveedor: d.proveedor, tipo_documento: d.tipo_documento, numero_documento: d.numero_documento, monto: d.monto })}
+                            title="Corregir tipo y N° de documento" className="p-1 rounded hover:bg-[#003D7D]/10 text-gray-400 hover:text-[#003D7D]">
+                            <FilePen size={13} />
                           </button>
                         </div>
                       )}
@@ -1006,6 +1048,24 @@ export default function CajaChicaDetallePage() {
           )}
         </div>
 
+        {/* Historial de correcciones del documento de cada gasto */}
+        {cambiosGasto.length > 0 && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <h2 className="text-sm font-semibold text-gray-800 mb-3">Correcciones de documentos</h2>
+            <ul className="divide-y divide-gray-100">
+              {[...cambiosGasto].reverse().map(c => (
+                <li key={c.id} className="py-2">
+                  <p className="text-sm text-gray-800">
+                    <span className="font-semibold">{c.proveedor ?? 'Gasto'}</span>
+                    <span className="text-gray-500"> · {textoCambio(c)}</span>
+                  </p>
+                  <p className="text-xs text-gray-400">{c.usuario_nombre ?? '—'} · {fmtDateHora(c.fecha)} · Motivo: {c.motivo}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* Anexos al sustento: se agregan sin reemplazar el original, en cualquier estado salvo Rechazado/Cancelado */}
         {(anexos.length > 0 || canAgregarAnexo) && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
@@ -1048,9 +1108,11 @@ export default function CajaChicaDetallePage() {
       </div>
 
       {/* Bitácora */}
-      <BitacoraEventos modulo="caja_chica" registroId={cc.id} marker={`${cc.estado}|${cc.fecha_pago}`} fallback={bitacoraPasos} />
+      <BitacoraEventos modulo="caja_chica" registroId={cc.id} marker={`${cc.estado}|${cc.fecha_pago}|${anexos.length}|${cambiosGasto.length}`} fallback={bitacoraPasos} />
 
       {/* Modals */}
+      <CorregirGastoModal gasto={gastoCorregir} tipos={TIPOS_DOC} codigoCaja={cc.codigo}
+        onConfirm={handleCorregirGasto} onCancel={() => setGastoCorregir(null)} />
       <PagoModal
         open={pagoOpen}
         proyectoId={cc.proyecto_id}

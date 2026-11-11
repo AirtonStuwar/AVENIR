@@ -254,6 +254,45 @@ export async function eliminarAnexoCajaChica(anexo: CajaChicaAnexo): Promise<voi
   await supabase.storage.from(BUCKET).remove([anexo.archivo_path])
 }
 
+// ── Corrección del documento de un gasto ─────────────────────────
+// Cambia SOLO el tipo y el N° de documento de un gasto, con motivo, dejando historial (docs/caja_chica_correccion_gasto.sql).
+export interface CajaChicaGastoCambio {
+  id: number
+  caja_chica_id: number
+  detalle_id: number
+  proveedor: string | null
+  tipo_anterior: string | null
+  numero_anterior: string | null
+  tipo_nuevo: string
+  numero_nuevo: string | null
+  motivo: string
+  usuario_id: string
+  fecha: string
+  usuario_nombre?: string | null
+}
+
+export async function getCambiosGastosCajaChica(cajaChicaId: number): Promise<CajaChicaGastoCambio[]> {
+  const { data, error } = await supabase
+    .from('caja_chica_gasto_cambio')
+    .select('id, caja_chica_id, detalle_id, proveedor, tipo_anterior, numero_anterior, tipo_nuevo, numero_nuevo, motivo, usuario_id, fecha')
+    .eq('caja_chica_id', cajaChicaId)
+    .order('fecha', { ascending: true })
+  if (error) throw error
+  const rows = (data ?? []) as CajaChicaGastoCambio[]
+  const uids = [...new Set(rows.map(r => r.usuario_id))]
+  if (!uids.length) return rows
+  const { data: us } = await supabase.from('usuario').select('id, nombre_completo').in('id', uids)
+  const nombre = Object.fromEntries(((us ?? []) as { id: string; nombre_completo: string | null }[]).map(u => [u.id, u.nombre_completo]))
+  return rows.map(r => ({ ...r, usuario_nombre: nombre[r.usuario_id] ?? null }))
+}
+
+export async function corregirDocumentoGastoCajaChica(detalleId: number, tipo: string, numero: string, motivo: string): Promise<void> {
+  const { error } = await supabase.rpc('corregir_documento_gasto_caja_chica', {
+    p_detalle_id: detalleId, p_tipo: tipo, p_numero: numero, p_motivo: motivo,
+  })
+  if (error) throw error
+}
+
 export async function getArchivoCajaChicaUrl(path: string): Promise<string> {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600)
   if (error) throw error

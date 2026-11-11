@@ -7,7 +7,7 @@ export type ModuloBitacora = 'solicitud' | 'arendir' | 'reembolso' | 'caja_chica
 
 export interface BitacoraEvento {
   id: number
-  tipo: 'creacion' | 'estado' | 'pago' | 'pago_anulado' | 'pago_parcial' | 'factura_archivo' | 'factura_datos' | 'programacion' | 'anexo' | 'anexo_eliminado'
+  tipo: 'creacion' | 'estado' | 'pago' | 'pago_anulado' | 'pago_parcial' | 'factura_archivo' | 'factura_datos' | 'programacion' | 'anexo' | 'anexo_eliminado' | 'gasto_corregido'
   estado_anterior: string | null
   estado_nuevo: string | null
   usuario_id: string | null
@@ -93,6 +93,7 @@ export function pasosDesdeEventos(modulo: ModuloBitacora, eventos: BitacoraEvent
       case 'factura_datos': titulo = 'Datos de factura registrados'; break
       case 'anexo': titulo = 'Anexo agregado al sustento'; break
       case 'anexo_eliminado': titulo = 'Anexo eliminado'; warn = true; break
+      case 'gasto_corregido': titulo = 'Documento de un gasto corregido'; break
       case 'programacion':
         titulo = e.detalle?.startsWith('Aprobación programada') ? 'Aprobación programada'
           : e.detalle?.startsWith('Programación quitada') ? 'Programación quitada'
@@ -101,7 +102,7 @@ export function pasosDesdeEventos(modulo: ModuloBitacora, eventos: BitacoraEvent
       default: ({ titulo, warn } = tituloEstado(modulo, e.estado_anterior, e.estado_nuevo))
     }
     const partes: string[] = []
-    if ((e.tipo === 'factura_archivo' || e.tipo === 'anexo' || e.tipo === 'anexo_eliminado') && e.detalle) partes.push(e.detalle)
+    if ((e.tipo === 'factura_archivo' || e.tipo === 'anexo' || e.tipo === 'anexo_eliminado' || e.tipo === 'gasto_corregido') && e.detalle) partes.push(e.detalle)
     if (e.tipo === 'factura_datos' && e.detalle) partes.push(`N° ${e.detalle}`)
     if ((e.tipo === 'pago_parcial' || e.tipo === 'pago_anulado' || e.tipo === 'programacion') && e.detalle) partes.push(e.detalle)
     if (quien) partes.push(e.tipo === 'creacion' || e.tipo === 'estado' ? `Por ${quien}` : `Registrado por ${quien}`)
