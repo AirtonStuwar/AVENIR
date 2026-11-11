@@ -22,7 +22,9 @@ import {
   autorizarCajaChica, rechazarCajaChica, devolverCajaChica,
   observarCajaChica, reenviarContabilidadCajaChica,
   getAreas, uploadSustentoCajaChica, getArchivoCajaChicaUrl, updateCajaChica,
+  getAnexosCajaChica, agregarAnexoCajaChica, eliminarAnexoCajaChica,
 } from '../features/caja-chica/services/cajaChicaService'
+import type { CajaChicaAnexo } from '../features/caja-chica/services/cajaChicaService'
 import { getUserFirmaBlob } from '../features/usuario/services/usuarioService'
 import { marcarPagado } from '../features/solicitud/services/cuentaBancariaService'
 import { getPlanContable } from '../features/solicitud/services/solicitudService'
@@ -97,6 +99,8 @@ export default function CajaChicaDetallePage() {
   const [archivo, setArchivo] = useState<File | null>(null)
   const [savingDet, setSavingDet] = useState(false)
   const [uploadingSustento, setUploadingSustento] = useState(false)
+  const [anexos, setAnexos] = useState<CajaChicaAnexo[]>([])
+  const [uploadingAnexo, setUploadingAnexo] = useState(false)
 
   // Modals
   const [rechazoOpen, setRechazoOpen] = useState(false)
@@ -121,11 +125,17 @@ export default function CajaChicaDetallePage() {
       const data = await getCajaChicaById(Number(id))
       setCc(data)
       setDetalles(data.detalles ?? [])
+      cargarAnexos(data.id)
     } catch {
       toast.error('Error al cargar la caja chica')
     } finally {
       setLoading(false)
     }
+  }
+
+  // Si la tabla de anexos aún no existe en la BD, la página sigue funcionando sin la tarjeta
+  const cargarAnexos = (cajaId: number) => {
+    getAnexosCajaChica(cajaId).then(setAnexos).catch(() => setAnexos([]))
   }
 
   useEffect(() => { loadData() }, [id])
@@ -179,6 +189,8 @@ export default function CajaChicaDetallePage() {
   // ADMIN puede adjuntar/reemplazar el documento sustento de una caja chica ya Autorizada/pagada (olvido del usuario).
   // Solo el archivo: pasa por la corrección controlada (queda en correccion_log, visible en Reportes > Correcciones).
   const canSustentoPostPago = userRole === ROLES.ADMIN && isAutorizado && !canEdit
+  // Anexos: dueño o ADMIN, en cualquier estado menos Rechazado/Cancelado (la BD lo exige igual)
+  const canAgregarAnexo = (isOwner || userRole === ROLES.ADMIN) && cc.estado !== 'Rechazado' && cc.estado !== 'Cancelado'
   const canShowPDF = detalles.length > 0
 
   // ── Bitácora (timeline de solo lectura) ─────────────────────────
@@ -450,6 +462,45 @@ export default function CajaChicaDetallePage() {
     } finally {
       setUploadingSustento(false)
     }
+  }
+
+  const handleAgregarAnexo = async (file: File) => {
+    if (!cc) return
+    setUploadingAnexo(true)
+    try {
+      await agregarAnexoCajaChica(file, cc.id)
+      toast.success('Anexo agregado')
+      cargarAnexos(cc.id)
+    } catch {
+      toast.error('No se pudo agregar el anexo')
+    } finally {
+      setUploadingAnexo(false)
+    }
+  }
+
+  const handleVerAnexo = async (a: CajaChicaAnexo) => {
+    try {
+      const url = await getArchivoCajaChicaUrl(a.archivo_path)
+      window.open(url, '_blank')
+    } catch {
+      toast.error('No se pudo abrir el anexo')
+    }
+  }
+
+  const handleEliminarAnexo = (a: CajaChicaAnexo) => {
+    setPendingAction({
+      title: 'Eliminar anexo',
+      message: `Se eliminará "${a.nombre_archivo ?? 'el anexo'}" y quedará registrado en la Bitácora. Esta acción no se puede deshacer.`,
+      onConfirm: async () => {
+        try {
+          await eliminarAnexoCajaChica(a)
+          toast.success('Anexo eliminado')
+          if (cc) cargarAnexos(cc.id)
+        } catch {
+          toast.error('No se pudo eliminar el anexo')
+        }
+      },
+    })
   }
 
   const handleVerSustento = async () => {
@@ -954,6 +1005,46 @@ export default function CajaChicaDetallePage() {
             <p className="text-sm text-gray-400 italic">No adjuntado</p>
           )}
         </div>
+
+        {/* Anexos al sustento: se agregan sin reemplazar el original, en cualquier estado salvo Rechazado/Cancelado */}
+        {(anexos.length > 0 || canAgregarAnexo) && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-800">Anexos al sustento</h2>
+              {canAgregarAnexo && (
+                <label className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-[#003D7D] cursor-pointer">
+                  {uploadingAnexo ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                  {uploadingAnexo ? 'Subiendo…' : 'Agregar anexo'}
+                  <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png" disabled={uploadingAnexo}
+                    onChange={e => { const f = e.target.files?.[0]; if (f) handleAgregarAnexo(f); e.target.value = '' }} />
+                </label>
+              )}
+            </div>
+            {anexos.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">Sin anexos. Si falta un documento, agrégalo aquí; el sustento original no se modifica.</p>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {anexos.map(a => (
+                  <li key={a.id} className="flex items-center justify-between gap-3 py-2">
+                    <div className="min-w-0">
+                      <button onClick={() => handleVerAnexo(a)}
+                        className="flex items-center gap-1.5 text-sm text-[#003D7D] font-semibold hover:underline max-w-full">
+                        <ExternalLink size={13} className="shrink-0" /> <span className="truncate">{a.nombre_archivo ?? 'Anexo'}</span>
+                      </button>
+                      <p className="text-xs text-gray-400">{a.usuario_nombre ?? '—'} · {fmtDateHora(a.fecha_creacion)}</p>
+                    </div>
+                    {userRole === ROLES.ADMIN && (
+                      <button onClick={() => handleEliminarAnexo(a)} title="Eliminar anexo (solo ADMIN)"
+                        className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0">
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Bitácora */}

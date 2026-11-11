@@ -207,6 +207,53 @@ export async function uploadSustentoCajaChica(file: File, cajaChicaId: number): 
   return path
 }
 
+// ── Anexos al sustento ───────────────────────────────────────────
+// Documentos que se AGREGAN al sustento original sin reemplazarlo. Los permisos viven en la BD (docs/caja_chica_anexo.sql).
+export interface CajaChicaAnexo {
+  id: number
+  caja_chica_id: number
+  archivo_path: string
+  nombre_archivo: string | null
+  usuario_id: string
+  fecha_creacion: string
+  usuario_nombre?: string | null
+}
+
+export async function getAnexosCajaChica(cajaChicaId: number): Promise<CajaChicaAnexo[]> {
+  const { data, error } = await supabase
+    .from('caja_chica_anexo')
+    .select('id, caja_chica_id, archivo_path, nombre_archivo, usuario_id, fecha_creacion')
+    .eq('caja_chica_id', cajaChicaId)
+    .order('fecha_creacion', { ascending: true })
+  if (error) throw error
+  const rows = (data ?? []) as CajaChicaAnexo[]
+  const uids = [...new Set(rows.map(r => r.usuario_id))]
+  if (!uids.length) return rows
+  const { data: us } = await supabase.from('usuario').select('id, nombre_completo').in('id', uids)
+  const nombre = Object.fromEntries(((us ?? []) as { id: string; nombre_completo: string | null }[]).map(u => [u.id, u.nombre_completo]))
+  return rows.map(r => ({ ...r, usuario_nombre: nombre[r.usuario_id] ?? null }))
+}
+
+export async function agregarAnexoCajaChica(file: File, cajaChicaId: number): Promise<void> {
+  const ext  = file.name.split('.').pop()
+  const path = `${cajaChicaId}/anexo/${Date.now()}.${ext}`
+  const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false })
+  if (upErr) throw upErr
+  const { error } = await supabase.from('caja_chica_anexo').insert({ caja_chica_id: cajaChicaId, archivo_path: path, nombre_archivo: file.name })
+  if (error) {
+    await supabase.storage.from(BUCKET).remove([path])   // no dejar el archivo huérfano si la BD lo rechazó
+    throw error
+  }
+}
+
+/** Solo ADMIN (lo exige la policy de la BD). Queda registrado en la Bitácora. */
+export async function eliminarAnexoCajaChica(anexo: CajaChicaAnexo): Promise<void> {
+  const { data, error } = await supabase.from('caja_chica_anexo').delete().eq('id', anexo.id).select('id')
+  if (error) throw error
+  if (!data?.length) throw new Error('No se pudo eliminar el anexo (sin permiso)')
+  await supabase.storage.from(BUCKET).remove([anexo.archivo_path])
+}
+
 export async function getArchivoCajaChicaUrl(path: string): Promise<string> {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, 3600)
   if (error) throw error
