@@ -4,6 +4,7 @@ import type {
   ARendirDetalleInsert, ARendirFiltros, ARendirPaginado,
 } from '../types/arendir'
 import { ROLES } from '../../solicitud/types/solicitud'
+import type { GastoEncontrado } from '../../solicitud/components/BuscadorGastos'
 
 const BUCKET = 'arendir-documentos'
 const SEL = '*, proyecto:proyecto_id(id,nombre), proyecto_partida:proyecto_partida_id(id,nombre), plan_contable:plan_contable_id(id,tipo_gasto_costo,codigo_starsoft,nombre_cuenta_contable,partida_presupuestal), cuenta_devolucion:cuenta_devolucion_id(id,banco,numero_cuenta,moneda)'
@@ -347,4 +348,26 @@ export async function getARendirAutorizados(): Promise<ARendirRow[]> {
     .in('estado', ['Aprobado', 'Pagado', 'En Revision', 'Cerrado'])
   if (error) throw error
   return (data ?? []) as ARendirRow[]
+}
+
+/** Busca gastos (líneas de solicitud_arendir_detalle) por proveedor o N° de documento, entre todas las rendiciones visibles para el rol actual (la RLS limita al USUARIO a las suyas). */
+export async function buscarGastosARendir(query: string): Promise<GastoEncontrado[]> {
+  // Se quitan los caracteres que rompen la sintaxis del filtro .or()
+  const q = query.trim().replace(/[,()%*]/g, ' ').trim()
+  if (!q) return []
+  const { data, error } = await supabase
+    .from('solicitud_arendir_detalle')
+    .select('id, fecha_documento, proveedor, tipo_documento, numero_documento, concepto, importe, solicitud:solicitud_arendir_id(id, codigo, estado, moneda, proyecto:proyecto_id(nombre))')
+    .or(`proveedor.ilike.%${q}%,numero_documento.ilike.%${q}%`)
+    .order('fecha_documento', { ascending: false })
+    .limit(100)
+  if (error) throw error
+  type Fila = Omit<GastoEncontrado, 'registroId' | 'codigo' | 'estado' | 'moneda' | 'empresa'> & {
+    solicitud: { id: number; codigo: string | null; estado: string; moneda: string | null; proyecto: { nombre: string } | null } | null
+  }
+  return ((data ?? []) as unknown as Fila[])
+    .filter(f => f.solicitud)
+    .map(({ solicitud: s, ...g }) => ({
+      ...g, registroId: s!.id, codigo: s!.codigo, estado: s!.estado, moneda: s!.moneda, empresa: s!.proyecto?.nombre ?? null,
+    }))
 }

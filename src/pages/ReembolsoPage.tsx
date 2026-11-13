@@ -3,6 +3,8 @@ import { Plus, Eye, Loader2, RefreshCw, Download, Filter, CreditCard } from 'luc
 import ExcelJS from 'exceljs'
 import toast from 'react-hot-toast'
 import { useState, useEffect } from 'react'
+import BuscadorGastos from '../features/solicitud/components/BuscadorGastos'
+import { buscarGastosReembolso } from '../features/reembolso/services/reembolsoService'
 import { useReembolso } from '../features/reembolso/hooks/useReembolso'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
@@ -61,6 +63,7 @@ export default function ReembolsoPage() {
   const isVisualizador = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
 
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [busquedaActiva, setBusquedaActiva] = useState(false)
   const [proyectos,   setProyectos]   = useState<Proyecto[]>([])
   const [bulkPagoOpen, setBulkPagoOpen] = useState(false)
 
@@ -248,7 +251,14 @@ export default function ReembolsoPage() {
 
       {/* Table card */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {loading ? (
+        <BuscadorGastos
+          placeholder="Buscar gasto por proveedor o N° de factura (entre todos los reembolsos)..."
+          buscar={buscarGastosReembolso}
+          onAbrir={id => navigate(`/reembolso/${id}`)}
+          renderEstado={e => <EstadoBadge estado={e as never} />}
+          onActivo={setBusquedaActiva}
+        />
+        {busquedaActiva ? null : loading ? (
           <div className="flex items-center justify-center py-16 text-gray-400">
             <Loader2 size={24} className="animate-spin mr-2" />
             Cargando...
@@ -360,7 +370,7 @@ export default function ReembolsoPage() {
           </div>
         )}
 
-        {totalPages > 1 && (
+        {!busquedaActiva && totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100 bg-gray-50">
             <p className="text-xs text-gray-500">
               Mostrando {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, total)} de {total}
