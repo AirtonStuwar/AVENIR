@@ -2,6 +2,7 @@ import { supabase } from '../../../api/supabase'
 import ExcelJS from 'exceljs'
 import { sanitizeBBVA } from '../../solicitud/constants/bancos'
 import { tasaIgv } from '../../solicitud/utils/igv'
+import { doiTipoBBVA } from '../../arendir/utils/documento'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -921,7 +922,8 @@ export async function exportarBBVAConsolidado(rows: ReporteRow[]): Promise<numbe
     const importe = Math.round((r.moneda === 'USD' ? r.girar_usd : r.girar_pen) * 100) / 100
 
     ws.addRow([
-      esFacturable ? (r.ruc?.length === 11 ? 'R' : 'L') : 'L',
+      // 'R' si el documento es un RUC (11 dígitos), 'L' si es DNI — también en A Rendir, cuyo beneficiario puede ser un RUC
+      doiTipoBBVA(r.ruc),
       r.ruc ?? '',
       r.banco === 'BBVA' ? 'P' : 'I',
       r.cuenta ?? '',

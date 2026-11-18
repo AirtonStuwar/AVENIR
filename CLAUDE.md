@@ -464,6 +464,8 @@ El EVALUADOR aquí **no asigna plan contable** en ninguna de sus dos acciones (n
 
 **Bug corregido (2026-09):** "Importe abonar" usaba siempre `total_reembolso` sin importar el estado. Como `total_reembolso` recién se calcula cuando el usuario sube sus comprobantes (después de recibir el dinero), un A Rendir recién **Aprobado** —el caso normal de uso de este botón, para pagar el adelanto— exportaba **S/ 0** en vez del monto real a transferir. Mismo bug y mismo fix en `fetchARendir()` de `reportesService.ts` (columna GIRAR de Reportes). Corregido para usar `importe` mientras está en `Aprobado`, y `total_reembolso` en los demás estados — mismo criterio que ya usa `montoARendirGasto()` en el Dashboard.
 
+**Bug corregido (2026-11) — el Excel BBVA de Reportes ponía 'L' a los A Rendir con RUC:** `exportarBBVAConsolidado()` (`reportesService.ts`) solo calculaba 'R'/'L' para OC/RxH/Liberalidad y ponía 'L' fijo al resto, así que un A Rendir cuyo beneficiario es un RUC salía como DNI (el Excel de la propia página A Rendir sí usaba `doiTipoBBVA`). Ahora todos los tipos usan `doiTipoBBVA(r.ruc)` (11 dígitos → 'R'). Los Excel BBVA de Caja Chica, Reembolso y Devolución (`CajaChicaPage`, `ReembolsoPage`, `DevolucionPage`) siguen con 'L' fijo porque sus beneficiarios son DNI.
+
 **Excel BBVA — solicitudes OC (`SolicitudesPage`):**
 - `Tipo abono`: `'P'` si `banco === 'BBVA'`, `'I'` para el resto (antes usaba la longitud del número)
 - `Tipo recibo`: `'F'` (factura)
