@@ -14,6 +14,7 @@ import { ROLES } from '../features/solicitud/types/solicitud'
 import PagoModal from '../features/solicitud/components/PagoModal'
 import ConfirmModal from '../features/solicitud/components/ConfirmModal'
 import CorreccionModal from '../features/solicitud/components/CorreccionModal'
+import EditarDatosARendirModal from '../features/arendir/components/EditarDatosARendirModal'
 import { registrarCorreccion } from '../features/solicitud/services/correccionService'
 import type { CategoriaCorreccion } from '../features/solicitud/services/correccionService'
 import {
@@ -204,6 +205,7 @@ export default function ARendirDetallePage() {
   const [cuentaDevolucionSel, setCuentaDevolucionSel] = useState<number | null>(null)
   const [fechaDevolucionSel,  setFechaDevolucionSel]  = useState<string | null>(null)
   const [correccionOpen, setCorreccionOpen] = useState(false)
+  const [editarDatosOpen, setEditarDatosOpen] = useState(false)
   const [cancelarOpen, setCancelarOpen] = useState(false)
 
   // Catalogo de cuentas contables (solo de referencia por gasto)
@@ -596,6 +598,9 @@ export default function ARendirDetallePage() {
   const canRechazar       = solicitud?.estado === 'Evaluado' && (isAprobador || isAdmin)
   const canEditDet        = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
     ['Aprobado', 'Pagado', 'Observado'].includes(solicitud?.estado ?? '')
+  // Datos generales: el dueño (o ADMIN) puede corregirlos mientras nadie la ha evaluado todavía
+  const canEditarDatos    = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
+    ['Pendiente', 'Devuelto'].includes(solicitud?.estado ?? '')
   const canEditSustento   = (isAdmin || ((userRole === ROLES.USUARIO) && isOwner)) &&
     ['Pendiente', 'Evaluado', 'Aprobado', 'Pagado', 'Observado'].includes(solicitud?.estado ?? '')
   const canReenviarConta  = solicitud?.estado === 'Observado' && (isAdmin || ((userRole === ROLES.USUARIO) && isOwner))
@@ -955,6 +960,14 @@ export default function ARendirDetallePage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
         <div className="flex items-center gap-2 mb-4">
           <h2 className="text-sm font-semibold text-gray-900">Datos generales</h2>
+          {canEditarDatos && (
+            <button
+              onClick={() => setEditarDatosOpen(true)}
+              className="ml-auto flex items-center gap-1.5 h-7 px-2.5 rounded-lg border border-gray-200 bg-white text-[#003D7D] text-xs font-semibold hover:bg-gray-50 transition-colors"
+            >
+              <Pencil size={12} /> Editar datos
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setCorreccionOpen(true)}
@@ -1352,6 +1365,16 @@ export default function ARendirDetallePage() {
         variant="red"
         onConfirm={handleCancelar}
         onCancel={() => setCancelarOpen(false)}
+      />
+
+      <EditarDatosARendirModal
+        solicitud={editarDatosOpen ? solicitud : null}
+        onCancel={() => setEditarDatosOpen(false)}
+        onSaved={async () => {
+          setEditarDatosOpen(false)
+          const sol = await getARendirById(Number(id))
+          setSolicitud(sol); setDetalles(sol.detalles ?? [])
+        }}
       />
 
       <CorreccionModal
