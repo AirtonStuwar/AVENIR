@@ -115,7 +115,7 @@ function DatosFijosModal({ proyecto, onClose, onSaved }: { proyecto: Proyecto; o
 
 export default function StatusProyectoPage() {
   const { userRole } = useAuthStore()
-  const permitido = userRole === ROLES.ADMIN || userRole === ROLES.APROBADOR
+  const permitido = userRole === ROLES.ADMIN || userRole === ROLES.APROBADOR || userRole === ROLES.FINANZAS
   const esAdmin = userRole === ROLES.ADMIN
 
   const [proyectos, setProyectos] = useState<Proyecto[]>([])

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Landmark, Upload, Download, Loader2, CheckCircle2, AlertTriangle, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../store/authStore'
+import { ROLES } from '../features/solicitud/types/solicitud'
 import { getAllCuentasBancarias } from '../features/solicitud/services/cuentaBancariaService'
 import type { CuentaBancaria } from '../features/solicitud/services/cuentaBancariaService'
 import { parseEstadoCuentaBBVA } from '../features/conciliacion/services/estadoCuentaParser'
@@ -15,7 +16,8 @@ const fmt = (n: number) => n.toLocaleString('es-PE', { minimumFractionDigits: 2,
 type Tab = 'conciliados' | 'banco' | 'sistema'
 
 export default function ConciliacionBancariaPage() {
-  const { user } = useAuthStore()
+  const { user, userRole } = useAuthStore()
+  const soloLectura = userRole === ROLES.FINANZAS   // el rol Finanzas revisa y descarga, pero no guarda
 
   const [cuentas, setCuentas] = useState<CuentaBancaria[]>([])
   const [cuentaId, setCuentaId] = useState<number | ''>('')
@@ -185,11 +187,13 @@ export default function ConciliacionBancariaPage() {
                   className="flex items-center gap-1.5 h-9 px-3 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
                   <Download size={13} /> Descargar
                 </button>
-                <button onClick={handleGuardar} disabled={saving}
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
-                  {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                  Guardar
-                </button>
+                {!soloLectura && (
+                  <button onClick={handleGuardar} disabled={saving}
+                    className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors">
+                    {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+                    Guardar
+                  </button>
+                )}
               </div>
             </div>
 

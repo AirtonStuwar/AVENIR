@@ -90,7 +90,7 @@ async function requireRol(req: Request): Promise<boolean> {
   const { data: { user }, error } = await admin.auth.getUser(auth.slice(7))
   if (error || !user) return false
   const { data: rolRow } = await admin.from('usuario_rol').select('rol').eq('usuario', user.id).maybeSingle()
-  return [1, 9].includes(rolRow?.rol as number)
+  return [1, 9, 12].includes(rolRow?.rol as number)
 }
 
 export default async function handler(req: Request): Promise<Response> {

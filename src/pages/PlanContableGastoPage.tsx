@@ -11,7 +11,7 @@ export default function PlanContableGastoPage() {
   const { user, userRole } = useAuthStore()
   const isAdmin = userRole === ROLES.ADMIN
   const isAprobador = userRole === ROLES.APROBADOR
-  const verTodas = isAdmin || isAprobador
+  const verTodas = isAdmin || isAprobador || userRole === ROLES.FINANZAS
 
   const [rows,    setRows]    = useState<GastoPlanContable[]>([])
   const [loading, setLoading] = useState(true)

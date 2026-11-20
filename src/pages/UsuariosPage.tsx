@@ -16,6 +16,7 @@ const ROLE_LABELS: Record<number, string> = {
   9:  'Aprobador',
   10: 'Visualizador',
   11: 'Usuario',
+  12: 'Finanzas (solo lectura)',
 }
 
 const ROLE_OPTIONS = Object.entries(ROLE_LABELS).map(([id, label]) => ({ id: Number(id), label }))

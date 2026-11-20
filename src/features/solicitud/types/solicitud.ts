@@ -42,6 +42,7 @@ export const ROLES = {
   APROBADOR:    9,
   VISUALIZADOR: 10,
   USUARIO:      11,
+  FINANZAS:     12,   // solo lectura: Ingreso, Finanzas, Status, Reportes, Áreas, Conciliación y Plan Contable
 } as const
 
 export interface Solicitud {

@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 
 // ── Menú + roles ─────────────────────────────────────────────────
 // Roles: 1=Admin | 8=Evaluador | 9=Aprobador | 10=Visualizador | 11=Usuario
-const ALL_ROLES = [1, 8, 9, 10, 11]
+const ALL_ROLES = [1, 8, 9, 10, 11, 12]
 
 // Módulos de Egreso: agrupados bajo un solo ítem colapsable en el sidebar
 const egresoChildren = [
@@ -20,16 +20,16 @@ const egresoChildren = [
 const menuItems = [
   { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard, roles: [1, 8, 9, 10, 11] },
   { name: 'Egreso',    icon: Banknote,     roles: ALL_ROLES, children: egresoChildren },
-  { name: 'Ingreso',   path: '/ingreso',   icon: TrendingUp, roles: [1, 9, 10] },
-  { name: 'Finanzas',  path: '/finanzas',  icon: LineChart,  roles: [1, 9] },
-  { name: 'Status de Proyecto', path: '/status-proyecto', icon: Building, roles: [1, 9] },
+  { name: 'Ingreso',   path: '/ingreso',   icon: TrendingUp, roles: [1, 9, 10, 12] },
+  { name: 'Finanzas',  path: '/finanzas',  icon: LineChart,  roles: [1, 9, 12] },
+  { name: 'Status de Proyecto', path: '/status-proyecto', icon: Building, roles: [1, 9, 12] },
   { name: 'Usuarios',    path: '/usuarios',    icon: UserCog,    roles: [1] },
   { name: 'Proveedores', path: '/proveedores', icon: Users,      roles: [1, 11] },
   { name: 'Empresas',    path: '/proyectos',   icon: Briefcase,  roles: [1] },
-  { name: 'Áreas',       path: '/areas',       icon: Building2,  roles: [1, 9] },
-  { name: 'Reportes',    path: '/reportes',    icon: BarChart2,  roles: [1, 8, 10] },
-  { name: 'Conciliación Bancaria', path: '/conciliacion', icon: Landmark, roles: [1, 10] },
-  { name: 'Plan Contable', path: '/plan-contable', icon: PieChart, roles: [1, 9, 11] },
+  { name: 'Áreas',       path: '/areas',       icon: Building2,  roles: [1, 9, 12] },
+  { name: 'Reportes',    path: '/reportes',    icon: BarChart2,  roles: [1, 8, 10, 12] },
+  { name: 'Conciliación Bancaria', path: '/conciliacion', icon: Landmark, roles: [1, 10, 12] },
+  { name: 'Plan Contable', path: '/plan-contable', icon: PieChart, roles: [1, 9, 11, 12] },
 ]
 
 const ROLE_LABELS: Record<number, string> = {
@@ -38,6 +38,7 @@ const ROLE_LABELS: Record<number, string> = {
   9:  'Aprobador',
   10: 'Visualizador',
   11: 'Usuario',
+  12: 'Finanzas',
 }
 
 interface SidebarProps {

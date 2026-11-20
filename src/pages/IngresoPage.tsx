@@ -164,7 +164,7 @@ export default function IngresoPage() {
   const [loading, setLoading] = useState(true)
 
   const canRegistrarCobranza = userRole === ROLES.USUARIO || userRole === ROLES.ADMIN
-  const canVerReportes       = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN
+  const canVerReportes       = userRole === ROLES.VISUALIZADOR || userRole === ROLES.ADMIN || userRole === ROLES.FINANZAS
 
   useEffect(() => {
     getProyectos({ pageSize: 100 })

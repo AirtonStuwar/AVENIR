@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
@@ -139,6 +139,8 @@ export function DashboardPage() {
   if (userRole === ROLES.EVALUADOR)   return <EvaluadorDashboard />
   if (userRole === ROLES.VISUALIZADOR) return <VisualizadorDashboard />
   if (userRole === ROLES.USUARIO)      return <UsuarioDashboard />
+  // El rol Finanzas (solo lectura) no tiene panel propio: entra directo a su pantalla principal
+  if (userRole === ROLES.FINANZAS)     return <Navigate to="/finanzas" replace />
 
   return (
     <div className="flex h-80 flex-col items-center justify-center gap-3 text-gray-400">

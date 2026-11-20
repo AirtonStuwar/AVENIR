@@ -52,7 +52,7 @@ function TooltipMes({ active, payload, moneda }: { active?: boolean; payload?: R
 
 export default function FinanzasEgresosPage() {
   const { userRole } = useAuthStore()
-  const esAdmin = userRole === ROLES.ADMIN || userRole === ROLES.APROBADOR   // nombre histórico: ahora ADMIN y APROBADOR
+  const esAdmin = userRole === ROLES.ADMIN || userRole === ROLES.APROBADOR || userRole === ROLES.FINANZAS   // nombre histórico: ADMIN, APROBADOR y FINANZAS (solo lectura)
 
   const [filas, setFilas] = useState<FilaEgreso[]>([])
   const [loading, setLoading] = useState(true)
