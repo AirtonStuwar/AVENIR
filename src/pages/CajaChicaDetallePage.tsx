@@ -965,7 +965,7 @@ export default function CajaChicaDetallePage() {
                         ? <span className="text-xs font-semibold bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded">{d.area_nombre}</span>
                         : <span className="text-gray-400">—</span>}
                     </td>
-                    <td className="px-3 py-2 text-gray-800 max-w-[140px] truncate">{d.proveedor}</td>
+                    <td className="px-3 py-2 text-gray-800 max-w-[180px] whitespace-normal break-words">{d.proveedor}</td>
                     <td className="px-3 py-2 text-gray-600 text-xs">{d.tipo_documento}</td>
                     <td className="px-3 py-2 text-gray-600 text-xs">
                       {d.numero_documento ?? '—'}
@@ -976,7 +976,7 @@ export default function CajaChicaDetallePage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-3 py-2 text-gray-700 max-w-[200px] truncate">{d.detalle}</td>
+                    <td className="px-3 py-2 text-gray-700 min-w-[200px] max-w-[320px] whitespace-normal break-words">{d.detalle}</td>
                     <td className="px-3 py-2 text-right font-mono font-semibold text-gray-800">{d.monto.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="px-3 py-2">
                       {canEdit && (
