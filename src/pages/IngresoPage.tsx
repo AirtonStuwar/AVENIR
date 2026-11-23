@@ -20,7 +20,9 @@ import CobranzaModal from '../features/cobranza/components/CobranzaModal'
 import CronogramaMobysuiteView from '../features/cobranza/components/CronogramaMobysuiteView'
 import CarteraVencidaTable from '../features/cobranza/components/CarteraVencidaTable'
 import { construirCartera } from '../features/cobranza/utils/carteraMobysuite'
-import type { CarteraMock } from '../features/cobranza/utils/carteraMobysuite'
+import type { CarteraMock, CronogramaResponse } from '../features/cobranza/utils/carteraMobysuite'
+import ResumenEjecutivoEmpresa from '../features/cobranza/components/ResumenEjecutivoEmpresa'
+import CumplimientoMensualTable from '../features/cobranza/components/CumplimientoMensualTable'
 
 // Suma las carteras de varias empresas (vista "Todas las empresas")
 function sumarCarteras(mocks: CarteraMock[]): CarteraMock {
@@ -279,26 +281,29 @@ export default function IngresoPage() {
   const empresasConsulta = proyectoId ? empresasMobysuite.filter(p => String(p.id) === proyectoId) : empresasMobysuite
   const claveConsulta = empresasConsulta.map(p => p.moby_project_id).join(',')
   const [carteraReal, setCarteraReal] = useState<CarteraMock | null>(null)
+  const [cronogramaEmpresa, setCronogramaEmpresa] = useState<CronogramaResponse | null>(null)
   const [carteraLoading, setCarteraLoading] = useState(true)
   const [empresasFallidas, setEmpresasFallidas] = useState<string[]>([])
 
   useEffect(() => {
     if (loading) return // todavía cargando la lista de empresas
     if (empresasConsulta.length === 0) {
-      setCarteraReal(null); setEmpresasFallidas([]); setCarteraLoading(false)
+      setCarteraReal(null); setCronogramaEmpresa(null); setEmpresasFallidas([]); setCarteraLoading(false)
       return
     }
     let cancelado = false
-    setCarteraLoading(true); setCarteraReal(null); setEmpresasFallidas([])
+    setCarteraLoading(true); setCarteraReal(null); setCronogramaEmpresa(null); setEmpresasFallidas([])
     Promise.allSettled(empresasConsulta.map(async p => {
       const r = await authFetch(`/api/mobysuite-cronograma?mobyProjectId=${p.moby_project_id}`)
       const json = await r.json()
       if (!r.ok) throw new Error(json.error ?? 'Error al consultar Mobysuite')
-      return construirCartera(json, META_MENSUAL_POR_EMPRESA)
+      return { cartera: construirCartera(json, META_MENSUAL_POR_EMPRESA), json: json as CronogramaResponse }
     })).then(res => {
       if (cancelado) return
       const ok = res.flatMap(x => x.status === 'fulfilled' ? [x.value] : [])
-      setCarteraReal(ok.length > 0 ? sumarCarteras(ok) : null)
+      setCarteraReal(ok.length > 0 ? sumarCarteras(ok.map(o => o.cartera)) : null)
+      // Los dos reportes por empresa solo aplican cuando hay UNA empresa elegida
+      setCronogramaEmpresa(proyectoId && ok.length === 1 ? ok[0].json : null)
       setEmpresasFallidas(empresasConsulta.filter((_, i) => res[i].status === 'rejected').map(p => p.nombre))
       setCarteraLoading(false)
     })
@@ -509,6 +514,18 @@ export default function IngresoPage() {
             </span>
           ))}
         </div>
+
+        {/* Reportes de la empresa elegida (no aparecen con "Todas las empresas") */}
+        {cronogramaEmpresa && (
+          <>
+            <ResumenEjecutivoEmpresa
+              cuotas={cronogramaEmpresa.cuotas}
+              ventasAcumuladas={cronogramaEmpresa.ventasAcumuladas}
+              empresa={proyectos.find(p => String(p.id) === proyectoId)?.nombre ?? ''}
+            />
+            <CumplimientoMensualTable cuotas={cronogramaEmpresa.cuotas} />
+          </>
+        )}
         </>
       )}
 
