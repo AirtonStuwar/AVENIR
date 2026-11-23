@@ -224,6 +224,7 @@ export default function SolicitudNuevaPage() {
     if (partidas.length > 0 && !proyecto_partida_id) e.proyecto_partida_id = 'Obligatorio'
     if (!razon_social.trim())    e.razon_social   = 'Obligatorio'
     if (!ruc.trim())             e.ruc            = 'Obligatorio'
+    else if (isOtros && ruc.length !== 8 && ruc.length !== 11) e.ruc = 'Ingresa un DNI (8 dígitos) o un RUC (11)'
     if (!isLiberalidad) {
       if (!direccion.trim())       e.direccion      = 'Obligatorio'
       if (!contacto_nombre.trim()) e.contacto_nombre= 'Obligatorio'
@@ -465,11 +466,11 @@ export default function SolicitudNuevaPage() {
                     {errors.razon_social && <p className="mt-1 text-xs text-red-500">{errors.razon_social}</p>}
                   </div>
                   <div>
-                    <label className={LABEL}>{isLiberalidad ? 'DNI *' : 'RUC *'}</label>
+                    <label className={LABEL}>{isLiberalidad ? 'DNI *' : isOtros ? 'DNI o RUC *' : 'RUC *'}</label>
                     <div className="relative">
                       <input
                         className={inp(errors.ruc)}
-                        placeholder={isLiberalidad ? '8 dígitos' : '20XXXXXXXXX'}
+                        placeholder={isLiberalidad ? '8 dígitos' : isOtros ? 'DNI (8) o RUC (11)' : '20XXXXXXXXX'}
                         maxLength={isLiberalidad ? 8 : 11}
                         value={ruc}
                         onChange={(e) => {
