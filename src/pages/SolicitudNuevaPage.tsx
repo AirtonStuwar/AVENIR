@@ -182,6 +182,19 @@ export default function SolicitudNuevaPage() {
 
   // ── RUC AUTOCOMPLETE ──────────────────────────────────────────
   useEffect(() => {
+    // Liberalidad / Otros con DNI (8 dígitos): no se consulta SUNAT, solo las cuentas ya guardadas de esa persona
+    if (ruc.length === 8 && (isLiberalidad || isOtros)) {
+      let cancelledDni = false
+      getCuentasByProveedor(ruc).catch(() => [] as ProveedorCuenta[]).then((cuentas) => {
+        if (cancelledDni) return
+        setCuentasProveedor(cuentas)
+        if (cuentas.length === 1) {
+          setBanco(cuentas[0].banco)
+          setNumeroCuenta(cuentas[0].numero_cuenta)
+        }
+      })
+      return () => { cancelledDni = true }
+    }
     if (ruc.length !== 11) { setCuentasProveedor([]); return }
     let cancelled = false
     setRucLoading(true)
@@ -214,7 +227,7 @@ export default function SolicitudNuevaPage() {
       toast.error('RUC no encontrado en SUNAT')
     }).finally(() => { if (!cancelled) setRucLoading(false) })
     return () => { cancelled = true }
-  }, [ruc])
+  }, [ruc, isLiberalidad, isOtros])
 
   // ── FORM SUBMIT ────────────────────────────────────────────────
   const handleGuardar = async () => {
