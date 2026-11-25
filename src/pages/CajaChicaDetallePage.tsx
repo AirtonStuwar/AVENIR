@@ -4,7 +4,7 @@ import toast from 'react-hot-toast'
 import { useDocumentoDuplicado } from '../features/solicitud/services/documentoDuplicadoService'
 import AlertaDocumentoDuplicado from '../features/solicitud/components/AlertaDocumentoDuplicado'
 import {
-  ArrowLeft, Plus, Trash2, Pencil, FilePen, Send, CheckCircle, Ban, RotateCcw,
+  ArrowLeft, Plus, Trash2, Pencil, Copy, FilePen, Send, CheckCircle, Ban, RotateCcw,
   Upload, Loader2, AlertCircle, Wallet, Download, ExternalLink, ShieldAlert,
 } from 'lucide-react'
 import CorreccionModal from '../features/solicitud/components/CorreccionModal'
@@ -392,7 +392,17 @@ export default function CajaChicaDetallePage() {
     setMonto(String(d.monto)); setArchivo(null); setFormOpen(true)
   }
 
-  const handleSaveDet = async () => {
+  // Duplicar: abre el formulario con los datos de un gasto, sin N° de documento, monto ni archivo
+  const openDuplicar = (d: CajaChicaDetalle) => {
+    resetForm(); cargarCuentasRef()
+    const p = planOpciones.find(x => x.id === d.cuenta_referencia_id)
+    setCuentaRefId(d.cuenta_referencia_id ?? null); setCuentaSearch(p ? cuentaLabel(p) : '')
+    setFecha(d.fecha); setAreaId(d.area_id); setProveedor(d.proveedor)
+    setTipoDoc(d.tipo_documento); setDetalle(d.detalle)
+    setFormOpen(true)
+  }
+
+  const handleSaveDet = async (seguir = false) => {
     if (!fecha || !proveedor.trim() || !detalle.trim() || !monto) {
       toast.error('Completa fecha, proveedor, detalle y monto'); return
     }
@@ -438,7 +448,12 @@ export default function CajaChicaDetallePage() {
         })
         toast.success('Gasto agregado')
       }
-      resetForm()
+      if (seguir && !editId) {
+        // Agregar y nuevo: el formulario sigue abierto y conserva fecha, área, tipo de documento y cuenta contable
+        setProveedor(''); setNumDoc(''); setDetalle(''); setMonto(''); setArchivo(null)
+      } else {
+        resetForm()
+      }
       await loadData()
     } catch {
       toast.error('Error al guardar el gasto')
@@ -931,10 +946,16 @@ export default function CajaChicaDetallePage() {
                 </label>
               </div>
               <div className="flex gap-2">
-                <button onClick={handleSaveDet} disabled={savingDet}
+                <button onClick={() => handleSaveDet()} disabled={savingDet}
                   className="px-4 py-2 rounded-xl bg-[#003D7D] text-white text-sm font-medium disabled:opacity-50 transition-all">
                   {savingDet ? 'Guardando…' : editId ? 'Actualizar' : 'Agregar'}
                 </button>
+                {!editId && (
+                  <button onClick={() => handleSaveDet(true)} disabled={savingDet}
+                    className="px-4 py-2 rounded-xl border border-[#003D7D] text-[#003D7D] text-sm font-medium hover:bg-[#003D7D]/5 disabled:opacity-50 transition-all">
+                    Agregar y nuevo
+                  </button>
+                )}
                 <button onClick={resetForm}
                   className="px-4 py-2 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 transition-all">
                   Cancelar
@@ -981,6 +1002,9 @@ export default function CajaChicaDetallePage() {
                     <td className="px-3 py-2">
                       {canEdit && (
                         <div className="flex items-center gap-0.5 justify-end">
+                          <button onClick={() => openDuplicar(d)} title="Duplicar gasto" className="p-1 rounded hover:bg-[#003D7D]/10 text-gray-400 hover:text-[#003D7D]">
+                            <Copy size={13} />
+                          </button>
                           <button onClick={() => openEdit(d)} className="p-1 rounded hover:bg-[#003D7D]/10 text-gray-400 hover:text-[#003D7D]">
                             <Pencil size={13} />
                           </button>
