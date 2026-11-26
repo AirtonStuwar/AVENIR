@@ -22,6 +22,8 @@ import CarteraVencidaTable from '../features/cobranza/components/CarteraVencidaT
 import { construirCartera, filtrarPorEtapas } from '../features/cobranza/utils/carteraMobysuite'
 import EtapasMultiFiltro from '../features/cobranza/components/EtapasMultiFiltro'
 import { textoEtapas } from '../features/cobranza/utils/etapas'
+import { textoCategoria } from '../features/cobranza/utils/cobradoMes'
+import type { FiltroCategoria } from '../features/cobranza/utils/cobradoMes'
 import type { EtapaSeleccionable } from '../features/cobranza/utils/etapas'
 import type { CarteraMock, CronogramaResponse } from '../features/cobranza/utils/carteraMobysuite'
 import ResumenEjecutivoEmpresa from '../features/cobranza/components/ResumenEjecutivoEmpresa'
@@ -286,6 +288,7 @@ export default function IngresoPage() {
   // Respuestas crudas de Mobysuite; las cifras se calculan después, según las etapas elegidas
   const [respuestas, setRespuestas] = useState<CronogramaResponse[]>([])
   const [etapas, setEtapas] = useState<EtapaSeleccionable[]>([]) // vacío = todas
+  const [categoria, setCategoria] = useState<FiltroCategoria>('Todos') // todas / solo cliente / solo banco
   const [carteraLoading, setCarteraLoading] = useState(true)
   const [empresasFallidas, setEmpresasFallidas] = useState<string[]>([])
 
@@ -315,8 +318,8 @@ export default function IngresoPage() {
 
   const filtradas = useMemo(() => respuestas.map(r => filtrarPorEtapas(r, etapas)), [respuestas, etapas])
   const carteraReal = useMemo<CarteraMock | null>(
-    () => filtradas.length > 0 ? sumarCarteras(filtradas.map(r => construirCartera(r, META_MENSUAL_POR_EMPRESA))) : null,
-    [filtradas, META_MENSUAL_POR_EMPRESA],
+    () => filtradas.length > 0 ? sumarCarteras(filtradas.map(r => construirCartera(r, META_MENSUAL_POR_EMPRESA, categoria))) : null,
+    [filtradas, categoria, META_MENSUAL_POR_EMPRESA],
   )
   // Los dos reportes por empresa solo aplican cuando hay UNA empresa elegida
   const cronogramaEmpresa = proyectoId && filtradas.length === 1 ? filtradas[0] : null
@@ -332,6 +335,7 @@ export default function IngresoPage() {
     { name: 'Cuota Inicial', value: data.composicion.cuotaInicial },
     { name: 'Plan de Ahorro', value: data.composicion.planAhorro },
     { name: 'Crédito Directo', value: data.composicion.creditoDirecto },
+    { name: 'Desembolso Hipotecario', value: data.composicion.desembolsoHipotecario },
   ]
 
   const carteraVencida = data.mora.reduce((s, r) => s + r.monto, 0)
@@ -424,9 +428,20 @@ export default function IngresoPage() {
           <EtapasMultiFiltro contratos={contratosConsultados} value={etapas} onChange={setEtapas} />
         )}
         {!cargandoCartera && carteraReal && (
+          <label className="flex items-center gap-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Cuotas
+            <select value={categoria} onChange={e => setCategoria(e.target.value as FiltroCategoria)}
+              className="h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-xs font-medium normal-case text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20">
+              <option value="Todos">Todas</option>
+              <option value="CLIENTE">Solo cliente (excluye banco)</option>
+              <option value="BANCO">Solo financiado por banco</option>
+            </select>
+          </label>
+        )}
+        {!cargandoCartera && carteraReal && (
           <p className="basis-full text-[11px] text-gray-400">
-            Cobranza y mora cuentan solo las cuotas del cliente (la tarjeta Desembolso Hipotecario mira las del banco).
-            Ventas y saldo son sobre el precio total de los contratos. La meta mensual es fija por empresa y no cambia con la etapa.
+            Cobranza y mora: {textoCategoria(categoria)} La tarjeta Desembolso Hipotecario siempre mira las del banco.
+            Ventas es el precio total de los contratos y saldo es ventas menos lo cobrado. La meta mensual es fija por empresa y no cambia con la etapa.
           </p>
         )}
       </div>
@@ -544,8 +559,9 @@ export default function IngresoPage() {
               ventasAcumuladas={cronogramaEmpresa.ventasAcumuladas}
               empresa={proyectos.find(p => String(p.id) === proyectoId)?.nombre ?? ''}
               etapa={textoEtapas(etapas)}
+              categoria={categoria}
             />
-            <CumplimientoMensualTable cuotas={cronogramaEmpresa.cuotas} etapa={textoEtapas(etapas)} />
+            <CumplimientoMensualTable cuotas={cronogramaEmpresa.cuotas} etapa={textoEtapas(etapas)} categoria={categoria} />
           </>
         )}
         </>

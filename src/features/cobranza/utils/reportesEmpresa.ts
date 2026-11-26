@@ -2,16 +2,17 @@
 // Todo sale de las cuotas de Mobysuite (/api/mobysuite-cronograma), sin guardar nada.
 //
 // Reglas (propuestas, a confirmar con Finanzas):
-// - Solo cuotas del CLIENTE (categoria CLIENTE): el desembolso del banco no es cobranza del cliente.
+// - Qué cuotas cuentan lo decide el selector de Ingreso (todas / solo cliente / solo banco).
 // - "Programado" = cuotas cuyo vencimiento cae en el período; "Cobrado" = cuotas pagadas con fecha de pago
 //   válida (ver cobradoMes.ts) dentro del período. Una cuota pagada con fecha dudosa no se asigna a ningún mes.
 // - "Sin pago" se mide por contrato (no por cliente): días desde su último pago válido.
 
-import { cobradoDudoso, fechaPagoValida, hoyLocal, mesActual } from './cobradoMes'
+import { cobradoDudoso, fechaPagoValida, hoyLocal, incluyeCategoria, mesActual } from './cobradoMes'
+import type { FiltroCategoria } from './cobradoMes'
 import { contarContratosPorEtapa } from './etapas'
 import type { CuotaMobysuite } from './carteraMobysuite'
 
-export type CategoriaCobranza = 'cuotaInicial' | 'fraccionamiento' | 'letras' | 'separacion' | 'otras'
+export type CategoriaCobranza = 'cuotaInicial' | 'fraccionamiento' | 'letras' | 'separacion' | 'banco' | 'otras'
 
 // Por el texto de la cuota. El orden importa: "Separación" y "Fraccionamiento" antes que "Inicial".
 export function clasificarCobranza(descripcion: string): CategoriaCobranza {
@@ -60,13 +61,13 @@ export interface TablaMensual {
 }
 
 const NOMBRES_COMP: Record<CategoriaCobranza, string> = {
-  cuotaInicial: 'Cuota inicial', fraccionamiento: 'Fraccionamiento', letras: 'Letras', separacion: 'Separación', otras: 'Otras',
+  cuotaInicial: 'Cuota inicial', fraccionamiento: 'Fraccionamiento', letras: 'Letras', separacion: 'Separación', banco: 'Pagado por el banco', otras: 'Otras',
 }
 
-export function calcularResumen(cuotas: CuotaMobysuite[], ventasAcumuladas: number): ResumenEmpresa {
+export function calcularResumen(cuotas: CuotaMobysuite[], ventasAcumuladas: number, filtro: FiltroCategoria = 'Todos'): ResumenEmpresa {
   const hoy = hoyLocal()
   const mesPrev = mesAnterior(mesActual())
-  const cliente = cuotas.filter(c => c.categoria === 'CLIENTE')
+  const cliente = cuotas.filter(c => incluyeCategoria(c.categoria, filtro))
   const abonos = cliente.flatMap(c => c.abonos)
 
   const cobrado = cliente.reduce((s, c) => s + c.ejecutado, 0)
@@ -80,11 +81,12 @@ export function calcularResumen(cuotas: CuotaMobysuite[], ventasAcumuladas: numb
   for (const c of cuotas) {
     const k = contratos.get(c.contratoId) ?? { ultimo: null, precio: 0, inicial: 0 }
     k.precio += c.monto
-    if (c.categoria === 'CLIENTE' && c.ejecutado > 0) {
+    if (incluyeCategoria(c.categoria, filtro) && c.ejecutado > 0) {
       for (const a of c.abonos) if (fechaPagoValida(a.fecha, hoy) && (!k.ultimo || a.fecha! > k.ultimo)) k.ultimo = a.fecha
-      const cat = clasificarCobranza(c.descripcion)
-      if (cat === 'cuotaInicial' || cat === 'separacion') k.inicial += c.ejecutado
     }
+    // "Inicial < 10%" mide la inicial que puso el cliente: no depende del selector de cuotas
+    const cat = clasificarCobranza(c.descripcion)
+    if (c.categoria === 'CLIENTE' && (cat === 'cuotaInicial' || cat === 'separacion')) k.inicial += c.ejecutado
     contratos.set(c.contratoId, k)
   }
   const lista = [...contratos.values()]
@@ -102,8 +104,8 @@ export function calcularResumen(cuotas: CuotaMobysuite[], ventasAcumuladas: numb
     { nombre: '61–90 d', n: rango(61, 90) }, { nombre: '>90 d', n: sinPago90 },
   ].map(b => ({ nombre: b.nombre, pct: (b.n / nCont) * 100 }))
 
-  const comp: Record<CategoriaCobranza, number> = { cuotaInicial: 0, fraccionamiento: 0, letras: 0, separacion: 0, otras: 0 }
-  for (const c of cliente) comp[clasificarCobranza(c.descripcion)] += c.ejecutado
+  const comp: Record<CategoriaCobranza, number> = { cuotaInicial: 0, fraccionamiento: 0, letras: 0, separacion: 0, banco: 0, otras: 0 }
+  for (const c of cliente) comp[c.categoria === 'BANCO' ? 'banco' : clasificarCobranza(c.descripcion)] += c.ejecutado
   const composicion = (Object.keys(comp) as CategoriaCobranza[])
     .map(clave => ({ clave, nombre: NOMBRES_COMP[clave], monto: comp[clave], pct: cobrado > 0 ? (comp[clave] / cobrado) * 100 : 0 }))
     .filter(x => x.monto > 0)
@@ -128,7 +130,7 @@ export function calcularResumen(cuotas: CuotaMobysuite[], ventasAcumuladas: numb
   }
 }
 
-export function calcularTablaMensual(cuotas: CuotaMobysuite[]): TablaMensual {
+export function calcularTablaMensual(cuotas: CuotaMobysuite[], filtro: FiltroCategoria = 'Todos'): TablaMensual {
   const hoy = hoyLocal()
   const mesHoy = mesActual()
   const prog = new Map<string, number>()
@@ -136,7 +138,7 @@ export function calcularTablaMensual(cuotas: CuotaMobysuite[]): TablaMensual {
   const dudosas = { cuotas: 0, monto: 0 }
 
   for (const c of cuotas) {
-    if (c.categoria !== 'CLIENTE') continue
+    if (!incluyeCategoria(c.categoria, filtro)) continue
     if (fechaOk(c.fechaVencimiento) && c.fechaVencimiento! <= hoy) {
       const m = c.fechaVencimiento!.slice(0, 7)
       prog.set(m, (prog.get(m) ?? 0) + c.monto)

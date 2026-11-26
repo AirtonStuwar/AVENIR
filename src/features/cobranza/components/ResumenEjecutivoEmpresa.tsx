@@ -2,6 +2,8 @@ import { useMemo } from 'react'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import type { CuotaMobysuite } from '../utils/carteraMobysuite'
 import { calcularResumen } from '../utils/reportesEmpresa'
+import { textoCategoria } from '../utils/cobradoMes'
+import type { FiltroCategoria } from '../utils/cobradoMes'
 import type { CategoriaCobranza } from '../utils/reportesEmpresa'
 
 const sol = (n: number) => `S/ ${Math.round(n).toLocaleString('es-PE')}`
@@ -10,7 +12,7 @@ const p0 = (n: number) => `${n.toFixed(0)}%`
 const p1 = (n: number) => `${n.toFixed(1)}%`
 
 const COLOR_COMP: Record<CategoriaCobranza, string> = {
-  cuotaInicial: '#0B1F44', fraccionamiento: '#2E8B57', letras: '#D4891A', separacion: '#C0392B', otras: '#94A3B8',
+  cuotaInicial: '#0B1F44', fraccionamiento: '#2E8B57', letras: '#D4891A', separacion: '#C0392B', banco: '#2563EB', otras: '#94A3B8',
 }
 
 function fechaLarga(iso: string) {
@@ -30,10 +32,10 @@ function Tile({ titulo, valor, sub, tono = 'normal' }: { titulo: string; valor: 
   )
 }
 
-export default function ResumenEjecutivoEmpresa({ cuotas, ventasAcumuladas, empresa, etapa }: {
-  cuotas: CuotaMobysuite[]; ventasAcumuladas: number; empresa: string; etapa?: string | null
+export default function ResumenEjecutivoEmpresa({ cuotas, ventasAcumuladas, empresa, etapa, categoria = 'Todos' }: {
+  cuotas: CuotaMobysuite[]; ventasAcumuladas: number; empresa: string; etapa?: string | null; categoria?: FiltroCategoria
 }) {
-  const r = useMemo(() => calcularResumen(cuotas, ventasAcumuladas), [cuotas, ventasAcumuladas])
+  const r = useMemo(() => calcularResumen(cuotas, ventasAcumuladas, categoria), [cuotas, ventasAcumuladas, categoria])
   const mes = r.mesMeta.toLowerCase().slice(0, 3)
   const cierreTxt = r.cierre.pct === null ? '—' : p0(r.cierre.pct)
   const sinPagoPct = r.contratosTotal > 0 ? (r.sinPago90 / r.contratosTotal) * 100 : 0
@@ -152,7 +154,7 @@ export default function ResumenEjecutivoEmpresa({ cuotas, ventasAcumuladas, empr
       </div>
 
       <p className="text-xs text-blue-300 leading-relaxed">
-        Solo cuotas del cliente (el desembolso del banco no cuenta como cobranza). Meta = cuotas programadas con vencimiento hasta fin de {r.mesMeta.toLowerCase()}.
+        {textoCategoria(categoria)} Meta = cuotas programadas con vencimiento hasta fin de {r.mesMeta.toLowerCase()}.
         Días sin pago y composición usan las fechas de pago de Mobysuite.
       </p>
     </div>

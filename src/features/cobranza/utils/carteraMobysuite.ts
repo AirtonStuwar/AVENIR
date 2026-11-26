@@ -7,7 +7,8 @@
 // en los 5 proyectos probados — falta confirmarla con Comercial/Finanzas (ver nota
 // al final del archivo con las preguntas exactas pendientes).
 
-import { cobradoEnMes, hoyLocal, mesActual } from './cobradoMes'
+import { cobradoEnMes, hoyLocal, incluyeCategoria, mesActual } from './cobradoMes'
+import type { FiltroCategoria } from './cobradoMes'
 import { claveEtapa } from './etapas'
 import type { EtapaSeleccionable } from './etapas'
 
@@ -86,7 +87,7 @@ function diasEntre(a: string, b: string): number {
   return Math.round(ms / 86_400_000)
 }
 
-export function construirCartera(json: CronogramaResponse, metaMensual: number): CarteraMock {
+export function construirCartera(json: CronogramaResponse, metaMensual: number, filtro: FiltroCategoria = 'Todos'): CarteraMock {
   const hoy = new Date().toISOString().slice(0, 10)
   // Misma regla que la tabla Cuenta por Cobrar Vencida (ver cobradoMes.ts): pagada con fecha valida dentro del mes en curso
   const hoyReal = hoyLocal()
@@ -119,15 +120,16 @@ export function construirCartera(json: CronogramaResponse, metaMensual: number):
     const clienteKey = c.clienteRut ?? `contrato-${c.contratoId}`
     clientesSet.add(clienteKey)
 
-    // La tarjeta "Desembolso Hipotecario" sí mira lo del banco; las demás, solo cuotas del cliente
+    // La tarjeta "Desembolso Hipotecario" siempre mira lo del banco; el resto respeta el selector
     const prod = clasificarProducto(c.descripcion)
-    if (prod !== 'otros' && (c.categoria === 'CLIENTE' || prod === 'desembolsoHipotecario')) {
+    const incluida = incluyeCategoria(c.categoria, filtro)
+    if (prod !== 'otros' && (incluida || prod === 'desembolsoHipotecario')) {
       porProducto[prod].clientes.add(clienteKey)
       if (c.estado === 'Vencido') porProducto[prod].morosos.add(clienteKey)
     }
 
-    // Cobranza y mora: solo lo que paga el cliente (igual que el resto de reportes de Ingreso)
-    if (c.categoria !== 'CLIENTE') continue
+    // Cobranza y mora según el selector (todas / solo cliente / solo banco)
+    if (!incluida) continue
 
     if (c.ejecutado > 0) {
       cobradoAcumulado += c.ejecutado

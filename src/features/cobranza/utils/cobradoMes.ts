@@ -51,6 +51,19 @@ export function diferenciaCuota(c: { monto: number; ejecutado: number }): number
   return c.ejecutado > 0 && Math.abs(d) > 1 ? d : 0
 }
 
+// Quién paga la cuota: todas, solo el cliente o solo el banco (crédito hipotecario)
+export type FiltroCategoria = 'Todos' | 'CLIENTE' | 'BANCO'
+
+export function incluyeCategoria(categoria: string, filtro: FiltroCategoria): boolean {
+  return filtro === 'Todos' || categoria === filtro
+}
+
+export function textoCategoria(filtro: FiltroCategoria): string {
+  return filtro === 'CLIENTE' ? 'Solo cuotas del cliente (sin lo que paga el banco).'
+    : filtro === 'BANCO' ? 'Solo cuotas que paga el banco.'
+    : 'Incluye las cuotas del cliente y las del banco.'
+}
+
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
 // '2026-10' → 'oct 2026'

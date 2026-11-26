@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import type { CuotaMobysuite } from '../utils/carteraMobysuite'
 import { calcularTablaMensual } from '../utils/reportesEmpresa'
+import { textoCategoria } from '../utils/cobradoMes'
+import type { FiltroCategoria } from '../utils/cobradoMes'
 import type { EstadoMes } from '../utils/reportesEmpresa'
 
 const num = (n: number) => Math.round(n).toLocaleString('es-PE')
@@ -14,8 +16,10 @@ const COLOR: Record<EstadoMes, { barra: string; texto: string }> = {
   sin_meta: { barra: '#DDE3EE', texto: 'text-slate-500' },
 }
 
-export default function CumplimientoMensualTable({ cuotas, etapa }: { cuotas: CuotaMobysuite[]; etapa?: string | null }) {
-  const t = useMemo(() => calcularTablaMensual(cuotas), [cuotas])
+export default function CumplimientoMensualTable({ cuotas, etapa, categoria = 'Todos' }: {
+  cuotas: CuotaMobysuite[]; etapa?: string | null; categoria?: FiltroCategoria
+}) {
+  const t = useMemo(() => calcularTablaMensual(cuotas, categoria), [cuotas, categoria])
   const recup = t.filas.filter(f => f.estado === 'recupera' && f.recuperado > 0)
 
   return (
@@ -32,7 +36,7 @@ export default function CumplimientoMensualTable({ cuotas, etapa }: { cuotas: Cu
       </div>
 
       {t.filas.length === 0 ? (
-        <p className="text-sm text-gray-500 py-6 text-center">Esta empresa aún no tiene cuotas del cliente con fechas válidas.</p>
+        <p className="text-sm text-gray-500 py-6 text-center">No hay cuotas con fechas válidas para esta selección.</p>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-blue-100">
           <table className="w-full text-sm min-w-[620px]">
@@ -87,7 +91,7 @@ export default function CumplimientoMensualTable({ cuotas, etapa }: { cuotas: Cu
         {recup.map(f => <span key={f.mes} className="text-slate-500">{f.etiqueta.split(' ')[0]} recupera {sol(f.recuperado)} de meses anteriores.</span>)}
       </div>
       <p className="text-xs text-slate-500 mt-3 leading-relaxed">
-        Solo cuotas del cliente. Programado = cuotas con vencimiento en el mes (el mes en curso, hasta hoy). Cobrado = cuotas pagadas con fecha de pago dentro del mes, aunque hayan vencido antes.
+        {textoCategoria(categoria)} Programado = cuotas con vencimiento en el mes (el mes en curso, hasta hoy). Cobrado = cuotas pagadas con fecha de pago dentro del mes, aunque hayan vencido antes.
         {t.dudosas.cuotas > 0 && <> {t.dudosas.cuotas} cuotas ({sol(t.dudosas.monto)}) están pagadas pero con fecha de pago dudosa en Mobysuite y no entran en ningún mes.</>}
       </p>
     </div>
