@@ -34,6 +34,22 @@ export function coincideEtapa(contratoEstado: string | null | undefined, filtro:
   return filtro === 'OTRAS' ? !KEYS.includes(n) : n === filtro
 }
 
+export type EtapaSeleccionable = EtapaKey | 'OTRAS'
+
+export function claveEtapa(contratoEstado?: string | null): EtapaSeleccionable {
+  const n = normalizar(contratoEstado)
+  return KEYS.includes(n) ? (n as EtapaKey) : 'OTRAS'
+}
+
+// "Minuta", "Separación + Minuta"… o null si no hay filtro (todas)
+export function textoEtapas(seleccion: EtapaSeleccionable[]): string | null {
+  if (seleccion.length === 0) return null
+  const orden: EtapaSeleccionable[] = [...ETAPAS.map(e => e.key), 'OTRAS']
+  return orden.filter(k => seleccion.includes(k))
+    .map(k => ETAPAS.find(e => e.key === k)?.label ?? 'Otras')
+    .join(' + ')
+}
+
 export interface ConteoEtapas {
   total: number
   porEtapa: Record<EtapaKey | 'OTRAS', number>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import {
   TrendingUp, Users2, Wallet, PiggyBank, AlertTriangle, Info, Target, Coins,
@@ -19,7 +19,10 @@ import type { CobranzaCliente } from '../features/cobranza/types/cobranza'
 import CobranzaModal from '../features/cobranza/components/CobranzaModal'
 import CronogramaMobysuiteView from '../features/cobranza/components/CronogramaMobysuiteView'
 import CarteraVencidaTable from '../features/cobranza/components/CarteraVencidaTable'
-import { construirCartera } from '../features/cobranza/utils/carteraMobysuite'
+import { construirCartera, filtrarPorEtapas } from '../features/cobranza/utils/carteraMobysuite'
+import EtapasMultiFiltro from '../features/cobranza/components/EtapasMultiFiltro'
+import { textoEtapas } from '../features/cobranza/utils/etapas'
+import type { EtapaSeleccionable } from '../features/cobranza/utils/etapas'
 import type { CarteraMock, CronogramaResponse } from '../features/cobranza/utils/carteraMobysuite'
 import ResumenEjecutivoEmpresa from '../features/cobranza/components/ResumenEjecutivoEmpresa'
 import CumplimientoMensualTable from '../features/cobranza/components/CumplimientoMensualTable'
@@ -280,36 +283,44 @@ export default function IngresoPage() {
   const empresasMobysuite = proyectos.filter(p => p.moby_project_id && !p.nombre.toLowerCase().includes('concyssa'))
   const empresasConsulta = proyectoId ? empresasMobysuite.filter(p => String(p.id) === proyectoId) : empresasMobysuite
   const claveConsulta = empresasConsulta.map(p => p.moby_project_id).join(',')
-  const [carteraReal, setCarteraReal] = useState<CarteraMock | null>(null)
-  const [cronogramaEmpresa, setCronogramaEmpresa] = useState<CronogramaResponse | null>(null)
+  // Respuestas crudas de Mobysuite; las cifras se calculan después, según las etapas elegidas
+  const [respuestas, setRespuestas] = useState<CronogramaResponse[]>([])
+  const [etapas, setEtapas] = useState<EtapaSeleccionable[]>([]) // vacío = todas
   const [carteraLoading, setCarteraLoading] = useState(true)
   const [empresasFallidas, setEmpresasFallidas] = useState<string[]>([])
 
   useEffect(() => {
     if (loading) return // todavía cargando la lista de empresas
     if (empresasConsulta.length === 0) {
-      setCarteraReal(null); setCronogramaEmpresa(null); setEmpresasFallidas([]); setCarteraLoading(false)
+      setRespuestas([]); setEmpresasFallidas([]); setCarteraLoading(false)
       return
     }
     let cancelado = false
-    setCarteraLoading(true); setCarteraReal(null); setCronogramaEmpresa(null); setEmpresasFallidas([])
+    setCarteraLoading(true); setRespuestas([]); setEmpresasFallidas([])
     Promise.allSettled(empresasConsulta.map(async p => {
       const r = await authFetch(`/api/mobysuite-cronograma?mobyProjectId=${p.moby_project_id}`)
       const json = await r.json()
       if (!r.ok) throw new Error(json.error ?? 'Error al consultar Mobysuite')
-      return { cartera: construirCartera(json, META_MENSUAL_POR_EMPRESA), json: json as CronogramaResponse }
+      return json as CronogramaResponse
     })).then(res => {
       if (cancelado) return
       const ok = res.flatMap(x => x.status === 'fulfilled' ? [x.value] : [])
-      setCarteraReal(ok.length > 0 ? sumarCarteras(ok.map(o => o.cartera)) : null)
-      // Los dos reportes por empresa solo aplican cuando hay UNA empresa elegida
-      setCronogramaEmpresa(proyectoId && ok.length === 1 ? ok[0].json : null)
+      setRespuestas(ok)
       setEmpresasFallidas(empresasConsulta.filter((_, i) => res[i].status === 'rejected').map(p => p.nombre))
       setCarteraLoading(false)
     })
     return () => { cancelado = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, claveConsulta])
+
+  const filtradas = useMemo(() => respuestas.map(r => filtrarPorEtapas(r, etapas)), [respuestas, etapas])
+  const carteraReal = useMemo<CarteraMock | null>(
+    () => filtradas.length > 0 ? sumarCarteras(filtradas.map(r => construirCartera(r, META_MENSUAL_POR_EMPRESA))) : null,
+    [filtradas, META_MENSUAL_POR_EMPRESA],
+  )
+  // Los dos reportes por empresa solo aplican cuando hay UNA empresa elegida
+  const cronogramaEmpresa = proyectoId && filtradas.length === 1 ? filtradas[0] : null
+  const contratosConsultados = useMemo(() => respuestas.flatMap(r => r.contratos ?? []), [respuestas])
 
   const cargandoCartera = loading || carteraLoading
   const data: CarteraMock = carteraReal ?? sumarCarteras([])
@@ -320,7 +331,6 @@ export default function IngresoPage() {
   const composicionData = [
     { name: 'Cuota Inicial', value: data.composicion.cuotaInicial },
     { name: 'Plan de Ahorro', value: data.composicion.planAhorro },
-    { name: 'Desembolso Hipotecario', value: data.composicion.desembolsoHipotecario },
     { name: 'Crédito Directo', value: data.composicion.creditoDirecto },
   ]
 
@@ -395,12 +405,13 @@ export default function IngresoPage() {
       )}
 
       {/* Filtro */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex items-center gap-3">
         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Empresa</label>
         <select
           className="h-10 px-3 rounded-xl border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20 focus:border-[#003D7D]/50"
           value={proyectoId}
-          onChange={e => setProyectoId(e.target.value)}
+          onChange={e => { setProyectoId(e.target.value); setEtapas([]) }}
           disabled={loading}
         >
           <option value="">Todas las empresas</option>
@@ -408,6 +419,16 @@ export default function IngresoPage() {
             .filter(p => !p.nombre.toLowerCase().includes('concyssa'))
             .map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
         </select>
+        </div>
+        {!cargandoCartera && carteraReal && (
+          <EtapasMultiFiltro contratos={contratosConsultados} value={etapas} onChange={setEtapas} />
+        )}
+        {!cargandoCartera && carteraReal && (
+          <p className="basis-full text-[11px] text-gray-400">
+            Cobranza y mora cuentan solo las cuotas del cliente (la tarjeta Desembolso Hipotecario mira las del banco).
+            Ventas y saldo son sobre el precio total de los contratos. La meta mensual es fija por empresa y no cambia con la etapa.
+          </p>
+        )}
       </div>
 
       {cargandoCartera ? (
@@ -522,8 +543,9 @@ export default function IngresoPage() {
               cuotas={cronogramaEmpresa.cuotas}
               ventasAcumuladas={cronogramaEmpresa.ventasAcumuladas}
               empresa={proyectos.find(p => String(p.id) === proyectoId)?.nombre ?? ''}
+              etapa={textoEtapas(etapas)}
             />
-            <CumplimientoMensualTable cuotas={cronogramaEmpresa.cuotas} />
+            <CumplimientoMensualTable cuotas={cronogramaEmpresa.cuotas} etapa={textoEtapas(etapas)} />
           </>
         )}
         </>

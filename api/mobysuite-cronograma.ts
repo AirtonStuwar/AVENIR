@@ -304,6 +304,8 @@ export default async function handler(req: Request): Promise<Response> {
       totalCuotas: cuotas.length,
       ventasAcumuladas,
       cuotas,
+      // Un registro por contrato (sin datos personales): permite filtrar las ventas por etapa
+      contratos: contratos.map(c => ({ id: c.id, estado: c.estadoContrato, precio: c.precioTotal ?? 0 })),
       recibosSinMonto,
       // Solo los NOMBRES de los campos del bien (no sus valores): sirve para saber qué datos manda
       // Mobysuite sobre cada bien sin exponer nada más de lo necesario.

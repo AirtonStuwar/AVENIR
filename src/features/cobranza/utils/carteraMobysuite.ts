@@ -8,6 +8,8 @@
 // al final del archivo con las preguntas exactas pendientes).
 
 import { cobradoEnMes, hoyLocal, mesActual } from './cobradoMes'
+import { claveEtapa } from './etapas'
+import type { EtapaSeleccionable } from './etapas'
 
 export interface CuotaMobysuite {
   contratoId: number
@@ -32,6 +34,22 @@ export interface CronogramaResponse {
   totalCuotas: number
   ventasAcumuladas: number
   cuotas: CuotaMobysuite[]
+  contratos: { id: number; estado: string; precio: number }[]
+}
+
+// Deja solo los contratos de las etapas elegidas (vacío = todas). Las ventas pasan a ser la
+// suma del precio de esos contratos.
+export function filtrarPorEtapas(json: CronogramaResponse, etapas: EtapaSeleccionable[]): CronogramaResponse {
+  if (etapas.length === 0) return json
+  const contratos = (json.contratos ?? []).filter(c => etapas.includes(claveEtapa(c.estado)))
+  const cuotas = json.cuotas.filter(c => etapas.includes(claveEtapa(c.contratoEstado)))
+  return {
+    totalContratos: contratos.length,
+    totalCuotas: cuotas.length,
+    ventasAcumuladas: contratos.reduce((s, c) => s + c.precio, 0),
+    cuotas,
+    contratos,
+  }
 }
 
 export interface CarteraMock {
@@ -101,10 +119,19 @@ export function construirCartera(json: CronogramaResponse, metaMensual: number):
     const clienteKey = c.clienteRut ?? `contrato-${c.contratoId}`
     clientesSet.add(clienteKey)
 
+    // La tarjeta "Desembolso Hipotecario" sí mira lo del banco; las demás, solo cuotas del cliente
+    const prod = clasificarProducto(c.descripcion)
+    if (prod !== 'otros' && (c.categoria === 'CLIENTE' || prod === 'desembolsoHipotecario')) {
+      porProducto[prod].clientes.add(clienteKey)
+      if (c.estado === 'Vencido') porProducto[prod].morosos.add(clienteKey)
+    }
+
+    // Cobranza y mora: solo lo que paga el cliente (igual que el resto de reportes de Ingreso)
+    if (c.categoria !== 'CLIENTE') continue
+
     if (c.ejecutado > 0) {
       cobradoAcumulado += c.ejecutado
       cobradoDelMes += cobradoEnMes(c.abonos, mesEnCurso, hoyReal)
-      const prod = clasificarProducto(c.descripcion)
       if (prod !== 'otros') composicion[prod] += c.ejecutado
     }
 
@@ -117,12 +144,6 @@ export function construirCartera(json: CronogramaResponse, metaMensual: number):
       else if (dias <= 60) mora[1].monto += c.saldo
       else if (dias <= 90) mora[2].monto += c.saldo
       else mora[3].monto += c.saldo
-    }
-
-    const prod = clasificarProducto(c.descripcion)
-    if (prod !== 'otros') {
-      porProducto[prod].clientes.add(clienteKey)
-      if (c.estado === 'Vencido') porProducto[prod].morosos.add(clienteKey)
     }
   }
 

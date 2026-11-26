@@ -30,8 +30,8 @@ function Tile({ titulo, valor, sub, tono = 'normal' }: { titulo: string; valor: 
   )
 }
 
-export default function ResumenEjecutivoEmpresa({ cuotas, ventasAcumuladas, empresa }: {
-  cuotas: CuotaMobysuite[]; ventasAcumuladas: number; empresa: string
+export default function ResumenEjecutivoEmpresa({ cuotas, ventasAcumuladas, empresa, etapa }: {
+  cuotas: CuotaMobysuite[]; ventasAcumuladas: number; empresa: string; etapa?: string | null
 }) {
   const r = useMemo(() => calcularResumen(cuotas, ventasAcumuladas), [cuotas, ventasAcumuladas])
   const mes = r.mesMeta.toLowerCase().slice(0, 3)
@@ -54,7 +54,7 @@ export default function ResumenEjecutivoEmpresa({ cuotas, ventasAcumuladas, empr
         <div>
           <p className="text-xs font-bold tracking-widest text-amber-400 uppercase">Resumen ejecutivo</p>
           <h2 className="text-xl sm:text-2xl font-bold mt-1">Dashboard de Cartera y Cobranza · {empresa}</h2>
-          <p className="text-sm text-blue-200 mt-1">Indicadores financieros clave al corte del {fechaLarga(r.corte)} · Soles</p>
+          <p className="text-sm text-blue-200 mt-1">Indicadores financieros clave al corte del {fechaLarga(r.corte)} · Soles{etapa ? ` · Etapa: ${etapa}` : ''}</p>
         </div>
         <div className="text-right">
           <p className="text-xl font-bold tracking-[0.3em]">AVENIR</p>

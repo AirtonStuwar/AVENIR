@@ -14,7 +14,7 @@ const COLOR: Record<EstadoMes, { barra: string; texto: string }> = {
   sin_meta: { barra: '#DDE3EE', texto: 'text-slate-500' },
 }
 
-export default function CumplimientoMensualTable({ cuotas }: { cuotas: CuotaMobysuite[] }) {
+export default function CumplimientoMensualTable({ cuotas, etapa }: { cuotas: CuotaMobysuite[]; etapa?: string | null }) {
   const t = useMemo(() => calcularTablaMensual(cuotas), [cuotas])
   const recup = t.filas.filter(f => f.estado === 'recupera' && f.recuperado > 0)
 
@@ -23,7 +23,7 @@ export default function CumplimientoMensualTable({ cuotas }: { cuotas: CuotaMoby
       <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
         <div>
           <h2 className="text-xl font-bold text-[#14213D]">Meta y cumplimiento mensual de cobranza</h2>
-          <p className="text-sm text-slate-500 mt-1">Meta = monto programado en el mes · Cumplimiento = monto abonado en el mes · Soles</p>
+          <p className="text-sm text-slate-500 mt-1">Meta = monto programado en el mes · Cumplimiento = monto abonado en el mes · Soles{etapa ? ` · Etapa: ${etapa}` : ''}</p>
         </div>
         <div className="text-right">
           <p className="text-lg font-bold tracking-[0.3em] text-[#1F4E9C]">AVENIR</p>
