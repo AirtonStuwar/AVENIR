@@ -7,7 +7,7 @@
 //   válida (ver cobradoMes.ts) dentro del período. Una cuota pagada con fecha dudosa no se asigna a ningún mes.
 // - "Sin pago" se mide por contrato (no por cliente): días desde su último pago válido.
 
-import { fechaPagoValida, hoyLocal, mesActual } from './cobradoMes'
+import { cobradoDudoso, fechaPagoValida, hoyLocal, mesActual } from './cobradoMes'
 import { contarContratosPorEtapa } from './etapas'
 import type { CuotaMobysuite } from './carteraMobysuite'
 
@@ -67,23 +67,23 @@ export function calcularResumen(cuotas: CuotaMobysuite[], ventasAcumuladas: numb
   const hoy = hoyLocal()
   const mesPrev = mesAnterior(mesActual())
   const cliente = cuotas.filter(c => c.categoria === 'CLIENTE')
-  const pagadas = cliente.filter(c => c.estado === 'Pagado')
+  const abonos = cliente.flatMap(c => c.abonos)
 
-  const cobrado = pagadas.reduce((s, c) => s + c.monto, 0)
+  const cobrado = cliente.reduce((s, c) => s + c.ejecutado, 0)
   const metaAcum = cliente.filter(c => fechaOk(c.fechaVencimiento) && c.fechaVencimiento!.slice(0, 7) <= mesPrev).reduce((s, c) => s + c.monto, 0)
-  const cobradoAcum = pagadas.filter(c => fechaPagoValida(c.fechaPago, hoy) && c.fechaPago!.slice(0, 7) <= mesPrev).reduce((s, c) => s + c.monto, 0)
+  const cobradoAcum = abonos.filter(a => fechaPagoValida(a.fecha, hoy) && a.fecha!.slice(0, 7) <= mesPrev).reduce((s, a) => s + a.monto, 0)
   const progHoy = cliente.filter(c => fechaOk(c.fechaVencimiento) && c.fechaVencimiento! <= hoy).reduce((s, c) => s + c.monto, 0)
-  const cobHoy = pagadas.filter(c => fechaPagoValida(c.fechaPago, hoy)).reduce((s, c) => s + c.monto, 0)
+  const cobHoy = abonos.filter(a => fechaPagoValida(a.fecha, hoy)).reduce((s, a) => s + a.monto, 0)
 
   // Por contrato
   const contratos = new Map<number, { ultimo: string | null; precio: number; inicial: number }>()
   for (const c of cuotas) {
     const k = contratos.get(c.contratoId) ?? { ultimo: null, precio: 0, inicial: 0 }
     k.precio += c.monto
-    if (c.categoria === 'CLIENTE' && c.estado === 'Pagado') {
-      if (fechaPagoValida(c.fechaPago, hoy) && (!k.ultimo || c.fechaPago! > k.ultimo)) k.ultimo = c.fechaPago!
+    if (c.categoria === 'CLIENTE' && c.ejecutado > 0) {
+      for (const a of c.abonos) if (fechaPagoValida(a.fecha, hoy) && (!k.ultimo || a.fecha! > k.ultimo)) k.ultimo = a.fecha
       const cat = clasificarCobranza(c.descripcion)
-      if (cat === 'cuotaInicial' || cat === 'separacion') k.inicial += c.monto
+      if (cat === 'cuotaInicial' || cat === 'separacion') k.inicial += c.ejecutado
     }
     contratos.set(c.contratoId, k)
   }
@@ -103,7 +103,7 @@ export function calcularResumen(cuotas: CuotaMobysuite[], ventasAcumuladas: numb
   ].map(b => ({ nombre: b.nombre, pct: (b.n / nCont) * 100 }))
 
   const comp: Record<CategoriaCobranza, number> = { cuotaInicial: 0, fraccionamiento: 0, letras: 0, separacion: 0, otras: 0 }
-  for (const c of pagadas) comp[clasificarCobranza(c.descripcion)] += c.monto
+  for (const c of cliente) comp[clasificarCobranza(c.descripcion)] += c.ejecutado
   const composicion = (Object.keys(comp) as CategoriaCobranza[])
     .map(clave => ({ clave, nombre: NOMBRES_COMP[clave], monto: comp[clave], pct: cobrado > 0 ? (comp[clave] / cobrado) * 100 : 0 }))
     .filter(x => x.monto > 0)
@@ -141,12 +141,13 @@ export function calcularTablaMensual(cuotas: CuotaMobysuite[]): TablaMensual {
       const m = c.fechaVencimiento!.slice(0, 7)
       prog.set(m, (prog.get(m) ?? 0) + c.monto)
     }
-    if (c.estado === 'Pagado') {
-      if (fechaPagoValida(c.fechaPago, hoy)) {
-        const m = c.fechaPago!.slice(0, 7)
-        cob.set(m, (cob.get(m) ?? 0) + c.monto)
-      } else { dudosas.cuotas++; dudosas.monto += c.monto }
+    for (const a of c.abonos) {
+      if (!fechaPagoValida(a.fecha, hoy)) continue
+      const m = a.fecha!.slice(0, 7)
+      cob.set(m, (cob.get(m) ?? 0) + a.monto)
     }
+    const dudoso = cobradoDudoso(c.abonos, hoy)
+    if (dudoso > 0) { dudosas.cuotas++; dudosas.monto += dudoso }
   }
 
   const meses = [...new Set([...prog.keys(), ...cob.keys()])].sort()

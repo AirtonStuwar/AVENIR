@@ -8,6 +8,7 @@ export const config = { runtime: 'edge' }
 interface MobyRecibo {
   estadoPago?: string
   fechaTipoPago?: string
+  unidadFomentoMontoPagado?: number | string
 }
 
 interface MobyPago {
@@ -132,18 +133,55 @@ function categoria(descripcion: string): 'BANCO' | 'CLIENTE' {
   return d.includes('HIPOTECARIO') || d.includes('CREDITO') ? 'BANCO' : 'CLIENTE'
 }
 
-// DIAGNÓSTICO TEMPORAL (verificar cuál es el "Monto documentado S/." de Mobysuite): devuelve solo los
-// campos numéricos con nombre de importe; nunca textos del recibo ni datos del cliente.
-const CAMPO_IMPORTE = /monto|pago|pagado|valor|total|peso|uf|dolar|cambio|importe|saldo|document/i
+// ── Monto documentado vs pactado ─────────────────────────────────────────────
+// `montoPago` es lo PACTADO en el cronograma; lo que el cliente realmente pagó es el
+// `unidadFomentoMontoPagado` de sus recibos ("Monto documentado S/." en Mobysuite).
+// OJO: `pesosMontoPagado` NO sirve (es la segunda columna de importes, ~3.7 veces mayor).
+const TOLERANCIA = 1 // diferencias de céntimos por redondeo de Mobysuite no cuentan
+const r2 = (n: number) => Math.round(n * 100) / 100
 
-function importes(obj: object): Record<string, number> {
-  const salida: Record<string, number> = {}
-  for (const [k, v] of Object.entries(obj)) {
-    if (!CAMPO_IMPORTE.test(k) || /fecha|id$|rut|numero|codigo/i.test(k)) continue
-    if (typeof v === 'number') salida[k] = v
-    else if (typeof v === 'string' && /^-?\d+([.,]\d+)?$/.test(v.trim())) salida[k] = Number(v.trim().replace(',', '.'))
+export interface Abono { fecha: string | null; monto: number }
+
+export interface CuotaCalculada {
+  numeroCuota: number
+  categoria: 'BANCO' | 'CLIENTE'
+  fechaVencimiento: string | null
+  monto: number      // pactado
+  ejecutado: number  // documentado
+  saldo: number      // por cobrar
+  adelanto: number   // parte cubierta con lo que se pagó de más en otras cuotas
+}
+
+// Pagos documentados de una cuota. Si algún recibo pagado no trae importe, se cae al monto
+// pactado (como se calculaba antes) y se marca `sinMonto` para informarlo, en vez de inventar deuda.
+export function abonosDe(recibos: MobyRecibo[], pactado: number): { abonos: Abono[]; sinMonto: boolean } {
+  const pagados = recibos.filter(esReciboPagado)
+  if (pagados.length === 0) return { abonos: [], sinMonto: false }
+  const abonos = pagados.map(r => ({ fecha: toDate(r.fechaTipoPago), monto: Number(r.unidadFomentoMontoPagado) }))
+  if (abonos.some(a => !Number.isFinite(a.monto) || a.monto <= 0)) {
+    return { abonos: [{ fecha: abonos[0].fecha, monto: pactado }], sinMonto: true }
   }
-  return salida
+  return { abonos, sinMonto: false }
+}
+
+// Lo pagado de más en las cuotas del cliente se descuenta de su ÚLTIMA cuota pendiente y, si no
+// alcanza, de la anterior (regla de Cobranza). Nunca se aplica sobre cuotas que paga el banco.
+export function aplicarAdelantos(cuotas: CuotaCalculada[]): void {
+  let resto = r2(cuotas
+    .filter(c => c.categoria === 'CLIENTE' && c.ejecutado - c.monto > TOLERANCIA)
+    .reduce((s, c) => s + (c.ejecutado - c.monto), 0))
+  if (resto <= 0) return
+  const pendientes = cuotas
+    .filter(c => c.categoria === 'CLIENTE' && c.saldo > 0)
+    .sort((a, b) => (b.fechaVencimiento ?? '').localeCompare(a.fechaVencimiento ?? '') || b.numeroCuota - a.numeroCuota)
+  for (const c of pendientes) {
+    if (resto <= 0) break
+    const usado = Math.min(c.saldo, resto)
+    c.adelanto = r2(usado)
+    c.saldo = r2(c.saldo - usado)
+    if (c.saldo <= TOLERANCIA) c.saldo = 0
+    resto = r2(resto - usado)
+  }
 }
 
 // Datos personales de clientes: solo ADMIN (1), APROBADOR (9) y VISUALIZADOR (10) con sesión válida
@@ -196,10 +234,7 @@ export default async function handler(req: Request): Promise<Response> {
     // Diagnóstico informativo (no cambia lo que se muestra): qué trae realmente cada bien
     const diag = { contratosConVariosBienes: 0, contratosSinBienes: 0, bienesTotales: 0, bienesConTipo: 0, camposBien: new Set<string>() }
 
-    // Diagnóstico temporal de montos de recibos (ver importes())
-    const camposPago = new Set<string>()
-    const camposRecibo = new Set<string>()
-    const montosRecibos: object[] = []
+    let recibosSinMonto = 0
 
     for (const c of contratos) {
       ventasAcumuladas += c.precioTotal ?? 0
@@ -220,6 +255,7 @@ export default async function handler(req: Request): Promise<Response> {
         || [cliente.nombre, cliente.apellido].filter(Boolean).join(' ')
         || null
 
+      const delContrato = []
       for (const pago of c.pagos ?? []) {
         if (!pago.montoPago || pago.montoPago === 0) continue
         // "Cuota de ajuste" es un registro contable de Mobysuite, no deuda del cliente: no
@@ -227,24 +263,13 @@ export default async function handler(req: Request): Promise<Response> {
         // siempre, venga con monto o sin él (antes solo se descartaban las de monto 0).
         if (esCuotaDeAjuste(pago.descripcionPago)) continue
 
-        Object.keys(pago).forEach(k => camposPago.add(k))
-        pago.reciboPago?.forEach(r => Object.keys(r).forEach(k => camposRecibo.add(k)))
-        if (pago.reciboPago?.length) {
-          montosRecibos.push({
-            contrato: c.id,
-            cuota: pago.cuota,
-            descripcion: pago.descripcionPago,
-            pago: importes(pago),
-            recibos: pago.reciboPago.map(r => ({ estado: r.estadoPago ?? null, ...importes(r) })),
-          })
-        }
+        const { abonos, sinMonto } = abonosDe(pago.reciboPago ?? [], pago.montoPago)
+        if (sinMonto) recibosSinMonto++
+        const ejecutado = r2(abonos.reduce((s, a) => s + a.monto, 0))
+        const falta = r2(pago.montoPago - ejecutado)
+        const fechasPago = abonos.map(a => a.fecha).filter((f): f is string => !!f).sort()
 
-        const reciboPagado = pago.reciboPago?.find(esReciboPagado)
-        const pagado = !!reciboPagado
-        const fechaVenc = toDate(pago.fechaVencimientoPago)
-        const estado = pagado ? 'Pagado' : (fechaVenc && fechaVenc < hoy ? 'Vencido' : 'Pendiente')
-
-        cuotas.push({
+        delContrato.push({
           contratoId: c.id,
           contratoEstado: c.estadoContrato,
           clienteRut: cliente.rut ?? null,
@@ -256,11 +281,21 @@ export default async function handler(req: Request): Promise<Response> {
           numeroCuota: pago.cuota,
           descripcion: pago.descripcionPago,
           categoria: categoria(pago.descripcionPago ?? ''),
-          fechaVencimiento: fechaVenc,
-          fechaPago: toDate(reciboPagado?.fechaTipoPago),
+          fechaVencimiento: toDate(pago.fechaVencimientoPago),
+          fechaPago: fechasPago[fechasPago.length - 1] ?? null,
           monto: pago.montoPago,
-          estado,
+          ejecutado,
+          saldo: falta > TOLERANCIA ? falta : 0,
+          adelanto: 0,
+          abonos,
+          estado: 'Pendiente' as 'Pagado' | 'Pendiente' | 'Vencido',
         })
+      }
+
+      aplicarAdelantos(delContrato)
+      for (const q of delContrato) {
+        q.estado = q.saldo === 0 ? 'Pagado' : (q.fechaVencimiento && q.fechaVencimiento < hoy ? 'Vencido' : 'Pendiente')
+        cuotas.push(q)
       }
     }
 
@@ -269,12 +304,10 @@ export default async function handler(req: Request): Promise<Response> {
       totalCuotas: cuotas.length,
       ventasAcumuladas,
       cuotas,
+      recibosSinMonto,
       // Solo los NOMBRES de los campos del bien (no sus valores): sirve para saber qué datos manda
       // Mobysuite sobre cada bien sin exponer nada más de lo necesario.
-      diagnostico: {
-        ...diag, camposBien: [...diag.camposBien].sort(),
-        camposPago: [...camposPago].sort(), camposRecibo: [...camposRecibo].sort(), montosRecibos,
-      },
+      diagnostico: { ...diag, camposBien: [...diag.camposBien].sort() },
     })
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : 'Error desconocido' }, { status: 500 })

@@ -10,6 +10,7 @@ import { bienesDe } from '../utils/bienes'
 import type { Bien } from '../utils/bienes'
 import { coincideEtapa, etapaLabel } from '../utils/etapas'
 import type { FiltroEtapa } from '../utils/etapas'
+import { diferenciaCuota } from '../utils/cobradoMes'
 
 interface Cuota {
   contratoId: number
@@ -25,6 +26,9 @@ interface Cuota {
   categoria: 'BANCO' | 'CLIENTE'
   fechaVencimiento: string | null
   monto: number
+  ejecutado: number
+  saldo: number
+  adelanto: number
   estado: 'Pagado' | 'Pendiente' | 'Vencido'
 }
 
@@ -46,6 +50,7 @@ export default function CronogramaMobysuiteView() {
   const [filtroCategoria, setFiltroCategoria] = useState<'Todos' | Cuota['categoria']>('CLIENTE')
   const [filtroEtapa, setFiltroEtapa] = useState<FiltroEtapa>('TODAS')
   const [consultado, setConsultado] = useState(false)
+  const [soloDiferencias, setSoloDiferencias] = useState(false)
 
   useEffect(() => {
     getProyectosConMobysuite().then(setProyectos).catch(() => toast.error('No se pudo cargar la lista de empresas con Mobysuite'))
@@ -76,9 +81,12 @@ export default function CronogramaMobysuiteView() {
   const cuotasFiltradas = cuotas.filter(c =>
     (filtroEstado === 'Todos' || c.estado === filtroEstado) &&
     (filtroCategoria === 'Todos' || c.categoria === filtroCategoria) &&
-    coincideEtapa(c.contratoEstado, filtroEtapa)
+    coincideEtapa(c.contratoEstado, filtroEtapa) &&
+    (!soloDiferencias || diferenciaCuota(c) !== 0 || c.adelanto > 0)
   )
   const totalMonto = cuotasFiltradas.reduce((s, c) => s + c.monto, 0)
+  const totalDocumentado = cuotasFiltradas.reduce((s, c) => s + c.ejecutado, 0)
+  const totalSaldo = cuotasFiltradas.reduce((s, c) => s + c.saldo, 0)
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -107,9 +115,15 @@ export default function CronogramaMobysuiteView() {
         <>
           <div className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center gap-3 bg-gray-50/50">
             <span className="text-xs text-gray-500">
-              {totalContratos} contratos · {cuotasFiltradas.length} cuotas · Total: <span className="font-semibold text-gray-700">S/ {fmt(totalMonto)}</span>
+              {totalContratos} contratos · {cuotasFiltradas.length} cuotas · Pactado: <span className="font-semibold text-gray-700">S/ {fmt(totalMonto)}</span>
+              {' '}· Documentado: <span className="font-semibold text-emerald-600">S/ {fmt(totalDocumentado)}</span>
+              {' '}· Por pagar: <span className="font-semibold text-[#003D7D]">S/ {fmt(totalSaldo)}</span>
             </span>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
+              <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+                <input type="checkbox" checked={soloDiferencias} onChange={e => setSoloDiferencias(e.target.checked)} />
+                Solo con diferencias
+              </label>
               <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value as typeof filtroCategoria)}
                 className="h-8 px-2.5 rounded-lg border border-gray-200 bg-white text-xs">
                 <option value="CLIENTE">Solo cliente (excluye banco)</option>
@@ -138,15 +152,20 @@ export default function CronogramaMobysuiteView() {
                   <th className="px-3 py-2.5 font-semibold">Bien</th>
                   <th className="px-3 py-2.5 font-semibold">Cuota</th>
                   <th className="px-3 py-2.5 font-semibold">Vencimiento</th>
-                  <th className="px-3 py-2.5 font-semibold text-right">Monto</th>
+                  <th className="px-3 py-2.5 font-semibold text-right">Pactado</th>
+                  <th className="px-3 py-2.5 font-semibold text-right">Documentado</th>
+                  <th className="px-3 py-2.5 font-semibold text-right">Diferencia</th>
+                  <th className="px-3 py-2.5 font-semibold text-right">Por pagar</th>
                   <th className="px-3 py-2.5 font-semibold">Categoría</th>
                   <th className="px-5 py-2.5 font-semibold">Estado</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {cuotasFiltradas.length === 0 ? (
-                  <tr><td colSpan={8} className="px-5 py-8 text-center text-gray-400">Sin cuotas para este filtro</td></tr>
-                ) : cuotasFiltradas.map(c => (
+                  <tr><td colSpan={11} className="px-5 py-8 text-center text-gray-400">Sin cuotas para este filtro</td></tr>
+                ) : cuotasFiltradas.map(c => {
+                  const dif = diferenciaCuota(c)
+                  return (
                   <tr key={`${c.contratoId}-${c.numeroCuota}-${c.descripcion}`} className="hover:bg-gray-50/50">
                     <td className="px-5 py-2.5">
                       <div className="font-medium text-gray-800">{c.clienteNombre ?? '—'}</div>
@@ -157,12 +176,21 @@ export default function CronogramaMobysuiteView() {
                     <td className="px-3 py-2.5 text-gray-600">{c.descripcion} (#{c.numeroCuota})</td>
                     <td className="px-3 py-2.5 text-gray-600">{c.fechaVencimiento ? new Date(c.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-PE') : '—'}</td>
                     <td className="px-3 py-2.5 text-right font-medium text-gray-700">S/ {fmt(c.monto)}</td>
+                    <td className={`px-3 py-2.5 text-right ${c.ejecutado > 0 ? 'text-emerald-600 font-medium' : 'text-gray-300'}`}>S/ {fmt(c.ejecutado)}</td>
+                    <td className={`px-3 py-2.5 text-right font-semibold ${dif > 0 ? 'text-blue-600' : dif < 0 ? 'text-red-600' : 'text-gray-300'}`}>
+                      {dif > 0 ? `+${fmt(dif)}` : dif < 0 ? `−${fmt(-dif)}` : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-gray-700">
+                      S/ {fmt(c.saldo)}
+                      {c.adelanto > 0 && <div className="text-[10px] text-blue-600 whitespace-nowrap">adelanto {fmt(c.adelanto)}</div>}
+                    </td>
                     <td className="px-3 py-2.5 text-gray-500">{c.categoria === 'BANCO' ? 'Banco' : 'Cliente'}</td>
                     <td className="px-5 py-2.5">
-                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${ESTADO_BADGE[c.estado]}`}>{c.estado}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${ESTADO_BADGE[c.estado]}`}>{c.saldo === 0 && c.ejecutado === 0 && c.adelanto > 0 ? 'Cubierto por adelanto' : c.saldo > 0 && c.ejecutado > 0 ? `${c.estado} · parcial` : c.estado}</span>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

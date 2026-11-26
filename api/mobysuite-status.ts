@@ -6,7 +6,8 @@ export const config = { runtime: 'edge' }
 // unidades por estado y tipo, venta, precio por m² y cobrado. No persiste nada.
 // Uso: GET /api/mobysuite-status?mobyProjectId=6
 
-interface MobyRecibo { estadoPago?: string; pesosMontoPagado?: number }
+// El importe en soles es `unidadFomentoMontoPagado`; `pesosMontoPagado` viene ~3.7 veces mayor.
+interface MobyRecibo { estadoPago?: string; unidadFomentoMontoPagado?: number | string }
 interface MobyPago { descripcionPago?: string; reciboPago?: MobyRecibo[] }
 interface MobyBien {
   tipoBien?: string
@@ -167,7 +168,7 @@ export default async function handler(req: Request): Promise<Response> {
       for (const p of c.pagos ?? []) {
         if (esCuotaDeAjuste(p.descripcionPago)) continue
         const r = p.reciboPago?.find(esReciboPagado)
-        if (r) cobrado += r.pesosMontoPagado ?? 0
+        if (r) cobrado += Number(r.unidadFomentoMontoPagado) || 0
       }
     }
 

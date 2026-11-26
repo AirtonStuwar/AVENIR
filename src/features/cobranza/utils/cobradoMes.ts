@@ -1,7 +1,7 @@
 // Regla única de "cobrado en el mes", compartida por la tabla Cuenta por Cobrar Vencida y la
 // tarjeta "Cobrado del Mes" del dashboard, para que ambas siempre den el mismo número.
 //
-// Una cuota cuenta como cobrada en un mes cuando está Pagada y su fecha de pago cae dentro de ese
+// Cada pago documentado cuenta como cobrado en un mes cuando su fecha cae dentro de ese
 // mes calendario, sin importar cuándo venció (una cuota vencida que se paga este mes es cobranza
 // de este mes). Mobysuite a veces trae fechas de pago imposibles (1902, 2235…): una fecha anterior
 // a 2020 o posterior a hoy se considera DUDOSA y no se asigna a ningún mes — se informa aparte para
@@ -32,6 +32,23 @@ export type ClasePago = 'en_mes' | 'otro_mes' | 'dudosa'
 export function clasePago(fechaPago: string | null | undefined, mes: string, hoy: string): ClasePago {
   if (!fechaPagoValida(fechaPago, hoy)) return 'dudosa'
   return fechaPago!.slice(0, 7) === mes ? 'en_mes' : 'otro_mes'
+}
+
+// Pagos documentados (abonos) de una cuota dentro de un mes, y los de fecha dudosa
+type Abono = { fecha: string | null; monto: number }
+
+export function cobradoEnMes(abonos: Abono[], mes: string, hoy: string): number {
+  return abonos.reduce((s, a) => s + (clasePago(a.fecha, mes, hoy) === 'en_mes' ? a.monto : 0), 0)
+}
+
+export function cobradoDudoso(abonos: Abono[], hoy: string): number {
+  return abonos.reduce((s, a) => s + (fechaPagoValida(a.fecha, hoy) ? 0 : a.monto), 0)
+}
+
+// Diferencia entre lo documentado y lo pactado de una cuota con pago (0 si coincide o no hay pago)
+export function diferenciaCuota(c: { monto: number; ejecutado: number }): number {
+  const d = Math.round((c.ejecutado - c.monto) * 100) / 100
+  return c.ejecutado > 0 && Math.abs(d) > 1 ? d : 0
 }
 
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']

@@ -7,7 +7,7 @@
 // en los 5 proyectos probados — falta confirmarla con Comercial/Finanzas (ver nota
 // al final del archivo con las preguntas exactas pendientes).
 
-import { clasePago, hoyLocal, mesActual } from './cobradoMes'
+import { cobradoEnMes, hoyLocal, mesActual } from './cobradoMes'
 
 export interface CuotaMobysuite {
   contratoId: number
@@ -19,7 +19,11 @@ export interface CuotaMobysuite {
   categoria: 'BANCO' | 'CLIENTE'
   fechaVencimiento: string | null
   fechaPago: string | null
-  monto: number
+  monto: number      // pactado en el cronograma
+  ejecutado: number  // documentado (lo realmente pagado)
+  saldo: number      // por cobrar
+  adelanto: number   // cubierto con lo pagado de más en otras cuotas
+  abonos: { fecha: string | null; monto: number }[]
   estado: 'Pagado' | 'Pendiente' | 'Vencido'
 }
 
@@ -97,11 +101,11 @@ export function construirCartera(json: CronogramaResponse, metaMensual: number):
     const clienteKey = c.clienteRut ?? `contrato-${c.contratoId}`
     clientesSet.add(clienteKey)
 
-    if (c.estado === 'Pagado') {
-      cobradoAcumulado += c.monto
-      if (clasePago(c.fechaPago, mesEnCurso, hoyReal) === 'en_mes') cobradoDelMes += c.monto
+    if (c.ejecutado > 0) {
+      cobradoAcumulado += c.ejecutado
+      cobradoDelMes += cobradoEnMes(c.abonos, mesEnCurso, hoyReal)
       const prod = clasificarProducto(c.descripcion)
-      if (prod !== 'otros') composicion[prod] += c.monto
+      if (prod !== 'otros') composicion[prod] += c.ejecutado
     }
 
     if (c.estado === 'Vencido') {
@@ -109,10 +113,10 @@ export function construirCartera(json: CronogramaResponse, metaMensual: number):
       const dias = diasEntre(c.fechaVencimiento ?? hoy, hoy)
       diasMoraPonderados += dias
       clientesConMoraCount++
-      if (dias <= 30) mora[0].monto += c.monto
-      else if (dias <= 60) mora[1].monto += c.monto
-      else if (dias <= 90) mora[2].monto += c.monto
-      else mora[3].monto += c.monto
+      if (dias <= 30) mora[0].monto += c.saldo
+      else if (dias <= 60) mora[1].monto += c.saldo
+      else if (dias <= 90) mora[2].monto += c.saldo
+      else mora[3].monto += c.saldo
     }
 
     const prod = clasificarProducto(c.descripcion)

@@ -10,7 +10,7 @@ import { coincideEtapa, etapaLabel } from '../utils/etapas'
 import type { FiltroEtapa } from '../utils/etapas'
 import { bienesDe } from '../utils/bienes'
 import type { Bien } from '../utils/bienes'
-import { clasePago, hoyLocal, mesActual, mesCorto } from '../utils/cobradoMes'
+import { cobradoDudoso, cobradoEnMes, diferenciaCuota, fechaPagoValida, hoyLocal, mesActual, mesCorto } from '../utils/cobradoMes'
 
 interface Cuota {
   contratoId: number
@@ -24,6 +24,10 @@ interface Cuota {
   fechaVencimiento: string | null
   fechaPago?: string | null
   monto: number
+  ejecutado: number
+  saldo: number
+  adelanto: number
+  abonos: { fecha: string | null; monto: number }[]
   estado: 'Pagado' | 'Pendiente' | 'Vencido'
   categoria: 'BANCO' | 'CLIENTE'
 }
@@ -49,11 +53,14 @@ interface ClienteFila {
   pagado: number
   cobradoMes: number
   total: number
+  pactadoPagado: number // pactado de las cuotas que tienen algún pago
+  deMas: number
+  deMenos: number
 }
 
 const fmt = (n: number) => n === 0 ? '0.00' : n.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
-type BucketKey = Exclude<keyof ClienteFila, 'clave' | 'nombre' | 'clienteClave' | 'contratoId' | 'contratoEstado' | 'bienes' | 'contratosDelCliente' | 'cuotas' | 'total' | 'pagado' | 'cobradoMes'>
+type BucketKey = Exclude<keyof ClienteFila, 'clave' | 'nombre' | 'clienteClave' | 'contratoId' | 'contratoEstado' | 'bienes' | 'contratosDelCliente' | 'cuotas' | 'total' | 'pagado' | 'cobradoMes' | 'pactadoPagado' | 'deMas' | 'deMenos'>
 
 const BUCKETS: { key: BucketKey; label: string }[] = [
   { key: 'actual', label: 'A la fecha' },
@@ -91,6 +98,9 @@ export default function CarteraVencidaTable() {
   const [filtroEtapa, setFiltroEtapa] = useState<FiltroEtapa>('TODAS')
   // Mes calendario para la columna Cobrado (por defecto el mes en curso)
   const [mes, setMes] = useState(mesActual())
+  // Solo contratos donde lo documentado no coincide con lo pactado
+  const [soloDiferencias, setSoloDiferencias] = useState(false)
+  const [sinMonto, setSinMonto] = useState(0)
 
   useEffect(() => {
     getProyectosConMobysuite().then(setProyectos).catch(() => toast.error('No se pudo cargar la lista de empresas con Mobysuite'))
@@ -106,6 +116,7 @@ export default function CarteraVencidaTable() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Error al consultar Mobysuite')
       setCuotas(json.cuotas)
+      setSinMonto(json.recibosSinMonto ?? 0)
       setFiltroEtapa('TODAS')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al consultar Mobysuite')
@@ -141,24 +152,30 @@ export default function CarteraVencidaTable() {
           contratoId: c.contratoId, contratoEstado: c.contratoEstado, bienes: bienesDe(c),
           contratosDelCliente: contratosPorCliente.get(clienteClave)?.size ?? 1,
           cuotas: [],
-          actual: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, antiguos: 0, pagado: 0, cobradoMes: 0, total: 0,
+          actual: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, antiguos: 0, pagado: 0, cobradoMes: 0, total: 0, pactadoPagado: 0, deMas: 0, deMenos: 0,
         })
       }
       const fila = porContrato.get(clave)!
-      // Las cuotas ya cobradas se muestran y se suman aparte, nunca en los tramos de
-      // antigüedad ni en el Total — así "Total" sigue siendo lo que falta cobrar,
-      // y "Pagado + Total" cuadra contra el plan de pago completo de Mobysuite.
-      if (c.estado === 'Pagado') {
-        fila.pagado += c.monto
-        if (clasePago(c.fechaPago, mes, hoyFecha) === 'en_mes') fila.cobradoMes += c.monto
-      } else {
-        fila[bucketDe(diasVencido(c.fechaVencimiento, hoy))] += c.monto
-        fila.total += c.monto
+      // "Ejecutado" es lo documentado en Mobysuite y va aparte; los tramos de antigüedad y
+      // "Por pagar" usan el saldo de cada cuota. Total = Por pagar + Ejecutado.
+      if (c.ejecutado > 0) {
+        fila.pagado += c.ejecutado
+        fila.pactadoPagado += c.monto
+        fila.cobradoMes += cobradoEnMes(c.abonos, mes, hoyFecha)
+        const dif = diferenciaCuota(c)
+        if (dif > 0) fila.deMas += dif
+        else fila.deMenos -= dif
+      }
+      if (c.saldo > 0) {
+        fila[bucketDe(diasVencido(c.fechaVencimiento, hoy))] += c.saldo
+        fila.total += c.saldo
       }
       fila.cuotas.push(c)
     }
-    return [...porContrato.values()].sort((a, b) => b.total - a.total)
-  }, [cuotas, filtroCategoria, filtroEtapa, mes])
+    return [...porContrato.values()]
+      .filter(f => !soloDiferencias || f.deMas > 0 || f.deMenos > 0)
+      .sort((a, b) => b.total - a.total)
+  }, [cuotas, filtroCategoria, filtroEtapa, mes, soloDiferencias])
 
   const totales = useMemo(() => {
     const t = { actual: 0, d1_30: 0, d31_60: 0, d61_90: 0, d91_120: 0, antiguos: 0, pagado: 0, cobradoMes: 0, total: 0 }
@@ -175,10 +192,11 @@ export default function CarteraVencidaTable() {
     const hoyFecha = hoyLocal()
     let n = 0, monto = 0
     for (const f of filas) for (const c of f.cuotas) {
-      if (c.estado === 'Pagado' && clasePago(c.fechaPago, mes, hoyFecha) === 'dudosa') { n++; monto += c.monto }
+      const dudoso = cobradoDudoso(c.abonos, hoyFecha)
+      if (dudoso > 0) { n++; monto += dudoso }
     }
     return { n, monto }
-  }, [filas, mes])
+  }, [filas])
 
   const toggle = (clave: string) => setExpandido(prev => ({ ...prev, [clave]: !prev[clave] }))
 
@@ -216,6 +234,10 @@ export default function CarteraVencidaTable() {
             Cobrado en
             <input type="month" value={mes} max={mesActual()} onChange={e => e.target.value && setMes(e.target.value)}
               className="h-8 px-2 rounded-lg border border-gray-200 bg-white text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#003D7D]/20" />
+          </label>
+          <label className="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
+            <input type="checkbox" checked={soloDiferencias} onChange={e => setSoloDiferencias(e.target.checked)} />
+            Solo con diferencias
           </label>
           <span className="ml-auto text-xs text-gray-500">
             {filas.length} {filas.length === 1 ? 'contrato' : 'contratos'} · {new Set(filas.map(f => f.clienteClave)).size} clientes
@@ -267,7 +289,16 @@ export default function CarteraVencidaTable() {
                       </td>
                     ))}
                     <td className={`px-3 py-2.5 text-right font-semibold ${f.total > 0 ? 'text-[#003D7D]' : 'text-gray-300'}`}>{fmt(f.total)}</td>
-                    <td className={`px-3 py-2.5 text-right ${f.pagado > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>{fmt(f.pagado)}</td>
+                    <td className={`px-3 py-2.5 text-right ${f.pagado > 0 ? 'text-emerald-600' : 'text-gray-300'}`}>
+                      {fmt(f.pagado)}
+                      {(f.deMas > 0 || f.deMenos > 0) && (
+                        <div className="mt-0.5 text-[10px] font-normal text-gray-500 whitespace-nowrap">
+                          pactado {fmt(f.pactadoPagado)}
+                          {f.deMas > 0 && <span className="ml-1 font-semibold text-blue-600">+{fmt(f.deMas)}</span>}
+                          {f.deMenos > 0 && <span className="ml-1 font-semibold text-red-600">−{fmt(f.deMenos)}</span>}
+                        </div>
+                      )}
+                    </td>
                     <td className={`px-3 py-2.5 text-right ${f.cobradoMes > 0 ? 'text-sky-600' : 'text-gray-300'}`}>{fmt(f.cobradoMes)}</td>
                     <td className="px-5 py-2.5 text-right font-semibold text-gray-900">{fmt(f.total + f.pagado)}</td>
                   </tr>
@@ -275,34 +306,49 @@ export default function CarteraVencidaTable() {
                     .slice()
                     .sort((a, b) => (a.fechaVencimiento ?? '').localeCompare(b.fechaVencimiento ?? ''))
                     .map(c => {
-                      const pagada = c.estado === 'Pagado'
-                      const clase = pagada ? clasePago(c.fechaPago, mes, hoyLocal()) : null
-                      const bucket = pagada ? null : bucketDe(diasVencido(c.fechaVencimiento, new Date().toISOString().slice(0, 10)))
+                      const hoyFecha = hoyLocal()
+                      const enMes = cobradoEnMes(c.abonos, mes, hoyFecha)
+                      const dudoso = cobradoDudoso(c.abonos, hoyFecha)
+                      const dif = diferenciaCuota(c)
+                      const fechas = c.abonos.map(a => a.fecha).filter(x => fechaPagoValida(x, hoyFecha)) as string[]
+                      const bucket = c.saldo > 0 ? bucketDe(diasVencido(c.fechaVencimiento, new Date().toISOString().slice(0, 10))) : null
+                      const etiqueta = c.ejecutado > 0
+                        ? (c.saldo > 0 ? { texto: 'Pago parcial', clase: 'bg-amber-50 text-amber-700' } : { texto: 'Pagado', clase: 'bg-emerald-50 text-emerald-600' })
+                        : (c.adelanto > 0 && c.saldo === 0 ? { texto: 'Cubierto por adelanto', clase: 'bg-blue-50 text-blue-700' } : null)
                       return (
                         <tr key={`${f.clave}-${c.contratoId}-${c.numeroCuota}-${c.descripcion}`} className="bg-gray-50/40 text-gray-500">
                           <td className="px-5 py-2 pl-9">
                             {c.descripcion} — plazo #{c.numeroCuota}
                             <span className="text-gray-400"> · vence {c.fechaVencimiento ? new Date(c.fechaVencimiento + 'T00:00:00').toLocaleDateString('es-PE') : '—'}</span>
-                            {pagada && (
-                              <span className="ml-2 px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[10px] font-semibold">Pagado</span>
+                            {etiqueta && (
+                              <span className={`ml-2 px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${etiqueta.clase}`}>{etiqueta.texto}</span>
                             )}
-                            {pagada && clase !== 'dudosa' && c.fechaPago && (
-                              <span className="text-gray-400"> · pagó {new Date(c.fechaPago + 'T00:00:00').toLocaleDateString('es-PE')}</span>
+                            {fechas.length > 0 && (
+                              <span className="text-gray-400"> · pagó {fechas.map(x => new Date(x + 'T00:00:00').toLocaleDateString('es-PE')).join(', ')}</span>
                             )}
-                            {pagada && clase === 'dudosa' && (
+                            {dudoso > 0 && (
                               <span className="ml-2 px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 text-[10px] font-semibold"
                                 title="Mobysuite trae una fecha de pago imposible o vacia; no se asigna a ningun mes">
-                                fecha de pago dudosa{c.fechaPago ? ` (${c.fechaPago})` : ''}
+                                fecha de pago dudosa
                               </span>
                             )}
+                            <div className="mt-0.5 text-[11px]">
+                              Pactado {fmt(c.monto)} · Documentado {fmt(c.ejecutado)}
+                              {dif !== 0 && (
+                                <span className={`ml-1 font-semibold ${dif > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                  · {dif > 0 ? `+${fmt(dif)} de más` : `−${fmt(-dif)} de menos`}
+                                </span>
+                              )}
+                              {c.adelanto > 0 && <span className="ml-1 text-blue-600">· cubierto por adelanto {fmt(c.adelanto)}</span>}
+                            </div>
                           </td>
                           {BUCKETS.map(b => (
-                            <td key={b.key} className="px-3 py-2 text-right">{b.key === bucket ? fmt(c.monto) : ''}</td>
+                            <td key={b.key} className="px-3 py-2 text-right">{b.key === bucket ? fmt(c.saldo) : ''}</td>
                           ))}
-                          <td className="px-3 py-2 text-right">{pagada ? '' : fmt(c.monto)}</td>
-                          <td className="px-3 py-2 text-right text-emerald-600">{pagada ? fmt(c.monto) : ''}</td>
-                          <td className="px-3 py-2 text-right text-sky-600">{clase === 'en_mes' ? fmt(c.monto) : ''}</td>
-                          <td className="px-5 py-2 text-right">{fmt(c.monto)}</td>
+                          <td className="px-3 py-2 text-right">{c.saldo > 0 ? fmt(c.saldo) : ''}</td>
+                          <td className="px-3 py-2 text-right text-emerald-600">{c.ejecutado > 0 ? fmt(c.ejecutado) : ''}</td>
+                          <td className="px-3 py-2 text-right text-sky-600">{enMes > 0 ? fmt(enMes) : ''}</td>
+                          <td className="px-5 py-2 text-right">{fmt(c.saldo + c.ejecutado)}</td>
                         </tr>
                       )
                     })}
@@ -328,14 +374,19 @@ export default function CarteraVencidaTable() {
       {cuotas !== null && filas.length > 0 && (
         <div className="px-5 py-3 border-t border-gray-100 text-[11px] text-gray-400 space-y-1">
           <p>
-            Por pagar = lo que falta cobrar (los tramos de antigüedad suman esta columna) · Ejecutado = lo ya cobrado · Total = Por pagar + Ejecutado, el plan de pago completo del contrato.
+            Por pagar = lo que falta cobrar (los tramos de antigüedad suman esta columna) · Ejecutado = monto documentado en Mobysuite · Total = Por pagar + Ejecutado. Lo pagado de más se descuenta de la última cuota pendiente del cliente.
           </p>
           <p>
-            Cobrado {mesCorto(mes)} suma las cuotas pagadas con fecha de pago dentro de ese mes, aunque hayan vencido antes. Respeta los filtros de categoria y etapa.
+            Cobrado {mesCorto(mes)} suma los pagos documentados con fecha dentro de ese mes, aunque la cuota haya vencido antes. Respeta los filtros de categoria y etapa.
           </p>
+          {sinMonto > 0 && (
+            <p className="text-amber-700">
+              {sinMonto} cuotas tienen un recibo pagado sin monto documentado en Mobysuite: se cuentan por el monto pactado.
+            </p>
+          )}
           {dudosas.n > 0 && (
             <p className="text-amber-700">
-              {dudosas.n} {dudosas.n === 1 ? 'cuota pagada tiene' : 'cuotas pagadas tienen'} fecha de pago dudosa (S/ {fmt(dudosas.monto)}) y no se incluyen en ningun mes — conviene revisarlas en Mobysuite.
+              {dudosas.n} {dudosas.n === 1 ? 'cuota tiene' : 'cuotas tienen'} fecha de pago dudosa (S/ {fmt(dudosas.monto)}) y no se incluyen en ningun mes — conviene revisarlas en Mobysuite.
             </p>
           )}
         </div>
