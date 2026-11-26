@@ -132,6 +132,20 @@ function categoria(descripcion: string): 'BANCO' | 'CLIENTE' {
   return d.includes('HIPOTECARIO') || d.includes('CREDITO') ? 'BANCO' : 'CLIENTE'
 }
 
+// DIAGNÓSTICO TEMPORAL (verificar cuál es el "Monto documentado S/." de Mobysuite): devuelve solo los
+// campos numéricos con nombre de importe; nunca textos del recibo ni datos del cliente.
+const CAMPO_IMPORTE = /monto|pago|pagado|valor|total|peso|uf|dolar|cambio|importe|saldo|document/i
+
+function importes(obj: object): Record<string, number> {
+  const salida: Record<string, number> = {}
+  for (const [k, v] of Object.entries(obj)) {
+    if (!CAMPO_IMPORTE.test(k) || /fecha|id$|rut|numero|codigo/i.test(k)) continue
+    if (typeof v === 'number') salida[k] = v
+    else if (typeof v === 'string' && /^-?\d+([.,]\d+)?$/.test(v.trim())) salida[k] = Number(v.trim().replace(',', '.'))
+  }
+  return salida
+}
+
 // Datos personales de clientes: solo ADMIN (1), APROBADOR (9) y VISUALIZADOR (10) con sesión válida
 async function requireRolIngreso(req: Request): Promise<boolean> {
   const url = process.env.VITE_SUPABASE_URL
@@ -182,6 +196,11 @@ export default async function handler(req: Request): Promise<Response> {
     // Diagnóstico informativo (no cambia lo que se muestra): qué trae realmente cada bien
     const diag = { contratosConVariosBienes: 0, contratosSinBienes: 0, bienesTotales: 0, bienesConTipo: 0, camposBien: new Set<string>() }
 
+    // Diagnóstico temporal de montos de recibos (ver importes())
+    const camposPago = new Set<string>()
+    const camposRecibo = new Set<string>()
+    const montosRecibos: object[] = []
+
     for (const c of contratos) {
       ventasAcumuladas += c.precioTotal ?? 0
       const cliente = c.cliente ?? {}
@@ -207,6 +226,18 @@ export default async function handler(req: Request): Promise<Response> {
         // forma parte del precio del contrato, así que sumarla infla la cartera. Se excluye
         // siempre, venga con monto o sin él (antes solo se descartaban las de monto 0).
         if (esCuotaDeAjuste(pago.descripcionPago)) continue
+
+        Object.keys(pago).forEach(k => camposPago.add(k))
+        pago.reciboPago?.forEach(r => Object.keys(r).forEach(k => camposRecibo.add(k)))
+        if (pago.reciboPago?.length) {
+          montosRecibos.push({
+            contrato: c.id,
+            cuota: pago.cuota,
+            descripcion: pago.descripcionPago,
+            pago: importes(pago),
+            recibos: pago.reciboPago.map(r => ({ estado: r.estadoPago ?? null, ...importes(r) })),
+          })
+        }
 
         const reciboPagado = pago.reciboPago?.find(esReciboPagado)
         const pagado = !!reciboPagado
@@ -240,7 +271,10 @@ export default async function handler(req: Request): Promise<Response> {
       cuotas,
       // Solo los NOMBRES de los campos del bien (no sus valores): sirve para saber qué datos manda
       // Mobysuite sobre cada bien sin exponer nada más de lo necesario.
-      diagnostico: { ...diag, camposBien: [...diag.camposBien].sort() },
+      diagnostico: {
+        ...diag, camposBien: [...diag.camposBien].sort(),
+        camposPago: [...camposPago].sort(), camposRecibo: [...camposRecibo].sort(), montosRecibos,
+      },
     })
   } catch (err) {
     return Response.json({ error: err instanceof Error ? err.message : 'Error desconocido' }, { status: 500 })
