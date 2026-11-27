@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { LineChart, RefreshCw, Loader2, ArrowUpRight, ArrowDownRight, Minus, BarChart3, Table2, Info } from 'lucide-react'
+import { LineChart, RefreshCw, Loader2, BarChart3, Table2, Info } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '../store/authStore'
 import { ROLES } from '../features/solicitud/types/solicitud'
-import {
-  getFinanzasEgresos, resumir,
-} from '../features/finanzas/services/finanzasService'
-import type { FilaEgreso, Moneda, PuntoMes } from '../features/finanzas/services/finanzasService'
+import { getFinanzasPagos, resumir, mesActual } from '../features/finanzas/services/finanzasService'
+import type { FilaPago, Moneda, PuntoMes, ConceptoPagado } from '../features/finanzas/services/finanzasService'
 
 const AZUL = '#003D7D'
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'set', 'oct', 'nov', 'dic']
@@ -20,10 +18,17 @@ const fmt = (n: number, mon: Moneda) =>
   `${simbolo(mon)} ${n.toLocaleString(mon === 'USD' ? 'en-US' : 'es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const fmtEntero = (n: number) => n.toLocaleString('es-PE', { maximumFractionDigits: 0 })
 
-function ultimoDia(mesYYYYMM: string): string {
-  const [y, m] = mesYYYYMM.split('-').map(Number)
-  const d = new Date(y, m, 0)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const MESES_LARGOS = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'setiembre', 'octubre', 'noviembre', 'diciembre']
+const nombreMes = (m: string) => { const [y, mm] = m.split('-').map(Number); return `${MESES_LARGOS[mm - 1]} ${y}` }
+
+const TEXTO_CONCEPTO: Record<ConceptoPagado, string> = {
+  'Proveedores': 'Proveedores (neto de solicitudes)',
+  'Confirming repuesto': 'Confirming repuesto',
+  'Detracciones': 'Detracciones depositadas',
+  'A rendir': 'A rendir (adelantos entregados)',
+  'Reembolsos': 'Reembolsos',
+  'Caja chica': 'Caja chica (reposiciones)',
+  'Devoluciones': 'Devoluciones a clientes',
 }
 
 // ── Tarjeta numérica ──────────────────────────────────────────────────
@@ -44,8 +49,8 @@ function TooltipMes({ active, payload, moneda }: { active?: boolean; payload?: R
   return (
     <div className="rounded-xl border border-gray-200 bg-white px-3 py-2 shadow-md text-xs">
       <p className="font-semibold text-gray-900"><span className="capitalize">{labelMesLargo(p.mes)}</span>{p.parcial ? ' · en curso' : ''}</p>
-      <p className="mt-1 text-gray-700">{fmt(p.monto, moneda)}</p>
-      <p className="text-gray-500">{p.registros} {p.registros === 1 ? 'pago' : 'pagos'}</p>
+      <p className="mt-1 text-gray-700">Pagado: {fmt(p.monto, moneda)}</p>
+      <p className="text-gray-500">Total de facturas: {fmt(p.facturas, moneda)}</p>
     </div>
   )
 }
@@ -54,33 +59,29 @@ export default function FinanzasEgresosPage() {
   const { userRole } = useAuthStore()
   const esAdmin = userRole === ROLES.ADMIN || userRole === ROLES.APROBADOR || userRole === ROLES.FINANZAS   // nombre histórico: ADMIN, APROBADOR y FINANZAS (solo lectura)
 
-  const [filas, setFilas] = useState<FilaEgreso[]>([])
+  const [filas, setFilas] = useState<FilaPago[]>([])
   const [loading, setLoading] = useState(true)
   const [moneda, setMoneda] = useState<Moneda>('PEN')
   const [empresa, setEmpresa] = useState('')
-  const [desdeMes, setDesdeMes] = useState('')
-  const [hastaMes, setHastaMes] = useState('')
+  const [mes, setMes] = useState('')   // '' = todos los meses
   const [vista, setVista] = useState<'grafico' | 'tabla'>('grafico')
 
   const load = () => {
     setLoading(true)
-    getFinanzasEgresos(desdeMes ? `${desdeMes}-01` : undefined, hastaMes ? ultimoDia(hastaMes) : undefined)
+    getFinanzasPagos()
       .then(setFilas)
       .catch(() => toast.error('No se pudieron cargar los egresos'))
       .finally(() => setLoading(false))
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { if (esAdmin) load() }, [esAdmin, desdeMes, hastaMes])
+  useEffect(() => { if (esAdmin) load() }, [esAdmin])
 
-  const r = useMemo(() => resumir(filas, moneda, empresa), [filas, moneda, empresa])
+  const r = useMemo(() => resumir(filas, moneda, empresa, mes), [filas, moneda, empresa, mes])
 
-  // Promedio solo de meses completos: el mes en curso distorsiona el promedio hacia abajo.
-  const completos = r.porMes.filter(p => !p.parcial)
-  const promedio = completos.length ? completos.reduce((s, p) => s + p.monto, 0) / completos.length : null
   const maxCategoria = r.porCategoria.reduce((m, c) => Math.max(m, c.monto), 0)
-  const hayFiltros = !!(empresa || desdeMes || hastaMes)
-  const vacio = !loading && r.pagado === 0 && r.porPagar === 0
+  const hayFiltros = !!(empresa || mes)
+  const vacio = !loading && r.pagado === 0 && r.porPagar === 0 && r.facturas === 0
+  const enPeriodo = mes ? `en ${nombreMes(mes)}` : 'en todos los meses'
 
   if (!esAdmin) return <Navigate to="/dashboard" replace />
 
@@ -133,15 +134,14 @@ export default function FinanzasEgresosPage() {
             </select>
           </label>
           <label className="flex flex-col gap-1 text-[11px] font-medium text-gray-500">
-            Pagado desde
-            <input type="month" value={desdeMes} onChange={e => setDesdeMes(e.target.value)} className={selectCls} />
-          </label>
-          <label className="flex flex-col gap-1 text-[11px] font-medium text-gray-500">
-            Pagado hasta
-            <input type="month" value={hastaMes} onChange={e => setHastaMes(e.target.value)} className={selectCls} />
+            Mes de pago
+            <select value={mes} onChange={e => setMes(e.target.value)} className={selectCls}>
+              <option value="">Todos los meses</option>
+              {r.meses.map(m => <option key={m} value={m}>{nombreMes(m).replace(/^./, c => c.toUpperCase())}{m === mesActual() ? ' (en curso)' : ''}</option>)}
+            </select>
           </label>
           {hayFiltros && (
-            <button onClick={() => { setEmpresa(''); setDesdeMes(''); setHastaMes('') }}
+            <button onClick={() => { setEmpresa(''); setMes('') }}
               className="h-9 px-3 rounded-xl text-xs font-medium text-gray-500 hover:bg-gray-100 transition-colors">
               Limpiar filtros
             </button>
@@ -153,29 +153,17 @@ export default function FinanzasEgresosPage() {
         ) : (
           <>
             {/* Cifras principales */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Tile label="Pagado en el periodo" value={fmt(r.pagado, moneda)}>
-                {fmtEntero(r.registrosPagados)} {r.registrosPagados === 1 ? 'pago' : 'pagos'}
-              </Tile>
-              <Tile label="Por pagar (aprobado, sin pagar)" value={fmt(r.porPagar, moneda)}>
-                {fmtEntero(r.registrosPorPagar)} {r.registrosPorPagar === 1 ? 'registro' : 'registros'} · al día de hoy
-              </Tile>
-              <Tile label={r.ultimoMesCompleto ? `Último mes completo (${labelMes(r.ultimoMesCompleto.mes)})` : 'Último mes completo'}
-                    value={r.ultimoMesCompleto ? fmt(r.ultimoMesCompleto.monto, moneda) : '—'}>
-                {r.variacionPct === null ? (
-                  <span>{r.ultimoMesCompleto ? 'Sin mes anterior para comparar' : 'Aún no hay un mes completo'}</span>
-                ) : (
-                  // Subir o bajar el gasto no es bueno ni malo por sí solo: la variación va en gris, sin verde/rojo.
-                  <span className="inline-flex items-center gap-1 text-gray-600">
-                    {r.variacionPct > 0.05 ? <ArrowUpRight size={13} /> : r.variacionPct < -0.05 ? <ArrowDownRight size={13} /> : <Minus size={13} />}
-                    {Math.abs(r.variacionPct).toLocaleString('es-PE', { maximumFractionDigits: 1 })}% vs mes anterior
-                  </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Tile label={`Pagado realmente ${enPeriodo}`} value={fmt(r.pagado, moneda)}>
+                <p>Total de facturas: <span className="tabular-nums">{fmt(r.facturas, moneda)}</span></p>
+                {r.confirmingSinReponer > 0 && (
+                  <p className="mt-1 text-amber-700">
+                    Aparte, sin sumar: {fmt(r.confirmingSinReponer, moneda)} pagado con confirming que aún no figura como repuesto.
+                  </p>
                 )}
               </Tile>
-              <Tile label="Promedio mensual" value={promedio === null ? '—' : fmt(promedio, moneda)}>
-                {completos.length > 0
-                  ? `Sobre ${completos.length} ${completos.length === 1 ? 'mes completo' : 'meses completos'}`
-                  : 'Aún no hay meses completos'}
+              <Tile label="Por pagar (aprobado, sin pagar)" value={fmt(r.porPagar, moneda)}>
+                {fmtEntero(r.registrosPorPagar)} {r.registrosPorPagar === 1 ? 'registro' : 'registros'} · al día de hoy, no depende del mes
               </Tile>
             </div>
 
@@ -185,12 +173,39 @@ export default function FinanzasEgresosPage() {
               </div>
             ) : (
               <>
-                {/* Por mes */}
+                {/* En qué consiste lo pagado */}
                 <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                  <h2 className="text-sm font-semibold text-gray-900">Detalle de lo pagado {enPeriodo}</h2>
+                  <p className="text-xs text-gray-400 mb-4">Dinero que salió, según la fecha en que salió</p>
+                  {r.porConcepto.length === 0 ? (
+                    <p className="text-xs text-gray-400 py-6 text-center">Sin pagos en el periodo</p>
+                  ) : (
+                    <table className="w-full text-xs">
+                      <tbody className="divide-y divide-gray-50 text-gray-700">
+                        {r.porConcepto.map(c => (
+                          <tr key={c.concepto}>
+                            <td className="py-2 pr-2">{TEXTO_CONCEPTO[c.concepto]}</td>
+                            <td className="py-2 text-right tabular-nums text-gray-400">{fmtEntero(c.registros)} {c.registros === 1 ? 'pago' : 'pagos'}</td>
+                            <td className="py-2 pl-4 text-right tabular-nums text-gray-900">{fmt(c.monto, moneda)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 border-gray-200 font-semibold text-gray-900">
+                          <td className="py-2.5" colSpan={2}>Pagado realmente</td>
+                          <td className="py-2.5 pl-4 text-right tabular-nums">{fmt(r.pagado, moneda)}</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  )}
+                </section>
+
+                {/* Por mes: solo cuando no se eligió un mes */}
+                {!mes && <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                   <div className="flex items-start justify-between gap-3 mb-4">
                     <div>
-                      <h2 className="text-sm font-semibold text-gray-900">Egresos pagados por mes</h2>
-                      <p className="text-xs text-gray-400">Según la fecha de pago · en {moneda === 'PEN' ? 'soles' : 'dólares'}</p>
+                      <h2 className="text-sm font-semibold text-gray-900">Pagado realmente por mes</h2>
+                      <p className="text-xs text-gray-400">Cada mes por separado · en {moneda === 'PEN' ? 'soles' : 'dólares'}</p>
                     </div>
                     <div className="inline-flex rounded-xl border border-gray-200 p-0.5" role="group" aria-label="Tipo de vista">
                       {([['grafico', BarChart3, 'Gráfico'], ['tabla', Table2, 'Tabla']] as const).map(([k, Icon, txt]) => (
@@ -230,15 +245,15 @@ export default function FinanzasEgresosPage() {
                         <thead>
                           <tr className="text-left text-gray-400 uppercase tracking-wide border-b border-gray-100">
                             <th className="py-2 font-semibold">Mes</th>
-                            <th className="py-2 font-semibold text-right">Pagos</th>
-                            <th className="py-2 font-semibold text-right">Monto</th>
+                            <th className="py-2 font-semibold text-right">Total de facturas</th>
+                            <th className="py-2 font-semibold text-right">Pagado realmente</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 text-gray-700">
                           {r.porMes.map(p => (
                             <tr key={p.mes}>
                               <td className="py-2"><span className="capitalize">{labelMesLargo(p.mes)}</span>{p.parcial && <span className="ml-2 text-gray-400">(en curso)</span>}</td>
-                              <td className="py-2 text-right tabular-nums">{fmtEntero(p.registros)}</td>
+                              <td className="py-2 text-right tabular-nums text-gray-400">{fmt(p.facturas, moneda)}</td>
                               <td className="py-2 text-right tabular-nums">{fmt(p.monto, moneda)}</td>
                             </tr>
                           ))}
@@ -246,20 +261,20 @@ export default function FinanzasEgresosPage() {
                         <tfoot>
                           <tr className="border-t-2 border-gray-200 font-semibold text-gray-900">
                             <td className="py-2.5">Total</td>
-                            <td className="py-2.5 text-right tabular-nums">{fmtEntero(r.registrosPagados)}</td>
+                            <td className="py-2.5 text-right tabular-nums text-gray-400">{fmt(r.facturas, moneda)}</td>
                             <td className="py-2.5 text-right tabular-nums">{fmt(r.pagado, moneda)}</td>
                           </tr>
                         </tfoot>
                       </table>
                     </div>
                   )}
-                </section>
+                </section>}
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Por categoría */}
                   <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                     <h2 className="text-sm font-semibold text-gray-900">En qué se gasta</h2>
-                    <p className="text-xs text-gray-400 mb-4">Pagado en el periodo, por categoría del plan contable</p>
+                    <p className="text-xs text-gray-400 mb-4">Pagado realmente {enPeriodo}, por categoría del plan contable</p>
                     {r.porCategoria.length === 0 ? (
                       <p className="text-xs text-gray-400 py-6 text-center">Sin pagos en el periodo</p>
                     ) : (
@@ -288,7 +303,7 @@ export default function FinanzasEgresosPage() {
                   {/* Por empresa */}
                   <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                     <h2 className="text-sm font-semibold text-gray-900">Por empresa</h2>
-                    <p className="text-xs text-gray-400 mb-4">Pagado en el periodo y pendiente de pago</p>
+                    <p className="text-xs text-gray-400 mb-4">Pagado realmente {enPeriodo} y pendiente de pago hoy</p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-xs">
                         <thead>
@@ -324,9 +339,12 @@ export default function FinanzasEgresosPage() {
             {/* Cómo se calcula */}
             <p className="text-[11px] leading-relaxed text-gray-400">
               <strong className="font-semibold text-gray-500">Cómo se calcula.</strong>{' '}
-              Pagado: registros de Solicitudes, A Rendir, Reembolso, Caja Chica y Devolución con fecha de pago, en el mes de ese pago.
-              Los montos de OC incluyen IGV y se muestran brutos, antes de detracción o retención. En A Rendir se cuenta el adelanto entregado.
-              Por pagar: registros Aprobados o Autorizados que aún no tienen fecha de pago (no incluye los Observados), sin importar el periodo elegido.
+              Pagado realmente: dinero que salió, en el mes en que salió. De las solicitudes se cuenta el neto al proveedor (sin detracción,
+              retención ni fondo de garantía); las detracciones se suman en la fecha en que se depositaron; el confirming recién cuando se marca
+              como repuesto; en Caja Chica, lo transferido para reponer el fondo; en A Rendir, el adelanto entregado. No incluye el pago a SUNAT
+              de las retenciones (no se registra su fecha) ni está verificado contra los estados de cuenta.
+              Total de facturas: monto de los documentos marcados como pagados ese mes, antes de descuentos.
+              Por pagar: registros Aprobados o Autorizados sin fecha de pago (no incluye los Observados), al día de hoy.
               Soles y dólares no se suman: se ven por separado.
             </p>
           </>

@@ -82,7 +82,7 @@ CREATE OR REPLACE VIEW public.vista_gasto_consolidado AS
                FROM solicitud_detalle d
               WHERE (d.solicitud_id = s.id)) *
             CASE
-                WHEN ((st.nombre = ANY (ARRAY['Recibo por Honorarios'::text, 'Liberalidad'::text])) OR (s.aplica_igv = false)) THEN (1)::numeric
+                WHEN ((st.nombre = ANY (ARRAY['Recibo por Honorarios'::text, 'Liberalidad'::text, 'Otros'::text])) OR (s.aplica_igv = false)) THEN (1)::numeric
                 ELSE 1.18
             END) + (CASE WHEN (st.nombre = ANY (ARRAY['Recibo por Honorarios'::text, 'Liberalidad'::text, 'Otros'::text])) THEN (0)::numeric ELSE COALESCE(s.monto_exonerado, (0)::numeric) END)
             ELSE (0)::numeric
@@ -92,7 +92,7 @@ CREATE OR REPLACE VIEW public.vista_gasto_consolidado AS
                FROM solicitud_detalle d
               WHERE (d.solicitud_id = s.id)) *
             CASE
-                WHEN ((st.nombre = ANY (ARRAY['Recibo por Honorarios'::text, 'Liberalidad'::text])) OR (s.aplica_igv = false)) THEN (1)::numeric
+                WHEN ((st.nombre = ANY (ARRAY['Recibo por Honorarios'::text, 'Liberalidad'::text, 'Otros'::text])) OR (s.aplica_igv = false)) THEN (1)::numeric
                 ELSE 1.18
             END) + (CASE WHEN (st.nombre = ANY (ARRAY['Recibo por Honorarios'::text, 'Liberalidad'::text, 'Otros'::text])) THEN (0)::numeric ELSE COALESCE(s.monto_exonerado, (0)::numeric) END)
             ELSE (0)::numeric

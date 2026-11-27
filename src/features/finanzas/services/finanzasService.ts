@@ -2,34 +2,40 @@ import { supabase } from '../../../api/supabase'
 
 export type Moneda = 'PEN' | 'USD'
 
-// Una fila = un mes × empresa × moneda × categoría × estado de pago (ya agregada en la BD).
-export interface FilaEgreso {
-  mes: string | null            // 'YYYY-MM' del pago; null cuando está por pagar
+// Conceptos que SÍ son dinero salido (en este orden se muestran en el desglose)
+export const CONCEPTOS_PAGADOS = [
+  'Proveedores', 'Confirming repuesto', 'Detracciones',
+  'A rendir', 'Reembolsos', 'Caja chica', 'Devoluciones',
+] as const
+
+export type ConceptoPagado = typeof CONCEPTOS_PAGADOS[number]
+// Estos tres vienen aparte y nunca suman a lo pagado
+export type Concepto = ConceptoPagado | 'Confirming sin reponer' | 'Total de facturas' | 'Por pagar'
+
+// Una fila = un mes × empresa × moneda × categoría × concepto (ya agregada en la BD).
+export interface FilaPago {
+  mes: string | null            // 'YYYY-MM' en que salió el dinero; null cuando está por pagar
   empresa: string
   moneda: Moneda
   categoria: string
-  estado_pago: 'Pagado' | 'Por pagar'
+  concepto: Concepto
   registros: number
   monto: number
 }
 
 /**
- * Egresos de todas las empresas y módulos, agregados en la BD (función `get_finanzas_egresos`,
- * solo responde a ADMIN). El rango de fechas aplica solo a lo ya pagado: "por pagar" es siempre
- * la foto de hoy.
+ * Pagos de todas las empresas y módulos, agregados en la BD (función `get_finanzas_pagos`, solo
+ * responde a ADMIN, APROBADOR y FINANZAS). Trae todos los meses; el mes se filtra en pantalla.
  */
-export async function getFinanzasEgresos(desde?: string, hasta?: string): Promise<FilaEgreso[]> {
-  const { data, error } = await supabase.rpc('get_finanzas_egresos', {
-    p_desde: desde || null,
-    p_hasta: hasta || null,
-  })
+export async function getFinanzasPagos(): Promise<FilaPago[]> {
+  const { data, error } = await supabase.rpc('get_finanzas_pagos')
   if (error) throw error
   return ((data ?? []) as Array<Record<string, unknown>>).map(r => ({
     mes: (r.mes as string | null) ?? null,
     empresa: String(r.empresa),
     moneda: r.moneda as Moneda,
     categoria: String(r.categoria),
-    estado_pago: r.estado_pago as 'Pagado' | 'Por pagar',
+    concepto: r.concepto as Concepto,
     registros: Number(r.registros),
     monto: Number(r.monto),
   }))
@@ -40,7 +46,7 @@ export async function getFinanzasEgresos(desde?: string, hasta?: string): Promis
 export interface PuntoMes {
   mes: string
   monto: number
-  registros: number
+  facturas: number   // total de los documentos marcados como pagados ese mes (para comparar)
   parcial: boolean   // mes en curso: todavía incompleto
 }
 
@@ -49,27 +55,33 @@ export interface BarraCategoria {
   monto: number
 }
 
+export interface FilaConcepto {
+  concepto: ConceptoPagado
+  monto: number
+  registros: number
+}
+
 export interface FilaEmpresa {
   empresa: string
   pagado: number
-  registros: number
   porPagar: number
 }
 
-export interface ResumenEgresos {
-  pagado: number
-  registrosPagados: number
-  porPagar: number
+export interface ResumenPagos {
+  pagado: number                   // dinero que salió en el mes elegido (o en total)
+  facturas: number
+  confirmingSinReponer: number
+  porConcepto: FilaConcepto[]
+  porPagar: number                 // siempre la foto de hoy
   registrosPorPagar: number
-  porMes: PuntoMes[]
-  ultimoMesCompleto: { mes: string; monto: number } | null
-  variacionPct: number | null      // último mes completo vs el anterior; null si no hay con qué comparar
+  porMes: PuntoMes[]               // todos los meses, sin sumarlos entre sí
   porCategoria: BarraCategoria[]
   porEmpresa: FilaEmpresa[]
   empresas: string[]               // para el filtro (todas las que aparecen en los datos)
+  meses: string[]                  // para el filtro, del más reciente al más antiguo
 }
 
-function mesActual(): string {
+export function mesActual(): string {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
@@ -81,41 +93,42 @@ function siguienteMes(m: string): string {
 }
 
 const MAX_CATEGORIAS = 7
+const esPagado = (c: Concepto): c is ConceptoPagado => (CONCEPTOS_PAGADOS as readonly string[]).includes(c)
+const sumar = (filas: FilaPago[]) => Math.round(filas.reduce((s, f) => s + f.monto, 0) * 100) / 100
 
-export function resumir(filas: FilaEgreso[], moneda: Moneda, empresa: string): ResumenEgresos {
+/** `mes` vacío = todos los meses. "Por pagar" no depende del mes. */
+export function resumir(filas: FilaPago[], moneda: Moneda, empresa: string, mes: string): ResumenPagos {
   const empresas = [...new Set(filas.map(f => f.empresa))].sort((a, b) => a.localeCompare(b))
-  const sel = filas.filter(f => f.moneda === moneda && (!empresa || f.empresa === empresa))
-  const pagadas = sel.filter(f => f.estado_pago === 'Pagado' && f.mes)
-  const porPagarFilas = sel.filter(f => f.estado_pago === 'Por pagar')
+  const meses = [...new Set(filas.flatMap(f => (f.mes ? [f.mes] : [])))].sort().reverse()
+  const enMes = (f: FilaPago) => !mes || f.mes === mes
 
-  // Serie mensual continua: desde el primer mes con datos hasta el mes en curso (los meses
-  // sin pagos aparecen en cero, para no esconder huecos).
-  const acumulado = new Map<string, { monto: number; registros: number }>()
-  for (const f of pagadas) {
-    const a = acumulado.get(f.mes!) ?? { monto: 0, registros: 0 }
-    a.monto += f.monto
-    a.registros += f.registros
-    acumulado.set(f.mes!, a)
-  }
+  const sel = filas.filter(f => f.moneda === moneda && (!empresa || f.empresa === empresa))
+  const pagadas = sel.filter(f => esPagado(f.concepto) && enMes(f))
+  const porPagarFilas = sel.filter(f => f.concepto === 'Por pagar')
+
+  const porConcepto = CONCEPTOS_PAGADOS.map(concepto => {
+    const delConcepto = pagadas.filter(f => f.concepto === concepto)
+    return { concepto, monto: sumar(delConcepto), registros: delConcepto.reduce((s, f) => s + f.registros, 0) }
+  }).filter(c => c.registros > 0)
+
+  // Serie mensual continua, desde el primer mes con movimientos hasta el mes en curso
+  const conMovimiento = sel.filter(f => f.mes && (esPagado(f.concepto) || f.concepto === 'Total de facturas'))
   const actual = mesActual()
   const porMes: PuntoMes[] = []
-  if (acumulado.size > 0) {
-    const primero = [...acumulado.keys()].sort()[0]
-    const ultimoConDatos = [...acumulado.keys()].sort().slice(-1)[0]
-    const fin = ultimoConDatos > actual ? ultimoConDatos : actual
-    for (let m = primero; m <= fin; m = siguienteMes(m)) {
-      const a = acumulado.get(m)
-      porMes.push({ mes: m, monto: a?.monto ?? 0, registros: a?.registros ?? 0, parcial: m === actual })
+  if (conMovimiento.length > 0) {
+    const ordenados = conMovimiento.map(f => f.mes!).sort()
+    const ultimo = ordenados[ordenados.length - 1]
+    const fin = ultimo > actual ? ultimo : actual
+    for (let m = ordenados[0]; m <= fin; m = siguienteMes(m)) {
+      const delMes = conMovimiento.filter(f => f.mes === m)
+      porMes.push({
+        mes: m,
+        monto: sumar(delMes.filter(f => esPagado(f.concepto))),
+        facturas: sumar(delMes.filter(f => f.concepto === 'Total de facturas')),
+        parcial: m === actual,
+      })
     }
   }
-
-  // Variación: solo entre meses completos (comparar un mes a medias contra uno entero engaña).
-  const completos = porMes.filter(p => !p.parcial)
-  const ultimo = completos.length ? completos[completos.length - 1] : null
-  const previo = completos.length > 1 ? completos[completos.length - 2] : null
-  const variacionPct = ultimo && previo && previo.monto > 0
-    ? ((ultimo.monto - previo.monto) / previo.monto) * 100
-    : null
 
   // Categorías: las mayores, y el resto agrupado para no pasar de 8 barras.
   const cat = new Map<string, number>()
@@ -127,25 +140,26 @@ export function resumir(filas: FilaEgreso[], moneda: Moneda, empresa: string): R
 
   // Por empresa (ignora el filtro de empresa: la tabla es justamente la comparación entre ellas)
   const delaMoneda = filas.filter(f => f.moneda === moneda)
-  const emp = new Map<string, FilaEmpresa>()
-  for (const f of delaMoneda) {
-    const e = emp.get(f.empresa) ?? { empresa: f.empresa, pagado: 0, registros: 0, porPagar: 0 }
-    if (f.estado_pago === 'Pagado') { e.pagado += f.monto; e.registros += f.registros }
-    else e.porPagar += f.monto
-    emp.set(f.empresa, e)
-  }
-  const porEmpresa = [...emp.values()].sort((a, b) => (b.pagado + b.porPagar) - (a.pagado + a.porPagar))
+  const porEmpresa = [...new Set(delaMoneda.map(f => f.empresa))]
+    .map(e => ({
+      empresa: e,
+      pagado: sumar(delaMoneda.filter(f => f.empresa === e && esPagado(f.concepto) && enMes(f))),
+      porPagar: sumar(delaMoneda.filter(f => f.empresa === e && f.concepto === 'Por pagar')),
+    }))
+    .filter(e => e.pagado !== 0 || e.porPagar !== 0)
+    .sort((a, b) => b.pagado - a.pagado || b.porPagar - a.porPagar)
 
   return {
-    pagado: pagadas.reduce((s, f) => s + f.monto, 0),
-    registrosPagados: pagadas.reduce((s, f) => s + f.registros, 0),
-    porPagar: porPagarFilas.reduce((s, f) => s + f.monto, 0),
+    pagado: sumar(pagadas),
+    facturas: sumar(sel.filter(f => f.concepto === 'Total de facturas' && enMes(f))),
+    confirmingSinReponer: sumar(sel.filter(f => f.concepto === 'Confirming sin reponer' && enMes(f))),
+    porConcepto,
+    porPagar: sumar(porPagarFilas),
     registrosPorPagar: porPagarFilas.reduce((s, f) => s + f.registros, 0),
     porMes,
-    ultimoMesCompleto: ultimo ? { mes: ultimo.mes, monto: ultimo.monto } : null,
-    variacionPct,
     porCategoria,
     porEmpresa,
     empresas,
+    meses,
   }
 }
