@@ -5,6 +5,8 @@
 // - Qué cuotas cuentan lo decide el selector de Ingreso (todas / solo cliente / solo banco).
 // - "Programado" = cuotas cuyo vencimiento cae en el período; "Cobrado" = cuotas pagadas con fecha de pago
 //   válida (ver cobradoMes.ts) dentro del período. Una cuota pagada con fecha dudosa no se asigna a ningún mes.
+// - Meta de cada mes (confirmada con Finanzas) = lo que vence en el mes + la deuda atrasada, en ambos casos
+//   sin lo que ya estaba pagado al empezar el mes (ver calcularTablaMensual).
 // - "Sin pago" se mide por contrato (no por cliente): días desde su último pago válido.
 
 import { cobradoDudoso, fechaPagoValida, hoyLocal, incluyeCategoria, mesActual } from './cobradoMes'
@@ -52,11 +54,21 @@ export interface ResumenEmpresa {
   buckets: { nombre: string; pct: number }[]
 }
 
-export type EstadoMes = 'cumple' | 'parcial' | 'bajo' | 'sin_meta' | 'recupera'
-export interface FilaMes { mes: string; etiqueta: string; programado: number; cobrado: number; pct: number | null; estado: EstadoMes; recuperado: number }
+export type EstadoMes = 'cumple' | 'parcial' | 'bajo' | 'sin_meta'
+export interface FilaMes {
+  mes: string; etiqueta: string
+  atrasado: number     // vencido antes del mes y sin pagar al empezar el mes
+  delMes: number       // vence en el mes (en el mes en curso, hasta hoy) y sin pagar al empezarlo
+  meta: number         // atrasado + delMes
+  cobrado: number      // pagos con fecha dentro del mes
+  pct: number | null
+  estado: EstadoMes
+}
 export interface TablaMensual {
-  filas: FilaMes[]
-  total: { programado: number; cobrado: number; pct: number | null }
+  filas: FilaMes[]     // meses seguidos, desde el primero con movimiento hasta el actual
+  // El total NO suma las metas mensuales (la deuda atrasada se repetiría): compara todo lo cobrado
+  // contra todo lo vencido a hoy, contado una sola vez.
+  total: { meta: number; cobrado: number; pct: number | null }
   dudosas: { cuotas: number; monto: number }
 }
 
@@ -130,42 +142,66 @@ export function calcularResumen(cuotas: CuotaMobysuite[], ventasAcumuladas: numb
   }
 }
 
-export function calcularTablaMensual(cuotas: CuotaMobysuite[], filtro: FiltroCategoria = 'Todos'): TablaMensual {
+const TOLERANCIA = 1 // céntimos de redondeo de Mobysuite no cuentan como deuda
+
+const mesSiguiente = (mes: string) => {
+  const [y, m] = mes.split('-').map(Number)
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
+}
+
+// `hasta` = último vencimiento que entra en la meta: hoy, salvo para proyectar el cierre del mes en curso
+export function calcularTablaMensual(cuotas: CuotaMobysuite[], filtro: FiltroCategoria = 'Todos', hasta?: string): TablaMensual {
   const hoy = hoyLocal()
+  const corte = hasta ?? hoy
   const mesHoy = mesActual()
-  const prog = new Map<string, number>()
   const cob = new Map<string, number>()
   const dudosas = { cuotas: 0, monto: 0 }
+  const deudas: { vence: string; porCobrar: number; pagos: { mes: string; monto: number }[] }[] = []
+  let vencidoTotal = 0, cobradoTotal = 0
 
   for (const c of cuotas) {
     if (!incluyeCategoria(c.categoria, filtro)) continue
-    if (fechaOk(c.fechaVencimiento) && c.fechaVencimiento! <= hoy) {
-      const m = c.fechaVencimiento!.slice(0, 7)
-      prog.set(m, (prog.get(m) ?? 0) + c.monto)
-    }
+    const pagos: { mes: string; monto: number }[] = []
     for (const a of c.abonos) {
       if (!fechaPagoValida(a.fecha, hoy)) continue
       const m = a.fecha!.slice(0, 7)
       cob.set(m, (cob.get(m) ?? 0) + a.monto)
+      cobradoTotal += a.monto
+      pagos.push({ mes: m, monto: a.monto })
     }
     const dudoso = cobradoDudoso(c.abonos, hoy)
     if (dudoso > 0) { dudosas.cuotas++; dudosas.monto += dudoso }
+
+    if (fechaOk(c.fechaVencimiento) && c.fechaVencimiento! <= corte) {
+      vencidoTotal += c.monto
+      // Lo cubierto con un pago en exceso de otra cuota (adelanto) y lo pagado con fecha dudosa
+      // no se puede ubicar en el tiempo: se da por pagado para no inflar la deuda atrasada.
+      deudas.push({ vence: c.fechaVencimiento!.slice(0, 7), porCobrar: c.monto - c.adelanto - dudoso, pagos })
+    }
   }
 
-  const meses = [...new Set([...prog.keys(), ...cob.keys()])].sort()
+  const conDatos = [...deudas.map(d => d.vence), ...cob.keys()].sort()
   const filas: FilaMes[] = []
-  let progAcum = 0, cobAcum = 0
-  for (const mes of meses) {
-    const p = prog.get(mes) ?? 0, c = cob.get(mes) ?? 0
-    const gapPrev = Math.max(0, progAcum - cobAcum)
-    let estado: EstadoMes
-    const pctMes: number | null = p > 0 ? (c / p) * 100 : null
-    if (c > p && gapPrev > 0) estado = 'recupera'
-    else if (p === 0) estado = 'sin_meta'
-    else estado = pctMes! >= 98 ? 'cumple' : pctMes! >= 80 ? 'parcial' : 'bajo'
+  for (let mes = conDatos[0]; mes && mes <= mesHoy; mes = mesSiguiente(mes)) {
+    let atrasado = 0, delMes = 0
+    for (const d of deudas) {
+      if (d.vence > mes) continue
+      const pagadoAntes = d.pagos.reduce((s, p) => s + (p.mes < mes ? p.monto : 0), 0)
+      const pendiente = d.porCobrar - pagadoAntes
+      if (pendiente <= TOLERANCIA) continue
+      if (d.vence < mes) atrasado += pendiente
+      else delMes += pendiente
+    }
+    const meta = atrasado + delMes
+    const cobrado = cob.get(mes) ?? 0
+    const pct = meta > 0 ? (cobrado / meta) * 100 : null
+    const estado: EstadoMes = pct === null ? 'sin_meta' : pct >= 98 ? 'cumple' : pct >= 80 ? 'parcial' : 'bajo'
     const etiqueta = mes === mesHoy ? `${nombreMes(mes)} (al ${Number(hoy.slice(8))})` : mes.slice(0, 4) === hoy.slice(0, 4) ? nombreMes(mes) : `${nombreMes(mes)} ${mes.slice(0, 4)}`
-    filas.push({ mes, etiqueta, programado: p, cobrado: c, pct: pctMes, estado, recuperado: estado === 'recupera' ? Math.min(c - p, gapPrev) : 0 })
-    progAcum += p; cobAcum += c
+    filas.push({ mes, etiqueta, atrasado, delMes, meta, cobrado, pct, estado })
   }
-  return { filas, total: { programado: progAcum, cobrado: cobAcum, pct: progAcum > 0 ? (cobAcum / progAcum) * 100 : null }, dudosas }
+  return {
+    filas,
+    total: { meta: vencidoTotal, cobrado: cobradoTotal, pct: vencidoTotal > 0 ? (cobradoTotal / vencidoTotal) * 100 : null },
+    dudosas,
+  }
 }

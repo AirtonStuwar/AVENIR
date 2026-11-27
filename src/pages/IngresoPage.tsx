@@ -28,6 +28,7 @@ import type { EtapaSeleccionable } from '../features/cobranza/utils/etapas'
 import type { CarteraMock, CronogramaResponse } from '../features/cobranza/utils/carteraMobysuite'
 import ResumenEjecutivoEmpresa from '../features/cobranza/components/ResumenEjecutivoEmpresa'
 import CumplimientoMensualTable from '../features/cobranza/components/CumplimientoMensualTable'
+import TendenciaCobranzaChart from '../features/cobranza/components/TendenciaCobranzaChart'
 
 // Suma las carteras de varias empresas (vista "Todas las empresas")
 function sumarCarteras(mocks: CarteraMock[]): CarteraMock {
@@ -46,6 +47,7 @@ function sumarCarteras(mocks: CarteraMock[]): CarteraMock {
     mora: acc.mora.map((r, i) => ({ rango: r.rango, monto: r.monto + m.mora[i].monto })),
     cobradoDelMes: acc.cobradoDelMes + m.cobradoDelMes,
     metaMensual: acc.metaMensual + m.metaMensual,
+    metaCierre: acc.metaCierre + m.metaCierre,
     cumplimiento: {
       planAhorro: {
         clientes: acc.cumplimiento.planAhorro.clientes + m.cumplimiento.planAhorro.clientes,
@@ -66,6 +68,7 @@ function sumarCarteras(mocks: CarteraMock[]): CarteraMock {
     mora: [{ rango: '1-30 días', monto: 0 }, { rango: '31-60 días', monto: 0 }, { rango: '61-90 días', monto: 0 }, { rango: '+90 días', monto: 0 }],
     cobradoDelMes: 0,
     metaMensual: 0,
+    metaCierre: 0,
     cumplimiento: {
       planAhorro: { clientes: 0, cumplidos: 0 },
       desembolsoHipotecario: { clientes: 0, cumplidos: 0 },
@@ -277,10 +280,6 @@ export default function IngresoPage() {
     .reduce((s, c) => s + c.importe, 0)
 
   // ── Cartera real desde Mobysuite (cuando la empresa seleccionada tiene integración) ──
-  // Meta mensual: S/8.5MM repartidos en partes iguales entre las 5 empresas ya integradas.
-  const META_MENSUAL_TOTAL = 8_500_000
-  const META_MENSUAL_POR_EMPRESA = META_MENSUAL_TOTAL / 5
-
   // Empresas a consultar: la elegida, o todas las que tienen integración con Mobysuite (sin datos de ejemplo)
   const empresasMobysuite = proyectos.filter(p => p.moby_project_id && !p.nombre.toLowerCase().includes('concyssa'))
   const empresasConsulta = proyectoId ? empresasMobysuite.filter(p => String(p.id) === proyectoId) : empresasMobysuite
@@ -318,8 +317,8 @@ export default function IngresoPage() {
 
   const filtradas = useMemo(() => respuestas.map(r => filtrarPorEtapas(r, etapas)), [respuestas, etapas])
   const carteraReal = useMemo<CarteraMock | null>(
-    () => filtradas.length > 0 ? sumarCarteras(filtradas.map(r => construirCartera(r, META_MENSUAL_POR_EMPRESA, categoria))) : null,
-    [filtradas, categoria, META_MENSUAL_POR_EMPRESA],
+    () => filtradas.length > 0 ? sumarCarteras(filtradas.map(r => construirCartera(r, categoria))) : null,
+    [filtradas, categoria],
   )
   // Los dos reportes por empresa solo aplican cuando hay UNA empresa elegida
   const cronogramaEmpresa = proyectoId && filtradas.length === 1 ? filtradas[0] : null
@@ -354,7 +353,8 @@ export default function IngresoPage() {
   const diasDelMes = new Date(hoyDate.getFullYear(), hoyDate.getMonth() + 1, 0).getDate()
   const ritmoDiario = diaActual > 0 ? data.cobradoDelMes / diaActual : 0
   const proyeccionMonto = ritmoDiario * diasDelMes
-  const proyeccionCierre = data.metaMensual > 0 ? Math.round((proyeccionMonto / data.metaMensual) * 100) : 0
+  // Se compara contra la meta del mes completo (incluye lo que vence después de hoy)
+  const proyeccionCierre = data.metaCierre > 0 ? Math.round((proyeccionMonto / data.metaCierre) * 100) : 0
 
   const pctPlanAhorro = data.cumplimiento.planAhorro.clientes > 0
     ? (data.cumplimiento.planAhorro.cumplidos / data.cumplimiento.planAhorro.clientes) * 100 : 0
@@ -441,7 +441,7 @@ export default function IngresoPage() {
         {!cargandoCartera && carteraReal && (
           <p className="basis-full text-[11px] text-gray-400">
             Cobranza y mora: {textoCategoria(categoria)} La tarjeta Desembolso Hipotecario siempre mira las del banco.
-            Ventas es el precio total de los contratos y saldo es ventas menos lo cobrado. La meta mensual es fija por empresa y no cambia con la etapa.
+            Ventas es el precio total de los contratos y saldo es ventas menos lo cobrado. La meta mensual sale de la cartera: deuda atrasada más lo que vence en el mes hasta hoy.
           </p>
         )}
       </div>
@@ -492,10 +492,10 @@ export default function IngresoPage() {
         {/* Fila 2: Meta / Cobrado del mes / Brecha / Proyección + Antigüedad de la Deuda */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
           <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <GaugeCard pctValue={metaPct} label="Meta Mensual de Cobranza" sub={`Meta: ${fmt(data.metaMensual)}`} />
+            <GaugeCard pctValue={metaPct} label="Meta Mensual de Cobranza" sub={`Meta: ${fmt(data.metaMensual)} (atrasado + del mes)`} />
             <KpiCard label="Cobrado del Mes" value={fmt(data.cobradoDelMes)} sub={`Meta: ${fmt(data.metaMensual)}`} icon={<Coins size={18} />} color="green" />
             <KpiCard label="Brecha" value={fmt(brecha)} sub="pendiente para cumplir meta" icon={<AlertTriangle size={18} />} color={brecha > 0 ? 'amber' : 'green'} />
-            <KpiCard label="Proyección de Cierre" value={pct(proyeccionCierre)} sub="si se mantiene el ritmo actual" icon={<Target size={18} />} color={proyeccionCierre >= 90 ? 'green' : 'amber'} />
+            <KpiCard label="Proyección de Cierre" value={pct(proyeccionCierre)} sub={`al ritmo actual, sobre ${fmt(data.metaCierre)} de todo el mes`} icon={<Target size={18} />} color={proyeccionCierre >= 90 ? 'green' : 'amber'} />
           </div>
           <div className="lg:col-span-1">
             <ChartCard title="Antigüedad de la Deuda" subtitle={`Cartera vencida: ${fmt(carteraVencida)}`}>
@@ -562,6 +562,7 @@ export default function IngresoPage() {
               categoria={categoria}
             />
             <CumplimientoMensualTable cuotas={cronogramaEmpresa.cuotas} etapa={textoEtapas(etapas)} categoria={categoria} />
+            <TendenciaCobranzaChart cuotas={cronogramaEmpresa.cuotas} etapa={textoEtapas(etapas)} categoria={categoria} />
           </>
         )}
         </>

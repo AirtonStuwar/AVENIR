@@ -7,7 +7,8 @@
 // en los 5 proyectos probados — falta confirmarla con Comercial/Finanzas (ver nota
 // al final del archivo con las preguntas exactas pendientes).
 
-import { cobradoEnMes, hoyLocal, incluyeCategoria, mesActual } from './cobradoMes'
+import { incluyeCategoria, mesActual } from './cobradoMes'
+import { calcularTablaMensual } from './reportesEmpresa'
 import type { FiltroCategoria } from './cobradoMes'
 import { claveEtapa } from './etapas'
 import type { EtapaSeleccionable } from './etapas'
@@ -62,7 +63,8 @@ export interface CarteraMock {
   composicion: { cuotaInicial: number; planAhorro: number; desembolsoHipotecario: number; creditoDirecto: number }
   mora: { rango: string; monto: number }[]
   cobradoDelMes: number
-  metaMensual: number
+  metaMensual: number   // cartera exigible del mes hasta hoy: atrasado + lo que vence en el mes
+  metaCierre: number    // lo mismo con todo el mes, para la proyección de cierre
   cumplimiento: {
     planAhorro: { clientes: number; cumplidos: number }
     desembolsoHipotecario: { clientes: number; cumplidos: number }
@@ -87,14 +89,16 @@ function diasEntre(a: string, b: string): number {
   return Math.round(ms / 86_400_000)
 }
 
-export function construirCartera(json: CronogramaResponse, metaMensual: number, filtro: FiltroCategoria = 'Todos'): CarteraMock {
+export function construirCartera(json: CronogramaResponse, filtro: FiltroCategoria = 'Todos'): CarteraMock {
   const hoy = new Date().toISOString().slice(0, 10)
-  // Misma regla que la tabla Cuenta por Cobrar Vencida (ver cobradoMes.ts): pagada con fecha valida dentro del mes en curso
-  const hoyReal = hoyLocal()
+  // Meta y cobrado del mes salen del mismo cálculo que la tabla de cumplimiento, para que coincidan
   const mesEnCurso = mesActual()
+  const [anio, mes] = mesEnCurso.split('-').map(Number)
+  const finDeMes = `${mesEnCurso}-${String(new Date(anio, mes, 0).getDate()).padStart(2, '0')}`
+  const filaDelMes = (hasta?: string) => calcularTablaMensual(json.cuotas, filtro, hasta).filas.find(f => f.mes === mesEnCurso)
+  const actual = filaDelMes()
 
   let cobradoAcumulado = 0
-  let cobradoDelMes = 0
   const clientesSet = new Set<string>()
   const clientesMorososSet = new Set<string>()
   let diasMoraPonderados = 0
@@ -133,7 +137,6 @@ export function construirCartera(json: CronogramaResponse, metaMensual: number, 
 
     if (c.ejecutado > 0) {
       cobradoAcumulado += c.ejecutado
-      cobradoDelMes += cobradoEnMes(c.abonos, mesEnCurso, hoyReal)
       if (prod !== 'otros') composicion[prod] += c.ejecutado
     }
 
@@ -164,8 +167,9 @@ export function construirCartera(json: CronogramaResponse, metaMensual: number, 
     diasMoraPonderados: clientesConMoraCount > 0 ? diasMoraPonderados : 0,
     composicion,
     mora,
-    cobradoDelMes,
-    metaMensual,
+    cobradoDelMes: actual?.cobrado ?? 0,
+    metaMensual: actual?.meta ?? 0,
+    metaCierre: filaDelMes(finDeMes)?.meta ?? 0,
     cumplimiento: {
       planAhorro: cumplimiento('planAhorro'),
       desembolsoHipotecario: cumplimiento('desembolsoHipotecario'),
