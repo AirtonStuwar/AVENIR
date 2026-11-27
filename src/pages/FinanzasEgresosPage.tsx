@@ -27,7 +27,7 @@ const TEXTO_CONCEPTO: Record<ConceptoPagado, string> = {
   'Detracciones': 'Detracciones depositadas',
   'A rendir': 'A rendir (adelantos entregados)',
   'Reembolsos': 'Reembolsos',
-  'Caja chica': 'Caja chica (reposiciones)',
+  'Caja chica': 'Caja chica (gastos reembolsados)',
   'Devoluciones': 'Devoluciones a clientes',
 }
 
@@ -341,7 +341,7 @@ export default function FinanzasEgresosPage() {
               <strong className="font-semibold text-gray-500">Cómo se calcula.</strong>{' '}
               Pagado realmente: dinero que salió, en el mes en que salió. De las solicitudes se cuenta el neto al proveedor (sin detracción,
               retención ni fondo de garantía); las detracciones se suman en la fecha en que se depositaron; el confirming recién cuando se marca
-              como repuesto; en Caja Chica, lo transferido para reponer el fondo; en A Rendir, el adelanto entregado. No incluye el pago a SUNAT
+              como repuesto; en Caja Chica, los gastos reembolsados al ponerle fecha de pago; en A Rendir, el adelanto entregado. No incluye el pago a SUNAT
               de las retenciones (no se registra su fecha) ni está verificado contra los estados de cuenta.
               Total de facturas: monto de los documentos marcados como pagados ese mes, antes de descuentos.
               Por pagar: registros Aprobados o Autorizados sin fecha de pago (no incluye los Observados), al día de hoy.

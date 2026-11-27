@@ -189,11 +189,13 @@ async function fetchDevolucionesPagables(cuentaId: number, fechaDesde: string, f
 export async function getRegistrosPagables(cuentaId: number, fechaDesde: string, fechaHasta: string): Promise<RegistroPagable[]> {
   const [sol, ar, reemb, cc, dev] = await Promise.all([
     fetchSolicitudesPagables(cuentaId, fechaDesde, fechaHasta),
-    fetchGenericoPagables('solicitud_arendir', 'solicitud_arendir', 'total_reembolso', 'beneficiario_id', cuentaId, fechaDesde, fechaHasta)
+    // A rendir: del banco sale el adelanto entregado (`importe`); `total_reembolso` es lo que se rinde después
+    fetchGenericoPagables('solicitud_arendir', 'solicitud_arendir', 'importe', 'beneficiario_id', cuentaId, fechaDesde, fechaHasta)
       .then(rows => resolveBeneficiarios(rows)),
     fetchGenericoPagables('solicitud_reembolso', 'solicitud_reembolso', 'total_reembolso', 'beneficiario_id', cuentaId, fechaDesde, fechaHasta)
       .then(rows => resolveBeneficiarios(rows)),
-    fetchGenericoPagables('caja_chica', 'caja_chica', 'transferencia', 'responsable_id', cuentaId, fechaDesde, fechaHasta)
+    // Caja chica: al marcarla pagada se reembolsan SUS gastos (`transferencia` es lo repuesto de la caja anterior)
+    fetchGenericoPagables('caja_chica', 'caja_chica', 'total_gastos', 'responsable_id', cuentaId, fechaDesde, fechaHasta)
       .then(rows => resolveBeneficiarios(rows)),
     fetchDevolucionesPagables(cuentaId, fechaDesde, fechaHasta),
   ])

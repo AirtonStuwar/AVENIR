@@ -3,7 +3,7 @@
 --
 -- Conceptos que devuelve (columna `concepto`):
 --   Cuentan como pagado:  Proveedores (neto), Confirming repuesto, Detracciones (fecha de depósito),
---                         A rendir (adelanto), Reembolsos, Caja chica (transferencia), Devoluciones
+--                         A rendir (adelanto), Reembolsos, Caja chica (gastos reembolsados), Devoluciones
 --   Aparte, no suman:     Confirming sin reponer, Total de facturas (para comparar), Por pagar
 
 create or replace function public.get_finanzas_pagos()
@@ -88,10 +88,9 @@ begin
     select 'Reembolsos', v.empresa, v.moneda, v.grp, v.fecha_pago, v.bruto
     from v where v.tipo = 'Reembolso' and v.fecha_pago is not null
     union all
-    -- Caja chica: lo transferido para reponer el fondo, no los gastos rendidos
-    select 'Caja chica', v.empresa, v.moneda, v.grp, v.fecha_pago, c.transferencia::numeric
-    from v join public.caja_chica c on v.ref_id = 'cajachica-' || c.id
-    where v.fecha_pago is not null
+    -- Caja chica: al marcarla pagada se reembolsan sus gastos (pendiente a reembolsar)
+    select 'Caja chica', v.empresa, v.moneda, v.grp, v.fecha_pago, v.bruto
+    from v where v.tipo = 'Caja Chica' and v.fecha_pago is not null
     union all
     select 'Devoluciones', v.empresa, v.moneda, v.grp, v.fecha_pago, v.bruto
     from v where v.tipo = 'Devolución' and v.fecha_pago is not null
